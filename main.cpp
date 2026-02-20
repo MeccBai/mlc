@@ -6,8 +6,9 @@ import Compiler;
 
 int main() {
     std::ifstream file("function.c");
-    const std::string code = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+    const std::string code = "extern int a(void);";
     const std::string result = mlc::PreProcess(code);
+
     auto tokens =  mlc::seg::TopTokenize(result);
 
     for (const auto& token : tokens) {

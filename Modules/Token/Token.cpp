@@ -4,3 +4,4 @@
 
 module Token;
 
+mlc::ast::Expression::~Expression() = default;
