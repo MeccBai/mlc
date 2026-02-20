@@ -2,11 +2,11 @@
 // Created by Administrator on 2026/2/19.
 //
 
-export module Process;
+export module Prepare;
 import std;
 
 
-namespace mlc {
+namespace mlc::prepare {
     std::string removeComments(const std::string &source) {
         std::string result;
         result.reserve(source.length()); // 优化内存分配 ⚡
@@ -64,11 +64,11 @@ namespace mlc {
     }
 
     bool isSymbol(const char c) {
-        static constexpr std::string symbols = ",;=+-*/()[]{}<>.";
+        static constexpr std::string_view symbols = ",;=+-*/()[]{}<>.:&|!%^~?";
         return symbols.find(c) != std::string::npos;
     }
 
-    export std::string PreProcess(const std::string &_input) {
+    export std::string Prepare(const std::string &_input) {
         const std::string context = removeComments(_input);
         auto isSpace = [](const unsigned char c) { return std::isspace(c); };
         const auto normalized = context

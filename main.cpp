@@ -1,21 +1,20 @@
 import std;
 
-import Process;
+import Prepare;
 import Token;
 import Compiler;
 
 int main() {
-    std::ifstream file("function.c");
-    const std::string code = "extern int a(void);";
-    const std::string result = mlc::PreProcess(code);
+    std::ifstream file("example/example1.c");
+    const auto code = std::string((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
+    const auto result = mlc::prepare::Prepare(code);
 
-    auto tokens =  mlc::seg::TopTokenize(result);
+    for (const auto tokens =  mlc::seg::TopTokenize(result); const auto&[type, content] : tokens) {
+        std::println("Type:[{}], Content:[{}]", static_cast<int>(type), content);
+        for (auto seg = mlc::seg::TokenizeFunctionBody(content); const auto& line : seg) {
+             std::println("Statement:[{}]",line);
+        }
 
-    for (const auto& token : tokens) {
-        std::cout << "Type: " << static_cast<int>(token.type) << ", Content: [" << token.content << "]" << std::endl;
     }
-
-    std::cout << ": [" << result << "]" << std::endl;
-    // 输出: [void main() { int a = 1; }]
     return 0;
 }

@@ -6,7 +6,6 @@ export module Compiler;
 
 import std;
 import Token;
-import Process;
 
 namespace mlc::seg {
 
@@ -17,4 +16,5 @@ namespace mlc::seg {
 
     export auto TopTokenize(std::string_view _source) -> std::vector<TokenStatement>;
 
+    export auto TokenizeFunctionBody(std::string_view _source) -> std::vector<std::string_view>;
 }

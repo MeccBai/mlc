@@ -12,15 +12,13 @@ namespace ast = mlc::ast;
 using size_t = std::size_t;
 
 
-inline bool isIdentifierChar(char c) {
-    return std::isalnum(c) || c == '_';
-}
+inline bool isIdentifierChar(char c) { return std::isalnum(c) || c == '_'; }
 
 
 auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatement> {
     std::vector<TokenStatement> fragments;
-    std::size_t cursor = 0;
-    const std::size_t length = _source.length();
+    size_t cursor = 0;
+    const size_t length = _source.length();
 
     auto skipSpaces = [&]() {
         while (cursor < length && std::isspace(_source[cursor])) {
@@ -29,9 +27,12 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
     };
 
     auto matchWord = [&](const std::string_view word) -> bool {
-        if (cursor + word.length() > length) return false;
-        if (_source.substr(cursor, word.length()) != word) return false;
-        if (cursor + word.length() < length && isIdentifierChar(_source[cursor + word.length()])) return false;
+        if (cursor + word.length() > length)
+            return false;
+        if (_source.substr(cursor, word.length()) != word)
+            return false;
+        if (cursor + word.length() < length && isIdentifierChar(_source[cursor + word.length()]))
+            return false;
         return true;
     };
 
@@ -68,9 +69,10 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
 
     while (cursor < length) {
         skipSpaces();
-        if (cursor >= length) break;
+        if (cursor >= length)
+            break;
 
-        const std::size_t start = cursor;
+        const size_t start = cursor;
         ast::GlobalStatement type = ast::GlobalStatement::VariableDeclaration; // Default
 
         if (matchWord("typedef")) {
@@ -123,5 +125,80 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
         fragments.push_back({type, _source.substr(start, cursor - start)});
     }
 
+    return fragments;
+}
+
+auto seg::TokenizeFunctionBody(std::string_view _source) -> std::vector<std::string_view> {
+    std::vector<std::string_view> fragments;
+    size_t cursor = 0;
+    const size_t length = _source.length();
+
+    auto isIdChar = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+    auto skipSpace = [&]() { while (cursor < length && std::isspace(static_cast<unsigned char>(_source[cursor]))) cursor++; };
+
+    // 1. 切出函数头
+    skipSpace();
+    const size_t header_start = cursor;
+    while (cursor < length && _source[cursor] != '{') cursor++;
+    if (cursor < length) {
+        fragments.push_back(_source.substr(header_start, cursor - header_start));
+        cursor++; // 跳过 '{'
+    }
+
+    // 2. 循环切分语句块
+    while (cursor < length) {
+        skipSpace();
+        if (cursor >= length || _source[cursor] == '}') break;
+
+        const size_t start = cursor;
+        int brace_depth = 0, paren_depth = 0;
+
+        auto checkWord = [&](std::string_view word) {
+            if (cursor + word.length() <= length && _source.substr(cursor, word.length()) == word) {
+                size_t next = cursor + word.length();
+                return (next == length || !isIdChar(_source[next]));
+            }
+            return false;
+        };
+
+        const bool is_control = checkWord("if") || checkWord("for") || checkWord("while") || checkWord("switch");
+
+        while (cursor < length) {
+            char c = _source[cursor];
+
+            // 依旧保留字符串屏蔽，防止字符串里有 ';' 或 '}' 干扰
+            if (c == '"' || c == '\'') {
+                char q = c; cursor++;
+                while (cursor < length && _source[cursor] != q) {
+                    if (_source[cursor] == '\\') cursor++;
+                    cursor++;
+                }
+                if (cursor < length) cursor++;
+                continue;
+            }
+
+            if (c == '(') paren_depth++;
+            else if (c == ')') paren_depth--;
+            else if (c == '{') brace_depth++;
+            else if (c == '}') {
+                if (brace_depth == 0) break;
+                brace_depth--;
+            }
+
+            cursor++;
+
+            if (paren_depth == 0 && brace_depth == 0) {
+                if (c == ';') break; // 普通语句
+                if (is_control && c == '}') { // 控制块
+                    size_t pre_else = cursor;
+                    skipSpace();
+                    if (checkWord("else")) continue; // 连带 else 一起切
+                    cursor = pre_else;
+                    break;
+                }
+            }
+        }
+        fragments.push_back(_source.substr(start, cursor - start));
+    }
     return fragments;
 }

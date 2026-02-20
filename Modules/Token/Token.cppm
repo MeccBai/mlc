@@ -1,4 +1,3 @@
-
 //
 // Created by Administrator on 2026/2/20.
 //
@@ -98,6 +97,7 @@ export namespace mlc::ast::Type {
         explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
             : Name(_name), Members(std::move(_members)) {
         }
+
         const std::string Name;
         const std::vector<StructMember> Members; // type and name
     };
@@ -173,19 +173,26 @@ export namespace mlc::ast {
 
     class Expression {
     public:
-        using Data = std::variant<ConstValue, Variable, std::unique_ptr<FunctionCall>, std::unique_ptr<CompositeExpression>>;
+        using Data = std::variant<ConstValue, Variable, std::unique_ptr<FunctionCall>, std::unique_ptr<
+            CompositeExpression> >;
         std::unique_ptr<Data> Storage;
+
         template<typename T>
-        explicit Expression(T& _val) : Storage(std::make_unique<Data>(std::move(_val))) {}
-        Expression(Expression&&) noexcept = default;
-        Expression& operator=(Expression&&) noexcept = default;
-        ~Expression() ;
+        explicit Expression(T &_val) : Storage(std::make_unique<Data>(std::move(_val))) {
+        }
+
+        Expression(Expression &&) noexcept = default;
+
+        Expression &operator=(Expression &&) noexcept = default;
+
+        ~Expression();
     };
 
     class ConstValue {
     public:
         explicit ConstValue(const std::string_view _value) : Value(_value) {
         }
+
         const std::string Value;
     };
 
@@ -212,22 +219,26 @@ export namespace mlc::ast {
     class CompositeExpression {
     public:
         explicit CompositeExpression(std::vector<Expression> _components,
-                                     std::vector<BaseOperator> _operators):
-             Operators(std::move(_operators)),Components(std::move(_components))  {
+                                     std::vector<BaseOperator> _operators) : Operators(std::move(_operators)),
+                                                                             Components(std::move(_components)) {
         }
+
         const std::vector<BaseOperator> Operators;
         const std::vector<Expression> Components;
     };
-
 }
 
 export namespace mlc::ast {
     class SubScope;
     class AssignStatement;
     class VariableStatement;
+    class ReturnStatement;
+    class SwitchCaseScope;
+    class CaseBlock;
     using FunctionCallStatement = FunctionCall;
 
-    using Statement = std::variant<VariableStatement, AssignStatement, FunctionCallStatement, SubScope>;
+    using Statement = std::variant<VariableStatement, AssignStatement, FunctionCallStatement, ReturnStatement, SubScope>
+    ;
 
     class AssignStatement {
     public:
@@ -251,14 +262,25 @@ export namespace mlc::ast {
         const std::optional<Expression> Initializer;
     };
 
+    class ReturnStatement {
+    public:
+        explicit ReturnStatement(std::optional<Expression> _returnValue = std::nullopt) : ReturnValue(
+            std::move(_returnValue)) {
+        }
+
+        const std::optional<Expression> ReturnValue;
+    };
+
 
     class SubScope {
     public:
-        explicit SubScope(std::vector<Statement> _statements,const SubScopeType _type) : Statements(std::move(_statements)),
-            ScopeType(_type) {
+        explicit SubScope(std::vector<Statement> _statements, const SubScopeType _type,
+                          std::vector<Expression> _condition) : Statements(std::move(
+                                                              _statements)), Conditions(std::move(_condition)),
+                                                          ScopeType(_type) {
         }
-
         const std::vector<Statement> Statements;
+        const std::vector<Expression> Conditions;
         const SubScopeType ScopeType = SubScopeType::AnonymousBlock;
     };
 
