@@ -1,4 +1,6 @@
 
+
+
 //
 // Created by Administrator on 2026/2/20.
 //
@@ -6,6 +8,8 @@
 export module Token;
 
 import std;
+
+using size_t = std::size_t;
 export namespace mlc::ast {
     enum class ScopeType { Global, Function, Condition, Loop, Anonymous, Struct };
 
@@ -129,8 +133,8 @@ export namespace mlc::ast::Type {
 
     class PointerType {
     public:
-        explicit PointerType(const std::string_view _name)
-            : Name(_name) {
+        explicit PointerType(const std::string_view _name,const size_t _pointerLevel = 1)
+            : Name(_name), PointerLevel(_pointerLevel) {
         }
 
         const std::string Name;
@@ -142,6 +146,8 @@ export namespace mlc::ast::Type {
         [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
             return BaseType;
         }
+
+        const size_t PointerLevel;
 
     private:
         std::weak_ptr<CompileType> BaseType;
@@ -185,34 +191,12 @@ export namespace mlc::ast {
         // --- 指针操作 (Pointer) ---
         Dereference, // *
         AddressOf, // &
-
-        // --- 其他 (Other) ---
-        SizeOf, // sizeof
     };
 
     class ConstValue;
     class Variable;
     class FunctionCall;
     class CompositeExpression;
-
-    class Expression {
-    public:
-        using Data = std::variant<ConstValue, Variable, std::unique_ptr<FunctionCall>, std::unique_ptr<CompositeExpression>>;
-        std::shared_ptr<Data> Storage;
-
-        template<typename T>
-        explicit Expression(T&& _val) : Storage(std::make_shared<Data>(std::forward<T>(_val))) {}
-        // 1. 【核心：找回拷贝能力】
-        Expression(const Expression&) = default;
-        Expression& operator=(const Expression&) = default;
-
-        // 2. 保留你的移动能力
-        Expression(Expression&&) noexcept = default;
-        Expression& operator=(Expression&&) noexcept = default;
-
-        Expression() = default; // 建议补一个默认构造
-        ~Expression();
-    };
 
     class ConstValue {
     public:
@@ -231,6 +215,38 @@ export namespace mlc::ast {
         const std::string Name;
         const std::weak_ptr<Type::CompileType> VarType;
     };
+
+    class Expression {
+    public:
+        using Data = std::variant<ConstValue, Variable, std::shared_ptr<FunctionCall>, std::shared_ptr<CompositeExpression>>;
+        std::shared_ptr<Data> Storage;
+
+        // --- 宽松且安全的构造函数 ---
+        template<typename T>
+        requires (
+            // 1. 排除掉 Expression 本身及其子类，防止拦截拷贝/移动构造
+            !std::is_same_v<std::remove_cvref_t<T>, Expression> &&
+            // 2. 只有当 T 能被用来构造 Data 时，才启用这个模板
+            std::is_constructible_v<Data, T>
+        )
+        explicit Expression(T&& _val)
+            : Storage(std::make_shared<Data>(std::forward<T>(_val))) {}
+
+
+        // 默认构造：初始化一个空的或者默认状态的 Data
+        Expression() : Storage(std::make_shared<Data>(ConstValue("0"))) {}
+
+        // 显式声明，去 .cpp 里 = default
+        ~Expression();
+
+        // 拷贝与移动保持 default
+        Expression(const Expression&) = default;
+        Expression(Expression&&) noexcept = default;
+        Expression& operator=(const Expression&) = default;
+        Expression& operator=(Expression&&) noexcept = default;
+    };
+
+
 
     class FunctionCall {
     public:
@@ -278,14 +294,14 @@ export namespace mlc::ast {
 
     class VariableStatement {
     public:
-        explicit VariableStatement(const std::string_view _name, std::weak_ptr<Type::CompileType> _varType,
-                                   std::optional<Expression> _initializer = std::nullopt)
-            : Name(_name), VarType(std::move(_varType)), Initializer(std::move(_initializer)) {
+        explicit VariableStatement(const std::string_view _name, const std::shared_ptr<Type::CompileType>& _varType,
+                                   std::shared_ptr<Expression> _initializer = nullptr)
+            : Name(_name), VarType(_varType),Initializer(std::move(_initializer)) {
         }
 
-        std::string Name;
-        std::weak_ptr<Type::CompileType> VarType;
-        std::optional<Expression> Initializer;
+        const std::string Name;
+        const std::shared_ptr<Type::CompileType> VarType;
+        std::shared_ptr<Expression> Initializer;
     };
 
     class ReturnStatement {

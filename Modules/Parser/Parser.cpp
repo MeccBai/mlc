@@ -14,7 +14,7 @@ namespace ast = mlc::ast;
 using size_t = std::size_t;
 //[if(p==0){a.x=10;}else{a.y=10;}]
 
-using astClass = mlc::parser::AbstractSyntaxTree;
+
 
 template<typename _type>
 using sPtr = std::shared_ptr<_type>;
@@ -38,71 +38,12 @@ std::vector<type::StructDefinition> astClass::structDefParser(
 
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent) {
     auto enums = std::vector<std::string>{"Value1", "Value2", "Value3"};
-    return ast::Type::EnumDefinition("enum",enums);
+    return ast::Type::EnumDefinition("enum", enums);
 }
 
 void astClass::typeDefParser(std::string_view _typedefContent) {
 }
 
-
-std::vector<ast::VariableStatement> astClass::variableParser(
-    const std::string_view variableContent) {
-    // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
-    std::println("{}", variableContent);
-
-    const auto pos = variableContent.find(' ');
-    auto type = variableContent.substr(0, pos);
-    const auto declaration = variableContent.substr(pos + 1);
-
-    const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
-        return std::visit([](auto &&arg) -> std::string_view {
-            return arg.Name; // 只要所有子类都有 Name，这个就能编译通过
-        }, *t) == type;
-    });
-
-    if (it == typeSymbolTable.end()) {
-        ErrorPrintln("Error: Unknown type '{}'\n", type);
-    }
-
-    std::vector<std::string_view> declarations;
-    std::stack<char> brackets;
-    size_t start = 0;
-    for (auto i = 0; i < declaration.length(); i++) {
-        if (const char c = declaration[i]; c == '{' || c == '(' || c == '[') {
-            brackets.push(c);
-        } else if (c == '}' || c == ')' || c == ']') {
-            if (brackets.empty()) {
-                ErrorPrintln("MLC Syntax Error: Unmatched closing bracket '", c, "' at position ", i);
-                std::exit(-1);
-            }
-
-            if (char top = brackets.top(); (c == '}' && top == '{') || (c == ')' && top == '(') || (
-                                               c == ']' && top == '[')) {
-                brackets.pop();
-            } else {
-                ErrorPrintln("MLC Syntax Error: Mismatched bracket. Found '", c, "' but expected match for '", top,
-                             "'");
-                std::exit(-1);
-            }
-        } else if (c == ',' && brackets.empty()) {
-            declarations.emplace_back(declaration.substr(start, i - start));
-            start = i + 1;
-        }
-    }
-    if (start < declaration.length()) {
-        // 别忘了清理一下可能残留的空格（虽然你已经脱水了，但安全第一）
-        if (std::string_view lastItem = declaration.substr(start); !lastItem.empty()) {
-            declarations.emplace_back(lastItem);
-        }
-    }
-
-    for (auto d: declarations) {
-        std::println("Declaration: [{}]", d);
-    }
-
-    return {};
-    //ast::VariableStatement("", {}, std::nullopt);
-}
 
 
 ast::FunctionScope astClass::functionDefParser(std::string_view functionContent) {
@@ -115,7 +56,7 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(std
     return ast::FunctionDeclaration("", {}, {}, false);
 }
 
-astClass::AbstractSyntaxTree(const std::vector<mlc::seg::TokenStatement> &tokens) {
+astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     std::vector<std::string_view> groups[6];
 
     std::ranges::for_each(tokens, [&](const auto &t) {
