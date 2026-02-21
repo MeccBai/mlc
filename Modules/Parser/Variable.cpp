@@ -8,9 +8,8 @@ import aux;
 
 using astClass = mlc::parser::AbstractSyntaxTree;
 
-
-template<typename _type>
-using sPtr = std::shared_ptr<_type>;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
 namespace ast = mlc::ast;
 namespace type = ast::Type;
 using size_t = std::size_t;
@@ -20,12 +19,12 @@ std::string_view getVariableName(std::string_view declaration) {
 
     // 1. 确定左边界：跳过所有开头的指针符号 '*'
     // 因为已经没有空格了，直接从第一个不是 '*' 的字符开始
-    size_t start = declaration.find_first_not_of('*');
+    const size_t start = declaration.find_first_not_of('*');
     if (start == std::string_view::npos) return "";
 
     // 2. 确定右边界：变量名结束于第一个 '[' 或 '='
     // 剩下的情况就是整个字符串直到末尾（比如单纯的 'x'）
-    size_t end = declaration.find_first_of("[=", start);
+    const size_t end = declaration.find_first_of("[=", start);
 
     if (end == std::string_view::npos) {
         // 如果没有 [ 或 =，说明整个剩余部分就是变量名
@@ -70,8 +69,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(
                 /* 报错逻辑... */
                 std::exit(-1);
             }
-            char top = brackets.top();
-            if ((c == '}' && top == '{') || (c == ')' && top == '(') || (c == ']' && top == '[')) {
+            if (const char top = brackets.top(); (c == '}' && top == '{') || (c == ')' && top == '(') || (c == ']' && top == '[')) {
                 brackets.pop();
             } else {
                 /* 报错逻辑... */
@@ -80,11 +78,9 @@ std::vector<ast::VariableStatement> astClass::variableParser(
         }
         // 2. 核心修改：遇到“外层”逗号 OR 分号时，都进行截取
         else if ((c == ',' || c == ';') && brackets.empty()) {
-            std::string_view item = variables.substr(start, i - start);
-
             // 简单修剪一下可能的首尾空格（如果你没预先做过 Trim 的话）
             // 虽然你可能已经脱水了，但这样更稳
-            if (!item.empty()) {
+            if (const std::string_view item = variables.substr(start, i - start); !item.empty()) {
                 declarations.emplace_back(item);
             }
 
@@ -128,6 +124,6 @@ std::vector<ast::VariableStatement> astClass::variableParser(
         }
     }
 
-    return {};
+    return result;
     //ast::VariableStatement("", {}, std::nullopt);
 }

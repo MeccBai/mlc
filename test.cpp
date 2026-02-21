@@ -12,5 +12,9 @@ int main() {
     auto result = mlc::prepare::Prepare(content);
     ast.variableParser(result);
 
-    auto r2 = ast.expressionParser("(*p)->data[i + (j * k)]");
+    auto r2 = ast.expressionParser("a+b*c-d/e");
+
+    auto r3 = ast.expressionParser("a[i+j]+$p-@x");
+
+
 }

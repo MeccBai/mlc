@@ -16,8 +16,8 @@ using size_t = std::size_t;
 
 
 
-template<typename _type>
-using sPtr = std::shared_ptr<_type>;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
 
 ast::SubScope astClass::subScopeParser(const std::string_view subScopeContent) {
     auto statements = mlc::seg::TokenizeFunctionBody(subScopeContent);

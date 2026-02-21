@@ -180,6 +180,7 @@ export namespace mlc::ast {
         BitAnd,
         BitOr,
         BitXor,
+        BitNot,
         ShiftLeft,
         ShiftRight,
 
@@ -192,6 +193,8 @@ export namespace mlc::ast {
         Dereference, // *
         AddressOf, // &
     };
+
+    extern const std::unordered_map<std::string_view, BaseOperator> BaseOperators;
 
     class ConstValue;
     class Variable;

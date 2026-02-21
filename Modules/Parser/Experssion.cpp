@@ -11,48 +11,78 @@ using size_t = std::size_t;
 using astClass = mlc::parser::AbstractSyntaxTree;
 
 
-bool isOpChar(char c) {
-    return c == '+' || c == '-' || c == '*' || c == '/' || c == '%' ||
-           c == '=' || c == '!' || c == '<' || c == '>' ||
-           c == '&' || c == '|' || c == '^' || c == '~' || c == '.';
+std::set operators = {
+    '+', '-', '*', '/', '%',
+    '=', '!', '<', '>',
+    '&', '|', '^', '~', '.', '@', '$'
+};
+
+bool isOpChar(const char c) {
+    return operators.contains(c);
+}
+
+using BaseOperator = ast::BaseOperator;
+const std::unordered_map<ast::BaseOperator, int> operatorPriority = {
+    {BaseOperator::Dot, 1}, {BaseOperator::Arrow, 1}, {BaseOperator::Subscript, 1}, // 访问最强
+    {BaseOperator::AddressOf, 2}, {BaseOperator::Dereference, 2}, // 指针紧随其后 (@, $)
+    {BaseOperator::Not, 2}, {BaseOperator::BitNot, 2}, // 单目取反
+    {BaseOperator::Mul, 3}, {BaseOperator::Div, 3}, {BaseOperator::Mod, 3}, // 乘除
+    {BaseOperator::Add, 4}, {BaseOperator::Sub, 4}, // 加减
+    {BaseOperator::ShiftLeft, 5}, {BaseOperator::ShiftRight, 5}, // 位移
+    {BaseOperator::Greater, 6}, {BaseOperator::Less, 6}, // 比较
+    {BaseOperator::GreaterEqual, 6}, {BaseOperator::LessEqual, 6},
+    {BaseOperator::Equal, 7}, {BaseOperator::NotEqual, 7}, // 相等判定
+    {BaseOperator::BitAnd, 8},
+    {BaseOperator::BitXor, 9},
+    {BaseOperator::BitOr, 10},
+    {BaseOperator::And, 11},
+    {BaseOperator::Or, 12},
+};
+
+ast::BaseOperator toBaseOperator(const std::string_view _token) {
+    if (ast::BaseOperators.contains(_token)) {
+        return ast::BaseOperators.at(_token);
+    }
+    ErrorPrintln("Invalid operator : '{}'", _token);
+    std::exit(-1);
 }
 
 struct exprTree;
-using FragmentData = std::variant<std::string_view, std::vector<exprTree>>;
+using FragmentData = std::variant<std::string_view, std::vector<exprTree> >;
 
 struct exprTree {
     FragmentData data; // 核心内容
     bool isOperator; // 是否是操作符（对于嵌套集合，通常设为 false）
 
-    explicit exprTree(std::string_view s, bool op) : data(s), isOperator(op) {
+    explicit exprTree(std::string_view s, const bool op) : data(s), isOperator(op) {
     }
 
     explicit exprTree(std::vector<exprTree> v) : data(std::move(v)), isOperator(false) {
     }
 };
 
-std::string_view stripOuterBrackets(std::string_view expr) {
+std::string_view stripOuterBrackets(const std::string_view _expr) {
     // 1. 基本检查：长度至少要有 2 (即 "()")
-    if (expr.size() < 2 || expr.front() != '(' || expr.back() != ')') {
-        return expr;
+    if (_expr.size() < 2 || _expr.front() != '(' || _expr.back() != ')') {
+        return _expr;
     }
 
     // 2. 深度检查：确保开头的 '(' 匹配的就是最后的 ')'
     int level = 0;
-    for (size_t i = 0; i < expr.size(); ++i) {
-        if (expr[i] == '(') level++;
-        else if (expr[i] == ')') level--;
+    for (size_t i = 0; i < _expr.size(); ++i) {
+        if (_expr[i] == '(') level++;
+        else if (_expr[i] == ')') level--;
 
         // 如果在还没到最后一个字符时，level 就归零了
         // 说明这只是并列关系，比如 (a+b)*(c+d)，不能剥壳！
-        if (level == 0 && i < expr.size() - 1) {
-            return expr;
+        if (level == 0 && i < _expr.size() - 1) {
+            return _expr;
         }
     }
 
     // 3. 如果能走到这里，说明首尾是真正的“套娃”关系
     // 递归调用，防止有多层括号如 "((a+b))"
-    return stripOuterBrackets(expr.substr(1, expr.size() - 2));
+    return stripOuterBrackets(_expr.substr(1, _expr.size() - 2));
 }
 
 exprTree deepSplit(std::string_view expr) {
@@ -66,17 +96,24 @@ exprTree deepSplit(std::string_view expr) {
 
     for (size_t i = 0; i < expr.length(); ++i) {
         const char c = expr[i];
-        if (c == '(' || c == '[' || c == '{') { bracketLevel++; continue; }
-        if (c == ')' || c == ']' || c == '}') { bracketLevel--; continue; }
+        if (c == '(' || c == '[' || c == '{') {
+            bracketLevel++;
+            continue;
+        }
+        if (c == ')' || c == ']' || c == '}') {
+            bracketLevel--;
+            continue;
+        }
 
         if (bracketLevel == 0 && isOpChar(c)) {
             // --- 你的双字合并逻辑 ---
             std::string_view op = expr.substr(i, 1);
             if (i + 1 < expr.length()) {
-                char next = expr[i + 1];
-                if ((c == '-' && next == '>') || (c == '=' && next == '=') ||
+                if (const char next = expr[i + 1];
+                    (c == '-' && next == '>') || (c == '=' && next == '=') ||
                     (c == '&' && next == '&') || (c == '|' && next == '|') ||
-                    (c == '<' && next == '=') || (c == '>' && next == '=')) {
+                    (c == '<' && next == '=') || (c == '>' && next == '=') || (c == '<' && next == '<') || (
+                        c == '>' && next == '>')) {
                     op = expr.substr(i, 2);
                 }
             }
@@ -99,18 +136,20 @@ exprTree deepSplit(std::string_view expr) {
     // --- 核心修复：处理后缀 [] ---
     if (expr.back() == ']') {
         // 从后往前找匹配的 '['
-        int bLevel = 0;
+        size_t bLevel = 0;
         for (int i = expr.size() - 1; i >= 0; --i) {
             if (expr[i] == ']') bLevel++;
             else if (expr[i] == '[') bLevel--;
 
-            if (bLevel == 0) { // 找到了对应的 [
-                if (i > 0) { // 如果 [ 前面还有东西，说明是 a[i] 格式
-                    std::string_view arrayName = expr.substr(0, i);
-                    std::string_view indexExpr = expr.substr(i + 1, expr.size() - i - 2);
+            if (bLevel == 0) {
+                // 找到了对应的 [
+                if (i > 0) {
+                    // 如果 [ 前面还有东西，说明是 a[i] 格式
+                    const std::string_view arrayName = expr.substr(0, i);
+                    const std::string_view indexExpr = expr.substr(i + 1, expr.size() - i - 2);
 
                     fragments.push_back(deepSplit(arrayName)); // 递归处理 data
-                    fragments.emplace_back("[]", true);        // 存入下标算子
+                    fragments.emplace_back("[]", true); // 存入下标算子
                     fragments.push_back(deepSplit(indexExpr)); // 递归处理 i + j
                     return exprTree(std::move(fragments));
                 }
@@ -132,7 +171,7 @@ exprTree deepSplit(std::string_view expr) {
 
 void dumpFragments(const exprTree &fragment, const int indent = 0) {
     // 构造缩进字符串
-    std::string padding(indent * 2, ' ');
+    const std::string padding(indent * 2, ' ');
 
     // 使用 std::visit 来处理 variant 的两种可能
     std::visit([&]<typename T0>(T0 &&arg) {
@@ -156,7 +195,26 @@ void dumpFragments(const exprTree &fragment, const int indent = 0) {
     }, fragment.data);
 }
 
-ast::Expression expressionParser(const exprTree & _exprTree) {
+using ContextTableType = astClass::ContextTable<ast::VariableStatement>;
+
+ast::Expression staticExpressionParser(ContextTableType &_contextTable, const exprTree &_exprTree) {
+    if (std::holds_alternative<std::string_view>(_exprTree.data)) {
+        const auto &atom = std::get<std::string_view>(_exprTree.data);
+
+        if (atom.empty()) {
+            ErrorPrintln("MLC Syntax Error: Empty expression fragment detected.");
+            std::exit(-1);
+        }
+
+        std::cout << "pae: " << atom << "\n";
+    } else if (std::holds_alternative<std::vector<exprTree> >(_exprTree.data)) {
+        const auto &fragments = std::get<std::vector<exprTree> >(_exprTree.data);
+        std::cout << "pce " << fragments.size() << " fragments\n";
+        for (const auto &fragment: fragments) {
+            staticExpressionParser(_contextTable, fragment); // 递归处理每个子片段
+        }
+    }
+
     return {};
 }
 
@@ -178,6 +236,6 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
 
     dumpFragments(expressionTree);
 
-    return {};
+    return staticExpressionParser(_contextTable, expressionTree);
     std::exit(0);
 }

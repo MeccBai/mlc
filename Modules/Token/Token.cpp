@@ -6,7 +6,7 @@ module Token;
 
 mlc::ast::Expression::~Expression() = default;
 
-namespace  ast = mlc::ast;
+namespace ast = mlc::ast;
 
 extern const std::vector ast::Type::BaseTypes = {
     BaseType("int", 4),
@@ -22,8 +22,35 @@ extern const std::vector ast::Type::BaseTypes = {
     BaseType("unsigned long", 8),
 };
 
-ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const  {
+const std::unordered_map<std::string_view, ast::BaseOperator> mlc::ast::BaseOperators = {
+    {"+", BaseOperator::Add},
+    {"-", BaseOperator::Sub},
+    {"*", BaseOperator::Mul},
+    {"/", BaseOperator::Div},
+    {"%", BaseOperator::Mod},
+    {"==", BaseOperator::Equal},
+    {"!=", BaseOperator::NotEqual},
+    {">", BaseOperator::Greater},
+    {"<", BaseOperator::Less},
+    {">=", BaseOperator::GreaterEqual},
+    {"<=", BaseOperator::LessEqual},
+    {"&&", BaseOperator::And},
+    {"||", BaseOperator::Or},
+    {"!", BaseOperator::Not},
+    {"&", BaseOperator::BitAnd},
+    {"|", BaseOperator::BitOr},
+    {"^", BaseOperator::BitXor},
+    {"~", BaseOperator::BitNot},
+    {">>", BaseOperator::ShiftRight},
+    {"<<", BaseOperator::ShiftLeft},
+    {".", BaseOperator::Dot},
+    {"->", BaseOperator::Arrow},
+    {"[]", BaseOperator::Subscript},
+    {"@", BaseOperator::AddressOf},
+    {"$", BaseOperator::Dereference},
+};
 
+ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
     return FunctionDeclaration(
         Name,
         ReturnType,
