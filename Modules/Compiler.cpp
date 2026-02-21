@@ -73,7 +73,7 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
             break;
 
         const size_t start = cursor;
-        ast::GlobalStateType type = ast::GlobalStateType::VariableDeclaration; // Default
+        auto type = ast::GlobalStateType::VariableDeclaration; // Default
 
         if (matchWord("typedef")) {
             type = ast::GlobalStateType::Typedef;

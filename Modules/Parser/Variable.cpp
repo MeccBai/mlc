@@ -103,7 +103,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(
         auto variableName = getVariableName(declaration);
         std::println("{} : {}", variableName, declaration);
         bool isPointer = false;
-        if (declaration[0] == '*') {
+        if (declaration[0] == '$') {
             isPointer = true;
         }
         if (declaration.find('=') != std::string_view::npos) {
@@ -112,7 +112,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(
             if (isPointer) {
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
-                    if (declaration[i] == '*') pointerLevel++;
+                    if (declaration[i] == '$') pointerLevel++;
                     else break;
                 }
                 auto pointerType = std::make_shared<type::PointerType>(type::PointerType(variableName, pointerLevel));
