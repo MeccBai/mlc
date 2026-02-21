@@ -1,3 +1,4 @@
+
 //
 // Created by Administrator on 2026/2/20.
 //
@@ -17,7 +18,7 @@ export namespace mlc::ast {
         SubScope,
     };
 
-    enum class GlobalStatement {
+    enum class GlobalStateType {
         FunctionDefinition,
         FunctionDeclaration,
         StructDefinition,
@@ -38,7 +39,6 @@ export namespace mlc::ast {
         DefaultBlock,
         AnonymousBlock,
     };
-
 
     namespace KeyWords {
         using KeyWords = std::unordered_set<std::string_view>;
@@ -75,11 +75,25 @@ export namespace mlc::ast::Type {
 
         const std::string Name;
         const std::size_t Size;
+
+        bool operator ==(const BaseType &_other) const {
+            return _other.Name == Name;
+        }
+
+        bool operator >(const BaseType &_other) const {
+            return Size > _other.Size;
+        }
+
+        bool operator <(const BaseType &_other) const {
+            return Size < _other.Size;
+        }
     };
+
+    extern const std::vector<BaseType> BaseTypes;
 
     class EnumDefinition {
     public:
-        EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
+        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
             Values(std::move(_values)) {
         }
 
@@ -88,7 +102,7 @@ export namespace mlc::ast::Type {
     };
 
     struct StructMember {
-        std::shared_ptr<CompileType> Type;
+        std::weak_ptr<CompileType> Type;
         std::string Name;
     };
 
@@ -104,7 +118,7 @@ export namespace mlc::ast::Type {
 
     class ArrayType {
     public:
-        ArrayType(const std::string_view _name, std::weak_ptr<CompileType> _baseType, std::size_t _size)
+        explicit ArrayType(const std::string_view _name, std::weak_ptr<CompileType> _baseType, std::size_t _size)
             : Name(_name), BaseType(std::move(_baseType)), Size(_size) {
         }
 
@@ -115,12 +129,22 @@ export namespace mlc::ast::Type {
 
     class PointerType {
     public:
-        PointerType(const std::string_view _name, std::weak_ptr<CompileType> _baseType)
-            : Name(_name), BaseType(std::move(_baseType)) {
+        explicit PointerType(const std::string_view _name)
+            : Name(_name) {
         }
 
         const std::string Name;
-        const std::weak_ptr<CompileType> BaseType;
+
+        void Finalize(std::weak_ptr<CompileType> _baseType) {
+            BaseType = std::move(_baseType);
+        }
+
+        [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
+            return BaseType;
+        }
+
+    private:
+        std::weak_ptr<CompileType> BaseType;
     };
 } // namespace mlc::ast::Type
 
@@ -173,18 +197,20 @@ export namespace mlc::ast {
 
     class Expression {
     public:
-        using Data = std::variant<ConstValue, Variable, std::unique_ptr<FunctionCall>, std::unique_ptr<
-            CompositeExpression> >;
-        std::unique_ptr<Data> Storage;
+        using Data = std::variant<ConstValue, Variable, std::unique_ptr<FunctionCall>, std::unique_ptr<CompositeExpression>>;
+        std::shared_ptr<Data> Storage;
 
         template<typename T>
-        explicit Expression(T &_val) : Storage(std::make_unique<Data>(std::move(_val))) {
-        }
+        explicit Expression(T&& _val) : Storage(std::make_shared<Data>(std::forward<T>(_val))) {}
+        // 1. 【核心：找回拷贝能力】
+        Expression(const Expression&) = default;
+        Expression& operator=(const Expression&) = default;
 
-        Expression(Expression &&) noexcept = default;
+        // 2. 保留你的移动能力
+        Expression(Expression&&) noexcept = default;
+        Expression& operator=(Expression&&) noexcept = default;
 
-        Expression &operator=(Expression &&) noexcept = default;
-
+        Expression() = default; // 建议补一个默认构造
         ~Expression();
     };
 
@@ -198,12 +224,12 @@ export namespace mlc::ast {
 
     class Variable {
     public:
-        explicit Variable(const std::string_view _name, Type::CompileType _varType) : Name(_name),
+        explicit Variable(const std::string_view _name, std::weak_ptr<Type::CompileType> _varType) : Name(_name),
             VarType(std::move(_varType)) {
         }
 
         const std::string Name;
-        const Type::CompileType VarType;
+        const std::weak_ptr<Type::CompileType> VarType;
     };
 
     class FunctionCall {
@@ -252,14 +278,14 @@ export namespace mlc::ast {
 
     class VariableStatement {
     public:
-        explicit VariableStatement(const std::string_view _name, Type::CompileType &_varType,
+        explicit VariableStatement(const std::string_view _name, std::weak_ptr<Type::CompileType> _varType,
                                    std::optional<Expression> _initializer = std::nullopt)
             : Name(_name), VarType(std::move(_varType)), Initializer(std::move(_initializer)) {
         }
 
-        const std::string Name;
-        const Type::CompileType VarType;
-        const std::optional<Expression> Initializer;
+        std::string Name;
+        std::weak_ptr<Type::CompileType> VarType;
+        std::optional<Expression> Initializer;
     };
 
     class ReturnStatement {
@@ -271,27 +297,62 @@ export namespace mlc::ast {
         const std::optional<Expression> ReturnValue;
     };
 
-
     class SubScope {
     public:
         explicit SubScope(std::vector<Statement> _statements, const SubScopeType _type,
                           std::vector<Expression> _condition) : Statements(std::move(
-                                                              _statements)), Conditions(std::move(_condition)),
-                                                          ScopeType(_type) {
+                                                                    _statements)), Conditions(std::move(_condition)),
+                                                                ScopeType(_type) {
         }
+
         const std::vector<Statement> Statements;
         const std::vector<Expression> Conditions;
         const SubScopeType ScopeType = SubScopeType::AnonymousBlock;
     };
 
-    class FunctionScope {
+    class FunctionDeclaration {
     public:
-        explicit FunctionScope(std::vector<Statement> _statements,
-                               Type::CompileType _returnType) : Statements(std::move(_statements)),
-                                                                ReturnType(std::move(_returnType)) {
+        using Args = std::vector<VariableStatement>;
+
+         explicit FunctionDeclaration(std::string _name,const std::weak_ptr<Type::CompileType>&  _returnType,
+                                    Args  _args, const bool _isVarList = false) : IsVarList(_isVarList),
+            Name(std::move(_name)),
+            Parameters(std::move(_args)), ReturnType(_returnType) {
         }
 
-        std::vector<Statement> Statements;
-        Type::CompileType ReturnType;
+        const bool IsVarList;
+        const std::string Name;
+        const Args Parameters;
+        const std::weak_ptr<Type::CompileType> ReturnType;
+    };
+
+    class FunctionScope {
+    public:
+        using Args = std::vector<VariableStatement>;
+
+        FunctionScope(std::string _name, std::vector<Statement> _statements,
+                               std::weak_ptr<Type::CompileType> _returnType,
+                               Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
+                                                                            Name(std::move(_name)),
+                                                                            Statements(std::move(_statements)),
+                                                                            Parameters(std::move(_args)),
+                                                                            ReturnType(std::move(_returnType)) {
+        }
+
+        const bool IsVarList;
+
+        const std::string Name;
+        const std::vector<Statement> Statements;
+        const Args Parameters;
+        const std::weak_ptr<Type::CompileType> ReturnType;
+
+        [[nodiscard]] FunctionDeclaration ToDeclaration() const;
+
     };
 } // namespace mlc::ast
+
+
+export namespace mlc::ast {
+    using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>
+    ;
+}
