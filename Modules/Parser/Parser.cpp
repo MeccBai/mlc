@@ -8,8 +8,8 @@ import aux;
 
 using astClass = mlc::parser::AbstractSyntaxTree;
 
-template<typename _type>
-using sPtr = std::shared_ptr<_type>;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
 namespace ast = mlc::ast;
 using size_t = std::size_t;
 //[if(p==0){a.x=10;}else{a.y=10;}]

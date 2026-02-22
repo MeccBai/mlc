@@ -47,19 +47,6 @@ ast::BaseOperator toBaseOperator(const std::string_view _token) {
     std::exit(-1);
 }
 
-struct exprTree;
-using FragmentData = std::variant<std::string_view, std::vector<exprTree> >;
-
-struct exprTree {
-    FragmentData data; // 核心内容
-    bool isOperator; // 是否是操作符（对于嵌套集合，通常设为 false）
-
-    explicit exprTree(std::string_view s, const bool op) : data(s), isOperator(op) {
-    }
-
-    explicit exprTree(std::vector<exprTree> v) : data(std::move(v)), isOperator(false) {
-    }
-};
 
 std::string_view stripOuterBrackets(const std::string_view _expr) {
     // 1. 基本检查：长度至少要有 2 (即 "()")
@@ -84,6 +71,8 @@ std::string_view stripOuterBrackets(const std::string_view _expr) {
     // 递归调用，防止有多层括号如 "((a+b))"
     return stripOuterBrackets(_expr.substr(1, _expr.size() - 2));
 }
+
+using exprTree = astClass::AbstractSyntaxTree::exprTree;
 
 exprTree deepSplit(std::string_view expr) {
     expr = stripOuterBrackets(expr);
@@ -195,28 +184,14 @@ void dumpFragments(const exprTree &fragment, const int indent = 0) {
     }, fragment.data);
 }
 
-using ContextTableType = astClass::ContextTable<ast::VariableStatement>;
+using VariableContext = astClass::ContextTable<ast::VariableStatement>;
+using FunctionContext = astClass::ContextTable<ast::FunctionDeclaration>;
 
-ast::Expression staticExpressionParser(ContextTableType &_contextTable, const exprTree &_exprTree) {
-    if (std::holds_alternative<std::string_view>(_exprTree.data)) {
-        const auto &atom = std::get<std::string_view>(_exprTree.data);
 
-        if (atom.empty()) {
-            ErrorPrintln("MLC Syntax Error: Empty expression fragment detected.");
-            std::exit(-1);
-        }
 
-        std::cout << "pae: " << atom << "\n";
-    } else if (std::holds_alternative<std::vector<exprTree> >(_exprTree.data)) {
-        const auto &fragments = std::get<std::vector<exprTree> >(_exprTree.data);
-        std::cout << "pce " << fragments.size() << " fragments\n";
-        for (const auto &fragment: fragments) {
-            staticExpressionParser(_contextTable, fragment); // 递归处理每个子片段
-        }
-    }
 
-    return {};
-}
+
+
 
 ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
                                            const std::string_view _expressionContent) {
@@ -236,6 +211,13 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
 
     dumpFragments(expressionTree);
 
-    return staticExpressionParser(_contextTable, expressionTree);
+    return expressionTreeParser(_contextTable, expressionTree);
     std::exit(0);
+}
+
+ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
+    exprTree _expressionContent) {
+
+
+
 }

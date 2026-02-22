@@ -17,6 +17,7 @@ export namespace mlc::parser {
         template<typename _type>
         using ContextTable = std::vector<std::weak_ptr<_type>>;
 
+
         std::vector<ast::VariableStatement> variableParser(std::string_view variableContent);
 
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
@@ -24,13 +25,31 @@ export namespace mlc::parser {
 
         ast::SubScope subScopeParser(std::string_view subScopeContent);
 
-        ast::Expression expressionParser(ContextTable<ast::VariableStatement>& _contextTable, std::string_view _expressionContent);
-        ast::Expression expressionParser(std::string_view _expressionContent) {
+        struct exprTree;
+        using FragmentData = std::variant<std::string_view, std::vector<exprTree>>;
+
+        struct exprTree {
+            FragmentData data; // 核心内容
+            bool isOperator; // 是否是操作符（对于嵌套集合，通常设为 false）
+
+            explicit exprTree(std::string_view s, const bool op) : data(s), isOperator(op) {}
+
+            explicit exprTree(std::vector<exprTree> v) : data(std::move(v)), isOperator(false) {}
+        };
+
+
+        ast::Expression expressionParser(ContextTable<ast::VariableStatement> &_context,
+                                         std::string_view _expressionContent);
+
+        ast::Expression expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
+                                             exprTree _expressionContent);
+
+        ast::Expression expressionParser(const std::string_view _expressionContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return expressionParser(dummyContext, _expressionContent);
         }
 
-        std::vector<ast::Type::StructDefinition> structDefParser(const std::vector<std::string_view>& _structContents);
+        std::vector<ast::Type::StructDefinition> structDefParser(const std::vector<std::string_view> &_structContents);
 
         ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
 
@@ -46,4 +65,4 @@ export namespace mlc::parser {
 
         explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
     };
-}
+} // namespace mlc::parser
