@@ -17,7 +17,6 @@ export namespace mlc::parser {
         template<typename _type>
         using ContextTable = std::vector<std::weak_ptr<_type>>;
 
-
         std::vector<ast::VariableStatement> variableParser(std::string_view variableContent);
 
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
@@ -53,8 +52,6 @@ export namespace mlc::parser {
 
         ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
 
-        void typeDefParser(std::string_view _typedefContent);
-
         std::unordered_map<std::string, std::shared_ptr<ast::Type::CompileType>> typeMap;
 
         SymbolTable<ast::Type::CompileType> typeSymbolTable;
@@ -64,5 +61,8 @@ export namespace mlc::parser {
         std::vector<ast::GlobalStatement> tree;
 
         explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
+
+    private:
+        [[nodiscard]] std::weak_ptr<ast::Type::CompileType> findType(std::string_view _typeName) const;
     };
 } // namespace mlc::parser

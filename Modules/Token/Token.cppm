@@ -26,7 +26,6 @@ export namespace mlc::ast {
         FunctionDefinition,
         FunctionDeclaration,
         StructDefinition,
-        Typedef,
         EnumDefinition,
         VariableDeclaration,
     };
@@ -59,7 +58,7 @@ export namespace mlc::ast {
 
         const KeyWords Jump = {"return", "break", "continue"};
 
-        const KeyWords Types = {"struct", "typedef", "enum", "sizeof", "union"};
+        const KeyWords Types = {"struct", "enum", "sizeof", "union"};
     } // namespace KeyWords
 } // namespace mlc::ast
 

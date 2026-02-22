@@ -187,11 +187,51 @@ void dumpFragments(const exprTree &fragment, const int indent = 0) {
 using VariableContext = astClass::ContextTable<ast::VariableStatement>;
 using FunctionContext = astClass::ContextTable<ast::FunctionDeclaration>;
 
+std::string operatorToString(ast::BaseOperator op) {
+    for (const auto& [str, val] : ast::BaseOperators) {
+        if (val == op) return std::string(str);
+    }
+    return "UnknownOp";
+}
 
+void dumpExpression(const ast::Expression& expr, int indent = 0) {
+    const std::string padding(indent * 2, ' ');
 
+    if (!expr.Storage) {
+        std::cout << padding << "[Empty Expression]\n";
+        return;
+    }
 
+    std::visit([&](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
 
-
+        if constexpr (std::is_same_v<T, ast::ConstValue>) {
+            std::cout << padding << "[Const] " << arg.Value << "\n";
+        }
+        else if constexpr (std::is_same_v<T, ast::Variable>) {
+            std::cout << padding << "[Var] " << arg.Name << "\n";
+        }
+        else if constexpr (std::is_same_v<T, std::shared_ptr<ast::FunctionCall>>) {
+            std::cout << padding << "[FuncCall] " << arg->FunctionName << " (\n";
+            for (const auto& param : arg->Arguments) {
+                dumpExpression(param, indent + 1);
+            }
+            std::cout << padding << ")\n";
+        }
+        else if constexpr (std::is_same_v<T, std::shared_ptr<ast::CompositeExpression>>) {
+            std::cout << padding << "[Composite]\n";
+            std::cout << padding << "  Operators: ";
+            for (const auto& op : arg->Operators) {
+                std::cout << operatorToString(op) << " ";
+            }
+            std::cout << "\n";
+            std::cout << padding << "  Components:\n";
+            for (const auto& comp : arg->Components) {
+                dumpExpression(comp, indent + 2);
+            }
+        }
+    }, *expr.Storage);
+}
 
 ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
                                            const std::string_view _expressionContent) {
@@ -211,13 +251,143 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
 
     dumpFragments(expressionTree);
 
-    return expressionTreeParser(_contextTable, expressionTree);
-    std::exit(0);
+    auto result = expressionTreeParser(_contextTable, expressionTree);
+    std::cout << "\n--- AST Expression Dump ---\n";
+    dumpExpression(result);
+    std::cout << "---------------------------\n\n";
+
+    return result;
 }
 
 ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
     exprTree _expressionContent) {
+    if (std::holds_alternative<std::string_view>(_expressionContent.data)) {
+        auto str = std::get<std::string_view>(_expressionContent.data);
 
+        while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
+        while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
 
+        if (str.empty()) {
+            ErrorPrintln("Empty expression atom");
+            std::exit(-1);
+        }
 
+        if (str.back() == ')') {
+            auto pos = str.find('(');
+            if (pos != std::string_view::npos) {
+                std::string_view funcName = str.substr(0, pos);
+                std::string_view argsStr = str.substr(pos + 1, str.length() - pos - 2);
+
+                std::vector<ast::Expression> args;
+                if (!argsStr.empty()) {
+                    int bracketLevel = 0;
+                    size_t start = 0;
+                    for (size_t i = 0; i < argsStr.length(); ++i) {
+                        if (argsStr[i] == '(' || argsStr[i] == '[' || argsStr[i] == '{') bracketLevel++;
+                        else if (argsStr[i] == ')' || argsStr[i] == ']' || argsStr[i] == '}') bracketLevel--;
+                        else if (argsStr[i] == ',' && bracketLevel == 0) {
+                            args.push_back(expressionParser(_context, argsStr.substr(start, i - start)));
+                            start = i + 1;
+                        }
+                    }
+                    if (start < argsStr.length()) {
+                        args.push_back(expressionParser(_context, argsStr.substr(start)));
+                    }
+                }
+                return ast::Expression(std::make_shared<ast::FunctionCall>(funcName, args));
+            }
+        }
+
+        if (std::isdigit(str[0]) || str[0] == '"' || str[0] == '\'') {
+            return ast::Expression(ast::ConstValue(str));
+        }
+
+        std::weak_ptr<ast::Type::CompileType> varType;
+        for (auto& weakVar : _context) {
+            if (auto var = weakVar.lock()) {
+                if (var->Name == str) {
+                    varType = var->VarType;
+                    break;
+                }
+            }
+        }
+        if (varType.expired()) {
+            for (auto& var : variableSymbolTable) {
+                if (var->Name == str) {
+                    varType = var->VarType;
+                    break;
+                }
+            }
+        }
+
+        return ast::Expression(ast::Variable(str, varType));
+    }
+
+    auto& fragments = std::get<std::vector<exprTree>>(_expressionContent.data);
+
+    if (fragments.size() == 1) {
+        return expressionTreeParser(_context, fragments[0]);
+    }
+
+    int maxPriority = -1;
+    int splitIndex = -1;
+
+    for (int i = 0; i < fragments.size(); ++i) {
+        if (fragments[i].isOperator) {
+            auto opStr = std::get<std::string_view>(fragments[i].data);
+            auto op = toBaseOperator(opStr);
+            int priority = operatorPriority.at(op);
+
+            bool isPrefix = (i == 0 || fragments[i-1].isOperator);
+
+            if (isPrefix) {
+                if (priority > maxPriority) {
+                    maxPriority = priority;
+                    splitIndex = i;
+                }
+            } else {
+                if (priority >= maxPriority) {
+                    maxPriority = priority;
+                    splitIndex = i;
+                }
+            }
+        }
+    }
+
+    if (splitIndex == -1) {
+        return expressionTreeParser(_context, fragments[0]);
+    }
+
+    auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
+    auto op = toBaseOperator(opStr);
+
+    if (splitIndex == 0) {
+        std::vector<exprTree> rightFragments(fragments.begin() + 1, fragments.end());
+        exprTree rightTree(rightFragments);
+        if (rightFragments.size() == 1) rightTree = rightFragments[0];
+
+        ast::Expression rightExpr = expressionTreeParser(_context, rightTree);
+
+        return ast::Expression(std::make_shared<ast::CompositeExpression>(
+            std::vector<ast::Expression>{rightExpr},
+            std::vector<ast::BaseOperator>{op}
+        ));
+    }
+
+    std::vector<exprTree> leftFragments(fragments.begin(), fragments.begin() + splitIndex);
+    std::vector<exprTree> rightFragments(fragments.begin() + splitIndex + 1, fragments.end());
+
+    exprTree leftTree(leftFragments);
+    if (leftFragments.size() == 1) leftTree = leftFragments[0];
+
+    exprTree rightTree(rightFragments);
+    if (rightFragments.size() == 1) rightTree = rightFragments[0];
+
+    ast::Expression leftExpr = expressionTreeParser(_context, leftTree);
+    ast::Expression rightExpr = expressionTreeParser(_context, rightTree);
+
+    return ast::Expression(std::make_shared<ast::CompositeExpression>(
+        std::vector<ast::Expression>{leftExpr, rightExpr},
+        std::vector<ast::BaseOperator>{op}
+    ));
 }

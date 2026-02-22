@@ -75,18 +75,14 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
         const size_t start = cursor;
         auto type = ast::GlobalStateType::VariableDeclaration; // Default
 
-        if (matchWord("typedef")) {
-            type = ast::GlobalStateType::Typedef;
-            findSemicolon();
-        } else if (matchWord("struct")) {
+        if (matchWord("struct")) {
             type = ast::GlobalStateType::StructDefinition;
             findSemicolon();
         } else if (matchWord("enum")) {
             type = ast::GlobalStateType::EnumDefinition;
             findSemicolon();
         } else {
-            matchWord("static");
-            matchWord("extern");
+            matchWord("export");
             bool isFunction = false;
             size_t probe = cursor;
             while (probe < length) {
