@@ -66,3 +66,5 @@ export namespace mlc::parser {
         [[nodiscard]] std::weak_ptr<ast::Type::CompileType> findType(std::string_view _typeName) const;
     };
 } // namespace mlc::parser
+
+std::vector<std::string_view> Spilit(std::string_view str, std::string_view delimiter);

@@ -275,8 +275,8 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
         if (str.back() == ')') {
             auto pos = str.find('(');
             if (pos != std::string_view::npos) {
-                std::string_view funcName = str.substr(0, pos);
-                std::string_view argsStr = str.substr(pos + 1, str.length() - pos - 2);
+                auto funcName = str.substr(0, pos);
+                auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
 
                 std::vector<ast::Expression> args;
                 if (!argsStr.empty()) {
@@ -336,9 +336,9 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
         if (fragments[i].isOperator) {
             auto opStr = std::get<std::string_view>(fragments[i].data);
             auto op = toBaseOperator(opStr);
-            int priority = operatorPriority.at(op);
+            const auto priority = operatorPriority.at(op);
 
-            bool isPrefix = (i == 0 || fragments[i-1].isOperator);
+            auto isPrefix = (i == 0 || fragments[i-1].isOperator);
 
             if (isPrefix) {
                 if (priority > maxPriority) {
@@ -366,7 +366,7 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
         exprTree rightTree(rightFragments);
         if (rightFragments.size() == 1) rightTree = rightFragments[0];
 
-        ast::Expression rightExpr = expressionTreeParser(_context, rightTree);
+        auto rightExpr = expressionTreeParser(_context, rightTree);
 
         return ast::Expression(std::make_shared<ast::CompositeExpression>(
             std::vector<ast::Expression>{rightExpr},
@@ -383,8 +383,8 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
     exprTree rightTree(rightFragments);
     if (rightFragments.size() == 1) rightTree = rightFragments[0];
 
-    ast::Expression leftExpr = expressionTreeParser(_context, leftTree);
-    ast::Expression rightExpr = expressionTreeParser(_context, rightTree);
+    auto leftExpr = expressionTreeParser(_context, leftTree);
+    auto rightExpr = expressionTreeParser(_context, rightTree);
 
     return ast::Expression(std::make_shared<ast::CompositeExpression>(
         std::vector<ast::Expression>{leftExpr, rightExpr},
