@@ -15,13 +15,13 @@ namespace type = ast::Type;
 
 
 std::vector<type::StructDefinition> astClass::structDefParser(
-    const std::vector<std::string_view> &_structContents) {
-    std::vector<ast::Type::StructDefinition> structs(_structContents.size());
-    std::vector<std::vector< std::pair<std::shared_ptr<ast::Type::CompileType>,std::string_view> > > lazyPointerTypes(structs.size());
+    const std::vector<std::string_view> &_structContents) const {
+    std::vector<ast::Type::StructDefinition> structs;
+    std::vector<std::vector< std::pair<std::shared_ptr<ast::Type::CompileType>,std::string_view> > > lazyPointerTypes(_structContents.size());
 
     for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
         auto structName = structDef.substr(0, structDef.find('{'));
-        auto memberDefs = Spilit(
+        auto memberDefs = split(
             structDef.substr(structDef.find('{') + 1, structDef.rfind('}') - structDef.find('{') - 1), ";");
         std::vector<ast::Type::StructMember> members;
         for (const auto &memberDef: memberDefs) {

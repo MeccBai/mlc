@@ -233,6 +233,7 @@ void dumpExpression(const ast::Expression& expr, int indent = 0) {
     }, *expr.Storage);
 }
 
+
 ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
                                            const std::string_view _expressionContent) {
     if (const auto pos = _expressionContent.find('{'); pos != std::string_view::npos) {
@@ -259,8 +260,14 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
     return result;
 }
 
+ast::Expression astClass::constExpressionParser(const std::string_view _constExpressionContent) {
+    auto dummyContext = ContextTable<ast::VariableStatement>{};
+    auto tree = expressionParser(dummyContext, _constExpressionContent);
+    return tree;
+}
+
 ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
-    exprTree _expressionContent) {
+                                               exprTree _expressionContent) {
     if (std::holds_alternative<std::string_view>(_expressionContent.data)) {
         auto str = std::get<std::string_view>(_expressionContent.data);
 

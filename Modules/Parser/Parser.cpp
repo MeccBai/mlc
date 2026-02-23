@@ -14,16 +14,31 @@ namespace ast = mlc::ast;
 using size_t = std::size_t;
 //[if(p==0){a.x=10;}else{a.y=10;}]
 
-
 template<typename type>
 using sPtr = std::shared_ptr<type>;
 
+std::vector<std::string_view> argSplit(std::string_view str) {
+    std::vector<std::string_view> results;
+    int depth = 0;
+    size_t start = 0;
 
-std::vector<std::string_view> Spilit(std::string_view str, std::string_view delimiter) {
+    for (size_t i = 0; i < str.size(); ++i) {
+        if (str[i] == '(' || str[i] == '{' || str[i] == '[') depth++;
+        else if (str[i] == ')' || str[i] == '}' || str[i] == ']') depth--;
+        else if (str[i] == ',' && depth == 0) {
+            results.push_back(str.substr(start, i - start));
+            start = i + 1;
+        }
+    }
+    results.push_back(str.substr(start)); // 别忘了最后一块
+    return results;
+}
+
+std::vector<std::string_view> split(std::string_view str, std::string_view delimiter) {
     std::vector<std::string_view> result;
     size_t start = 0;
     while (true) {
-        size_t pos = str.find(delimiter, start);
+        const size_t pos = str.find(delimiter, start);
         if (pos == std::string_view::npos) {
             result.push_back(str.substr(start));
             break;
@@ -34,15 +49,54 @@ std::vector<std::string_view> Spilit(std::string_view str, std::string_view deli
     return result;
 }
 
-ast::SubScope astClass::subScopeParser(const std::string_view subScopeContent) {
-    auto statements = mlc::seg::TokenizeFunctionBody(subScopeContent);
-    // 这里可以进一步解析条件表达式等信息
-    return ast::SubScope({}, ast::SubScopeType::AnonymousBlock, {});
+ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement>& _context,const std::string_view _statementContent) {
+    if (_statementContent.find(' ') != std::string_view::npos) {
+        return variableParser(_context,_statementContent)[0];
+    }
+    if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
+        const auto left = _statementContent.substr(0, pos);
+        const auto right = _statementContent.substr(pos + 1);
+        return ast::AssignStatement(expressionParser(left), expressionParser(right));
+    }
+    if (_statementContent.find('(') != std::string_view::npos) {
+        if (const auto pos = _statementContent.find("if("); pos == 0) {
+            return subScopeParser(_context,_statementContent);
+        }
+        if (const auto pos = _statementContent.find("while("); pos == 0) {
+            return subScopeParser(_context,_statementContent);
+        }
+        if (const auto pos = _statementContent.find("switch("); pos == 0) {
+            return subScopeParser(_context,_statementContent);
+        }
+        const auto functionName = _statementContent.substr(0, _statementContent.find('('));
+        const auto argsStr = _statementContent.substr(_statementContent.find('(') + 1,
+                                                      _statementContent.length() -
+                                                      functionName.length() - 1);
+        std::vector<ast::Expression> args = argSplit(argsStr) | std::views::transform([this, &_context](std::string_view arg) {
+            ;
+            return expressionParser(_context,arg);
+        }) | std::ranges::to<std::vector<ast::Expression> >();
+        return ast::FunctionCallStatement(functionName, args);
+    }
+    ErrorPrintln("Invalid statement '{}'\n", _statementContent);
+    std::exit(-1);
 }
 
+
+
+
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent) {
-    auto enums = std::vector<std::string>{"Value1", "Value2", "Value3"};
-    return ast::Type::EnumDefinition("enum", enums);
+    const auto pos = _enumContent.find(' ');
+    const auto enumName = _enumContent.substr(pos, _enumContent.find('{') - pos);
+    const auto memberStr = _enumContent.substr(_enumContent.find('{') + 1,
+                                               _enumContent.rfind('}') - _enumContent.find('{') - 1);
+    auto memberDefs = split(memberStr, ",");
+
+    auto options = memberDefs | std::views::transform([](std::string_view member) {
+        return std::string(member);
+    }) | std::ranges::to<std::vector<std::string> >();
+
+    return ast::Type::EnumDefinition(enumName, options);
 }
 
 
@@ -93,7 +147,8 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 
     for (auto &varDecl: varDecls) {
-        for (const auto varParsed = variableParser(varDecl); auto &v: varParsed) {
+        auto dummyContext = ContextTable<ast::VariableStatement>{};
+        for (const auto varParsed = variableParser(dummyContext,varDecl); auto &v: varParsed) {
             variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(v));
         }
     }

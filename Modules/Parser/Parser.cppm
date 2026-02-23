@@ -17,12 +17,8 @@ export namespace mlc::parser {
         template<typename _type>
         using ContextTable = std::vector<std::weak_ptr<_type>>;
 
-        std::vector<ast::VariableStatement> variableParser(std::string_view variableContent);
-
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
-        ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent);
-
-        ast::SubScope subScopeParser(std::string_view subScopeContent);
+        [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent) const;
 
         struct exprTree;
         using FragmentData = std::variant<std::string_view, std::vector<exprTree>>;
@@ -36,9 +32,31 @@ export namespace mlc::parser {
             explicit exprTree(std::vector<exprTree> v) : data(std::move(v)), isOperator(false) {}
         };
 
+        ast::Statement statementParser(std::string_view statementContent) {
+            ContextTable<ast::VariableStatement> dummyContext;
+            return statementParser(dummyContext, statementContent);
+        }
+
+        ast::Statement statementParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
+
+        std::vector<ast::Statement> caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
 
         ast::Expression expressionParser(ContextTable<ast::VariableStatement> &_context,
                                          std::string_view _expressionContent);
+
+        ast::Expression constExpressionParser(std::string_view _constExpressionContent);
+
+        std::vector<ast::VariableStatement> globalVariableParser(std::string_view variableContent);
+
+        std::vector<ast::VariableStatement> localVariableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+
+        std::vector<ast::VariableStatement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+
+        ast::SubScope subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view subScopeContent);
+        ast::SubScope subScopeParser(const std::string_view _subScopeContent) {
+            ContextTable<ast::VariableStatement> dummyContext;
+            return subScopeParser(dummyContext, _subScopeContent);
+        }
 
         ast::Expression expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
                                              exprTree _expressionContent);
@@ -48,7 +66,7 @@ export namespace mlc::parser {
             return expressionParser(dummyContext, _expressionContent);
         }
 
-        std::vector<ast::Type::StructDefinition> structDefParser(const std::vector<std::string_view> &_structContents);
+        [[nodiscard]] std::vector<ast::Type::StructDefinition> structDefParser(const std::vector<std::string_view> &_structContents) const;
 
         ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
 
@@ -67,4 +85,4 @@ export namespace mlc::parser {
     };
 } // namespace mlc::parser
 
-std::vector<std::string_view> Spilit(std::string_view str, std::string_view delimiter);
+std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);

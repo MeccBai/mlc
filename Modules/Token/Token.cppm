@@ -1,6 +1,3 @@
-
-
-
 //
 // Created by Administrator on 2026/2/20.
 //
@@ -132,7 +129,7 @@ export namespace mlc::ast::Type {
 
     class PointerType {
     public:
-        explicit PointerType(const std::string_view _name,const size_t _pointerLevel = 1)
+        explicit PointerType(const std::string_view _name, const size_t _pointerLevel = 1)
             : Name(_name), PointerLevel(_pointerLevel) {
         }
 
@@ -220,34 +217,39 @@ export namespace mlc::ast {
 
     class Expression {
     public:
-        using Data = std::variant<ConstValue, Variable, std::shared_ptr<FunctionCall>, std::shared_ptr<CompositeExpression>>;
+        using Data = std::variant<ConstValue, Variable, std::shared_ptr<FunctionCall>, std::shared_ptr<
+            CompositeExpression> >;
         std::shared_ptr<Data> Storage;
 
         // --- 宽松且安全的构造函数 ---
         template<typename T>
-        requires (
-            // 1. 排除掉 Expression 本身及其子类，防止拦截拷贝/移动构造
-            !std::is_same_v<std::remove_cvref_t<T>, Expression> &&
-            // 2. 只有当 T 能被用来构造 Data 时，才启用这个模板
-            std::is_constructible_v<Data, T>
-        )
-        explicit Expression(T&& _val)
-            : Storage(std::make_shared<Data>(std::forward<T>(_val))) {}
+            requires (
+                // 1. 排除掉 Expression 本身及其子类，防止拦截拷贝/移动构造
+                !std::is_same_v<std::remove_cvref_t<T>, Expression> &&
+                // 2. 只有当 T 能被用来构造 Data 时，才启用这个模板
+                std::is_constructible_v<Data, T>
+            )
+        explicit Expression(T &&_val)
+            : Storage(std::make_shared<Data>(std::forward<T>(_val))) {
+        }
 
 
         // 默认构造：初始化一个空的或者默认状态的 Data
-        Expression() : Storage(std::make_shared<Data>(ConstValue("0"))) {}
+        Expression() : Storage(std::make_shared<Data>(ConstValue("0"))) {
+        }
 
         // 显式声明，去 .cpp 里 = default
         ~Expression();
 
         // 拷贝与移动保持 default
-        Expression(const Expression&) = default;
-        Expression(Expression&&) noexcept = default;
-        Expression& operator=(const Expression&) = default;
-        Expression& operator=(Expression&&) noexcept = default;
-    };
+        Expression(const Expression &) = default;
 
+        Expression(Expression &&) noexcept = default;
+
+        Expression &operator=(const Expression &) = default;
+
+        Expression &operator=(Expression &&) noexcept = default;
+    };
 
 
     class FunctionCall {
@@ -278,11 +280,18 @@ export namespace mlc::ast {
     class VariableStatement;
     class ReturnStatement;
     class SwitchCaseScope;
-    class CaseBlock;
+
+    class BreakStatement {
+    };
+
+    class ContinueStatement {
+    };
+
     using FunctionCallStatement = FunctionCall;
 
-    using Statement = std::variant<VariableStatement, AssignStatement, FunctionCallStatement, ReturnStatement, SubScope>
-    ;
+    using Statement = std::variant<
+        VariableStatement, AssignStatement, FunctionCallStatement,
+        ReturnStatement, SubScope, ContinueStatement, BreakStatement>;
 
     class AssignStatement {
     public:
@@ -296,9 +305,9 @@ export namespace mlc::ast {
 
     class VariableStatement {
     public:
-        explicit VariableStatement(const std::string_view _name, const std::shared_ptr<Type::CompileType>& _varType,
+        explicit VariableStatement(const std::string_view _name, const std::shared_ptr<Type::CompileType> &_varType,
                                    std::shared_ptr<Expression> _initializer = nullptr)
-            : Name(_name), VarType(_varType),Initializer(std::move(_initializer)) {
+            : Name(_name), VarType(_varType), Initializer(std::move(_initializer)) {
         }
 
         const std::string Name;
@@ -318,13 +327,13 @@ export namespace mlc::ast {
     class SubScope {
     public:
         explicit SubScope(std::vector<Statement> _statements, const SubScopeType _type,
-                          std::vector<Expression> _condition) : Statements(std::move(
-                                                                    _statements)), Conditions(std::move(_condition)),
-                                                                ScopeType(_type) {
+                          Expression _condition) : Statements(std::move(
+                                                       _statements)), Conditions(std::move(_condition)),
+                                                   ScopeType(_type) {
         }
 
         const std::vector<Statement> Statements;
-        const std::vector<Expression> Conditions;
+        const Expression Conditions;
         const SubScopeType ScopeType = SubScopeType::AnonymousBlock;
     };
 
@@ -332,8 +341,8 @@ export namespace mlc::ast {
     public:
         using Args = std::vector<VariableStatement>;
 
-         explicit FunctionDeclaration(std::string _name,const std::weak_ptr<Type::CompileType>&  _returnType,
-                                    Args  _args, const bool _isVarList = false) : IsVarList(_isVarList),
+        explicit FunctionDeclaration(std::string _name, const std::weak_ptr<Type::CompileType> &_returnType,
+                                     Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
             Name(std::move(_name)),
             Parameters(std::move(_args)), ReturnType(_returnType) {
         }
@@ -349,12 +358,20 @@ export namespace mlc::ast {
         using Args = std::vector<VariableStatement>;
 
         FunctionScope(std::string _name, std::vector<Statement> _statements,
-                               std::weak_ptr<Type::CompileType> _returnType,
-                               Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
-                                                                            Name(std::move(_name)),
-                                                                            Statements(std::move(_statements)),
-                                                                            Parameters(std::move(_args)),
-                                                                            ReturnType(std::move(_returnType)) {
+                      std::weak_ptr<Type::CompileType> _returnType,
+                      Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
+                                                                   Name(std::move(_name)),
+                                                                   Statements(std::move(_statements)),
+                                                                   Parameters(std::move(_args)),
+                                                                   ReturnType(std::move(_returnType)) {
+        }
+
+        FunctionScope(const FunctionDeclaration &_functionDeclaration, std::vector<Statement> _statements)
+            : IsVarList(_functionDeclaration.IsVarList),
+              Name(_functionDeclaration.Name),
+              Statements(std::move(_statements)),
+              Parameters(_functionDeclaration.Parameters),
+              ReturnType(_functionDeclaration.ReturnType) {
         }
 
         const bool IsVarList;
@@ -365,7 +382,6 @@ export namespace mlc::ast {
         const std::weak_ptr<Type::CompileType> ReturnType;
 
         [[nodiscard]] FunctionDeclaration ToDeclaration() const;
-
     };
 } // namespace mlc::ast
 

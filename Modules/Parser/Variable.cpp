@@ -34,7 +34,27 @@ std::string_view getVariableName(std::string_view declaration) {
     return declaration.substr(start, end - start);
 }
 
-std::vector<ast::VariableStatement> astClass::variableParser(
+std::vector<ast::VariableStatement> astClass::globalVariableParser(
+    const std::string_view variableContent) {
+    // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
+    auto globalContext = ContextTable<ast::VariableStatement>{};
+    const auto result = variableParser(globalContext, variableContent);
+    for (const auto &var: result) {
+        variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(var));
+    }
+    return result;
+    //ast::VariableStatement("", {}, std::nullopt);
+}
+
+std::vector<ast::VariableStatement> astClass::localVariableParser(
+    ContextTable<ast::VariableStatement> &_context, std::string_view variableContent) {
+
+    return variableParser(_context, variableContent);
+     //ast::VariableStatement("", {}, std::nullopt);
+
+}
+
+std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::VariableStatement> &_context,
     const std::string_view variableContent) {
     // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
     std::println("{}", variableContent);
@@ -59,10 +79,8 @@ std::vector<ast::VariableStatement> astClass::variableParser(
     std::stack<char> brackets;
     size_t start = 0;
     for (size_t i = 0; i < variables.length(); i++) {
-        const char c = variables[i];
-
         // 1. 括号入栈逻辑 (保持你原本的高质量实现)
-        if (c == '{' || c == '(' || c == '[') {
+        if (const char c = variables[i]; c == '{' || c == '(' || c == '[') {
             brackets.push(c);
         } else if (c == '}' || c == ')' || c == ']') {
             if (brackets.empty()) {
@@ -97,7 +115,6 @@ std::vector<ast::VariableStatement> astClass::variableParser(
             declarations.emplace_back(lastItem);
         }
     }
-
     std::vector<ast::VariableStatement> result;
     for (auto declaration: declarations) {
         auto variableName = getVariableName(declaration);
@@ -108,7 +125,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(
         }
         if (declaration.find('=') != std::string_view::npos) {
             const auto expressionContext = declaration.substr(declaration.find('=') + 1);
-            auto expression = std::make_shared<ast::Expression>(expressionParser(expressionContext));
+            auto expression = std::make_shared<ast::Expression>(expressionParser(_context,expressionContext));
             if (isPointer) {
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
@@ -123,7 +140,8 @@ std::vector<ast::VariableStatement> astClass::variableParser(
             }
         }
     }
-
     return result;
     //ast::VariableStatement("", {}, std::nullopt);
 }
+
+

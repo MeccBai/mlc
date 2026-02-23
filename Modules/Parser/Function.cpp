@@ -13,23 +13,31 @@ namespace ast = mlc::ast;
 using size_t = std::size_t;
 
 
-ast::FunctionScope astClass::functionDefParser(std::string_view functionContent) {
-    auto statements = mlc::seg::TokenizeFunctionBody(functionContent);
-    // 这里可以进一步解析函数头，提取参数和返回类型等信息
-    return ast::FunctionScope("", {}, {}, {});
+ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
+    ContextTable<ast::VariableStatement> context;
+    auto statements = seg::TokenizeFunctionBody(_functionContent);
+    auto functionDecl = functionDeclParser(statements[0]);
+    auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
+    for (auto args = functionDeclPtr.Parameters; const auto &arg: args) {
+        context.emplace_back(std::make_shared<ast::VariableStatement>(arg));
+    }
+    const auto statementsParsed = statements | std::views::drop(1) | std::views::transform(
+                                      [&](const std::string_view statement) {
+                                          return statementParser(context,statement);
+                                      }) | std::ranges::to<std::vector<ast::Statement> >();
+    return ast::FunctionScope(functionDecl, statementsParsed);
 }
 
-ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(const std::string_view _functionContent) {
+ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(const std::string_view _functionContent) const {
     //void func(int a,int b)
     const std::string_view returnType = _functionContent.substr(0, _functionContent.find(' '));
 
-
     const auto leftBracket = _functionContent.find('(');
     const auto rightBracket = _functionContent.find(')');
-    const std::string_view argsList = _functionContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
+    const auto argsList = _functionContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
     const auto functionName = _functionContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
 
-    std::weak_ptr<ast::Type::CompileType> returnTypePtr = findType(returnType);
+    const std::weak_ptr<ast::Type::CompileType> returnTypePtr = findType(returnType);
 
     if (argsList == "...") {
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, {}, true);
@@ -45,13 +53,17 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(con
 
     std::vector<ast::VariableStatement> args;
 
-    for (const auto argsSplit = Spilit(argsList, ","); const auto &arg: argsSplit) {
-        const auto argument = Spilit(arg, " ");
+    for (const auto argsSplit = split(argsList, ","); const auto &arg: argsSplit) {
+        const auto argument = split(arg, " ");
         if (argument.size() != 2) {
             ErrorPrintln("Error: Invalid argument format '{}'\n", arg);
             std::exit(-1);
         }
         const auto argType = argument[0];
+        if (argType.find('[') != std::string_view::npos || argType.find(']') != std::string_view::npos) {
+            ErrorPrintln("Error: Array type is not allowed in function parameters '{}'\n", argType);
+            std::exit(-1);
+        }
         const auto argName = argument[1];
         std::weak_ptr<ast::Type::CompileType> argTypePtr = findType(argType);
         if (argTypePtr.expired()) {
