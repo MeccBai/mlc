@@ -105,8 +105,8 @@ export namespace mlc::ast::Type {
     };
 
     struct StructMember {
-        std::weak_ptr<CompileType> Type;
         std::string Name;
+        std::shared_ptr<CompileType> Type;
     };
 
     class StructDefinition {
