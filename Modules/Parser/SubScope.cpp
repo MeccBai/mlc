@@ -15,10 +15,12 @@ astClass::caseBlock astClass::caseBlockParser(
     const auto conditionStr = statementContent.substr(0, statementContent.find(':'));
     const auto statementsStr = statementContent.substr(statementContent.find(':') + 1);
     const auto condition = expressionParser(_context, conditionStr);
-    const auto statements = seg::TokenizeFunctionBody(statementsStr) | std::views::transform(
+    const auto statementsTemp = seg::TokenizeFunctionBody(statementsStr) | std::views::transform(
                                 [&](const std::string_view statement) {
                                     return statementParser(_context, statement);
-                                }) | std::ranges::to<std::vector<ast::Statement> >();
+                                }) | std::ranges::to<std::vector<std::vector<ast::Statement>> >();
+    const auto statements = statementsTemp | std::views::join | std::ranges::to<std::vector<ast::Statement> >();
+
     return {condition, statements};
 }
 
@@ -45,10 +47,11 @@ ast::SubScope astClass::subScopeParser(ContextTable<ast::VariableStatement> &_co
     }
 
     const auto bodyToStatements = [this, &newContext](const std::string_view body) {
-        return seg::TokenizeFunctionBody(body) | std::views::transform(
+        auto temp = seg::TokenizeFunctionBody(body) | std::views::transform(
                    [&newContext, this](const std::string_view statement) {
                        return statementParser(newContext, statement);
-                   }) | std::ranges::to<std::vector<ast::Statement> >();
+                   }) | std::ranges::to<std::vector<std::vector<ast::Statement>> >();
+        return temp | std::views::join | std::ranges::to<std::vector<ast::Statement> >();
     };
 
     if (_subScopeContent.starts_with("if(")) {

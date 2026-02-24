@@ -7,7 +7,6 @@ export module Parser;
 import Token;
 import std;
 import Compiler;
-
 export namespace mlc::parser {
     class AbstractSyntaxTree {
     public:
@@ -15,7 +14,7 @@ export namespace mlc::parser {
         using SymbolTable = std::vector<std::shared_ptr<_type>>;
 
         template<typename _type>
-        using ContextTable = std::vector<std::weak_ptr<_type>>;
+        using ContextTable = std::vector<std::shared_ptr<_type>>;
 
         struct functionWarper {
             ast::FunctionDeclaration decl;
@@ -43,12 +42,13 @@ export namespace mlc::parser {
             std::vector<ast::Statement> statements; // case 块内的语句
         };
 
-        ast::Statement statementParser(std::string_view statementContent) {
+        std::vector<ast::Statement> statementParser(std::string_view statementContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return statementParser(dummyContext, statementContent);
         }
 
-        ast::Statement statementParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
+        std::vector<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
+                                                    std::string_view statementContent);
 
         caseBlock caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
 

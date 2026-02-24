@@ -48,20 +48,25 @@ std::vector<ast::VariableStatement> astClass::globalVariableParser(
 
 std::vector<ast::VariableStatement> astClass::localVariableParser(
     ContextTable<ast::VariableStatement> &_context, std::string_view variableContent) {
-
     return variableParser(_context, variableContent);
-     //ast::VariableStatement("", {}, std::nullopt);
-
+    //ast::VariableStatement("", {}, std::nullopt);
 }
 
 std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::VariableStatement> &_context,
-    const std::string_view variableContent) {
+                                                             const std::string_view variableContent) {
     // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
     std::println("{}", variableContent);
 
+    auto variableExist = [&_context](std::string_view name) {
+        for (const auto &var: _context) {
+            if (var->Name == name) return true;
+        }
+        return false;
+    };
+
     const auto pos = variableContent.find(' ');
     auto type = variableContent.substr(0, pos);
-    const auto variables = variableContent.substr(pos + 1);
+    const auto variables = variableContent.substr(pos+1);
 
     const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
         return std::visit([](auto &&arg) -> std::string_view {
@@ -87,7 +92,8 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                 /* 报错逻辑... */
                 std::exit(-1);
             }
-            if (const char top = brackets.top(); (c == '}' && top == '{') || (c == ')' && top == '(') || (c == ']' && top == '[')) {
+            if (const char top = brackets.top();
+                (c == '}' && top == '{') || (c == ')' && top == '(') || (c == ']' && top == '[')) {
                 brackets.pop();
             } else {
                 /* 报错逻辑... */
@@ -118,6 +124,10 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
     std::vector<ast::VariableStatement> result;
     for (auto declaration: declarations) {
         auto variableName = getVariableName(declaration);
+        if (variableExist(variableName)) {
+            ErrorPrintln("Error: Variable '{}' already exists in the current scope\n", variableName);
+            std::exit(-1);
+        }
         std::println("{} : {}", variableName, declaration);
         bool isPointer = false;
         if (declaration[0] == '$') {
@@ -125,14 +135,15 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
         }
         if (declaration.find('=') != std::string_view::npos) {
             const auto expressionContext = declaration.substr(declaration.find('=') + 1);
-            auto expression = std::make_shared<ast::Expression>(expressionParser(_context,expressionContext));
+            auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
             if (isPointer) {
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
                     if (declaration[i] == '$') pointerLevel++;
                     else break;
                 }
-                const auto pointerType = std::make_shared<type::PointerType>(type::PointerType(variableName, pointerLevel));
+                const auto pointerType = std::make_shared<type::PointerType>(
+                    type::PointerType(variableName, pointerLevel));
                 pointerType->Finalize(baseType);
                 auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
                 result.emplace_back(*varPtr);
@@ -143,9 +154,27 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                 _context.emplace_back(varPtr);
             }
         }
+        else {
+            if (isPointer) {
+                size_t pointerLevel = 1;
+                for (size_t i = 1; i < declaration.length(); i++) {
+                    if (declaration[i] == '$') pointerLevel++;
+                    else break;
+                }
+                const auto pointerType = std::make_shared<type::PointerType>(
+                    type::PointerType(variableName, pointerLevel));
+                pointerType->Finalize(baseType);
+                auto pointerTypeTemp = std::make_shared<ast::Type::CompileType>(*pointerType);
+                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, pointerTypeTemp, nullptr);
+                result.emplace_back(*varPtr);
+                _context.emplace_back(varPtr);
+            } else {
+                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, nullptr);
+                result.emplace_back(*varPtr);
+                _context.emplace_back(varPtr);
+            }
+        }
     }
     return result;
     //ast::VariableStatement("", {}, std::nullopt);
 }
-
-

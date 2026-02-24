@@ -31,6 +31,12 @@ std::vector<std::string_view> argSplit(const std::string_view str) {
         }
     }
     results.push_back(str.substr(start)); // 别忘了最后一块
+    if (*results.rbegin()->rbegin() == ';') {
+        *results.rbegin() = results.back().substr(0, results.back().size() - 2);
+    }
+    if (*results.rbegin()->rbegin() == ')') {
+        *results.rbegin() = results.back().substr(0, results.back().size() - 1);
+    }
     return results;
 }
 
@@ -49,36 +55,80 @@ std::vector<std::string_view> split(std::string_view str, std::string_view delim
     return result;
 }
 
-ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
-                                         const std::string_view _statementContent) {
+std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
+                                                      const std::string_view _statementContent) {
     if (_statementContent.starts_with("if(") ||
         _statementContent.starts_with("while(") ||
         _statementContent.starts_with("switch(") ||
         _statementContent.starts_with("do{") ||
         _statementContent.starts_with("else{")) {
-        return subScopeParser(_context, _statementContent);
+        return {subScopeParser(_context, _statementContent)};
+    }
+
+    if (_statementContent.starts_with("return")) {
+        // 检查 return 之后是否紧跟合法边界
+        // 比如：return;  return (x);  return x;
+        auto trim = [](std::string_view str) {
+            while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
+            while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
+            return str;
+        };
+
+        bool isStandalone = (_statementContent.length() == 6 ||
+                             std::isspace(_statementContent[6]) ||
+                             _statementContent[6] == '(' ||
+                             _statementContent[6] == ';');
+
+        if (isStandalone) {
+            auto returnBody = _statementContent.substr(6);
+
+            // 移除首尾空格和末尾分号（如果有的话）
+            // 你应该有一个统一的 Trim 函数
+            auto trimmedBody = trim(returnBody);
+            if (!trimmedBody.empty() && trimmedBody.back() == ';') {
+                trimmedBody.remove_suffix(1);
+                trimmedBody = trim(trimmedBody);
+            }
+
+            if (trimmedBody.empty()) {
+                return {ast::ReturnStatement(nullptr)};
+            }
+
+            return {ast::ReturnStatement(
+                std::make_shared<ast::Expression>(expressionParser(_context, trimmedBody))
+            )};
+        }
+    }
+
+    if (_statementContent.starts_with("break;")) {
+        return {ast::BreakStatement()};
+    }
+    if (_statementContent.starts_with("continue;")) {
+        return {ast::ContinueStatement()};
     }
 
     if (_statementContent.find(' ') != std::string_view::npos) {
-        return variableParser(_context, _statementContent)[0];
+        return variableParser(_context, _statementContent) | std::views::transform([](const ast::VariableStatement &var) {;
+            return ast::Statement(var);
+        }) | std::ranges::to<std::vector<ast::Statement> >();
     }
     if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
         const auto left = _statementContent.substr(0, pos);
         const auto right = _statementContent.substr(pos + 1);
-        return ast::AssignStatement(expressionParser(left), expressionParser(right));
+        return {ast::AssignStatement(expressionParser(left), expressionParser(right))};
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
-            return subScopeParser(_context, _statementContent);
+            return {subScopeParser(_context, _statementContent)};
         }
         if (const auto pos = _statementContent.find("while("); pos == 0) {
-            return subScopeParser(_context, _statementContent);
+            return {subScopeParser(_context, _statementContent)};
         }
         if (const auto pos = _statementContent.find("switch("); pos == 0) {
-            return subScopeParser(_context, _statementContent);
+            return {subScopeParser(_context, _statementContent)};
         }
         if (const auto pos = _statementContent.find("do{"); pos == 0) {
-            return subScopeParser(_context, _statementContent);
+            return {subScopeParser(_context, _statementContent)};
         }
         const auto functionName = _statementContent.substr(0, _statementContent.find('('));
         const auto argsStr = _statementContent.substr(_statementContent.find('(') + 1,
@@ -89,7 +139,45 @@ ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement> &_
                                                     ;
                                                     return expressionParser(_context, arg);
                                                 }) | std::ranges::to<std::vector<ast::Expression> >();
-        return ast::FunctionCallStatement(functionName, args);
+
+        auto decl = std::shared_ptr<ast::FunctionDeclaration>(nullptr);
+
+        for (const auto &function: functionSymbolTable) {
+            if (function->Name == functionName) {
+                if (!function->IsVarList && args.size() != function->Parameters.size()) {
+                    ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
+                                 functionName, function->Parameters.size(), args.size());
+                    std::exit(-1);
+                } else {
+                    for (auto funcArgs = function->Parameters;
+                         auto [exp, arg]: std::views::zip(args, funcArgs)) {
+                        auto exprType = exp.GetType();
+                        auto paramType = arg.VarType;
+                        if (exprType == nullptr || paramType == nullptr) {
+                            throw std::runtime_error("Type inference failed for argument: " + arg.Name);
+                        }
+                        auto getName = [](const ast::Type::CompileType& type) -> std::string {
+                            return std::visit([](auto&& t) -> std::string {
+                                return std::string(t.Name);
+                            }, type);
+                        };
+
+                        std::string expectedName = getName(*exprType);
+
+                        if (std::string actualName = getName(*paramType); expectedName != actualName) {
+                            ErrorPrintln("Error: Argument type mismatch for parameter '{}'. Expected '{}', got '{}'\n",
+                                         arg.Name, actualName, expectedName);
+                            std::exit(-1);
+                        }
+
+                        decl = function;
+                    }
+                }
+                break;
+            }
+        }
+
+        return {ast::FunctionCallStatement(decl, args)};
     }
     ErrorPrintln("Invalid statement '{}'\n", _statementContent);
     std::exit(-1);
@@ -171,6 +259,8 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         auto decl = functionDefParser(func);
         functionScopeTable.emplace_back(std::make_shared<ast::FunctionScope>(decl));
     }
+
+    return;
 }
 
 auto astClass::findType(const std::string_view _typeName) const -> std::shared_ptr<ast::Type::CompileType> {

@@ -12,12 +12,10 @@ int main() {
         struct One { i32 a; Two $b;};
         struct Two { i32 a; One $b; };
         i32 main() {
-            i32 a = 1;
-            do {
-                i32 a = 2; // 这里的 a 应该遮蔽外层的
-                i32 b = a; // b 应该等于 2
-                func(a, b);
-            } while(a > 0); // 这里的 a 应该绑定回最外层的 1
+            One a;
+            a.a = 100;
+            return;
+            return 0;
         }
         void func(i32 x, i32 y) {
 
@@ -25,6 +23,8 @@ int main() {
     )";
 
     const std::string content = mlc::prepare::Prepare(source);
+    std::print("{}",content);
+
     mlc::parser::AbstractSyntaxTree ast(mlc::seg::TopTokenize(content));
 
 

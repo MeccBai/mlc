@@ -9,8 +9,7 @@ export module aux;
 import std;
 
 export template<class... Args>
-void ErrorPrintln(Args&&... args) {
-    // 既然你是报错，直接打印出所有内容，甚至不需要手动传 format
-    // 或者直接这样写：
-    (std::println(stderr, "{}", std::forward<Args>(args)), ...); // 换行
+void ErrorPrintln(std::format_string<Args...> fmt, Args&&... args) {
+    // 使用 std::vprint_unicode 或 std::vformat 将参数一次性填入模板
+    std::println(stderr, fmt, std::forward<Args>(args)...);
 }

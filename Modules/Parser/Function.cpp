@@ -27,10 +27,12 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
          const auto &arg: args) {
         context.emplace_back(std::make_shared<ast::VariableStatement>(arg));
     }
-    const auto statementsParsed = statements | std::views::transform(
+    const auto statementsTemp = statements | std::views::transform(
                                       [&](const std::string_view statement) {
                                           return statementParser(context, statement);
-                                      }) | std::ranges::to<std::vector<ast::Statement> >();
+                                      }) | std::ranges::to<std::vector<std::vector<ast::Statement>> >();
+    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<ast::Statement> >();
+
     return {functionDecl, statementsParsed};
 }
 
@@ -44,13 +46,13 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
     const auto argsList = _functionContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
     const auto functionName = _functionContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
 
-    const std::weak_ptr<ast::Type::CompileType> returnTypePtr = findType(returnType);
+    const std::shared_ptr<ast::Type::CompileType> returnTypePtr = findType(returnType);
 
     if (argsList == "...") {
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, {}, true);
     }
 
-    if (returnTypePtr.expired()) {
+    if (returnTypePtr.operator->()==nullptr) {
         ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
         std::exit(-1);
     }
@@ -72,12 +74,12 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
             std::exit(-1);
         }
         const auto argName = argument[1];
-        std::weak_ptr<ast::Type::CompileType> argTypePtr = findType(argType);
-        if (argTypePtr.expired()) {
+        std::shared_ptr<ast::Type::CompileType> argTypePtr = findType(argType);
+        if (argTypePtr.operator->() == nullptr) {
             ErrorPrintln("Error: Unknown type '{}'\n", argType);
             std::exit(-1);
         }
-        args.emplace_back(argName, argTypePtr.lock(), nullptr);
+        args.emplace_back(argName, argTypePtr, nullptr);
     }
 
     return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, args);

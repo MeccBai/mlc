@@ -188,13 +188,13 @@ using VariableContext = astClass::ContextTable<ast::VariableStatement>;
 using FunctionContext = astClass::ContextTable<ast::FunctionDeclaration>;
 
 std::string operatorToString(ast::BaseOperator op) {
-    for (const auto& [str, val] : ast::BaseOperators) {
+    for (const auto &[str, val]: ast::BaseOperators) {
         if (val == op) return std::string(str);
     }
     return "UnknownOp";
 }
 
-void dumpExpression(const ast::Expression& expr, int indent = 0) {
+void dumpExpression(const ast::Expression &expr, int indent = 0) {
     const std::string padding(indent * 2, ' ');
 
     if (!expr.Storage) {
@@ -202,31 +202,28 @@ void dumpExpression(const ast::Expression& expr, int indent = 0) {
         return;
     }
 
-    std::visit([&]<typename type>(type&& arg) {
+    std::visit([&]<typename type>(type &&arg) {
         using T = std::decay_t<type>;
 
         if constexpr (std::is_same_v<T, ast::ConstValue>) {
             std::cout << padding << "[Const] " << arg.Value << "\n";
-        }
-        else if constexpr (std::is_same_v<T, ast::Variable>) {
+        } else if constexpr (std::is_same_v<T, ast::Variable>) {
             std::cout << padding << "[Var] " << arg.Name << "\n";
-        }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<ast::FunctionCall>>) {
-            std::cout << padding << "[FuncCall] " << arg->FunctionName << " (\n";
-            for (const auto& param : arg->Arguments) {
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<ast::FunctionCall> >) {
+            std::cout << padding << "[FuncCall] " << arg->FunctionDecl->Name << " (\n";
+            for (const auto &param: arg->Arguments) {
                 dumpExpression(param, indent + 1);
             }
             std::cout << padding << ")\n";
-        }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<ast::CompositeExpression>>) {
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<ast::CompositeExpression> >) {
             std::cout << padding << "[Composite]\n";
             std::cout << padding << "  Operators: ";
-            for (const auto& op : arg->Operators) {
+            for (const auto &op: arg->Operators) {
                 std::cout << operatorToString(op) << " ";
             }
             std::cout << "\n";
             std::cout << padding << "  Components:\n";
-            for (const auto& comp : arg->Components) {
+            for (const auto &comp: arg->Components) {
                 dumpExpression(comp, indent + 2);
             }
         }
@@ -238,7 +235,7 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
                                            const std::string_view _expressionContent) {
     if (const auto pos = _expressionContent.find('{'); pos != std::string_view::npos) {
         if (_expressionContent.back() != '}') {
-            ErrorPrintln("MLC Syntax Error: Unmatched opening brace '{' in expression: {}", _expressionContent);
+            ErrorPrintln("MLC Syntax Error: Unmatched opening brace '{{' in expression: {}", _expressionContent);
             std::exit(-1);
         }
     }
@@ -301,7 +298,25 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
                         args.push_back(expressionParser(_context, argsStr.substr(start)));
                     }
                 }
-                return ast::Expression(std::make_shared<ast::FunctionCall>(funcName, args));
+                auto functionPtr = std::shared_ptr<ast::FunctionDeclaration>(nullptr);
+                for (auto function : functionSymbolTable) {
+                    if (function->Name == funcName) {
+                        if (!function->IsVarList && args.size() != function->Parameters.size()) {
+                            ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
+                                         funcName, function->Parameters.size(), args.size());
+                            std::exit(-1);
+                        }
+                        else {
+                            for (auto funcArgs = function->Parameters;
+                                auto [exp,arg] : std::views::zip(args, funcArgs)) {
+
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                return ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr, args));
             }
         }
 
@@ -310,16 +325,14 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
         }
 
         std::shared_ptr<ast::Variable> variable;
-        for (auto& weakVar : _context) {
-            if (auto var = weakVar.lock()) {
-                if (var->Name == str) {
-                    variable = var;
-                    break;
-                }
+        for (auto &var: _context) {
+            if (var->Name == str) {
+                variable = var;
+                break;
             }
         }
-        if (variable.operator->()==nullptr) {
-            for (auto& var : variableSymbolTable) {
+        if (variable.operator->() == nullptr) {
+            for (auto &var: variableSymbolTable) {
                 if (var->Name == str) {
                     variable = var;
                     break;
@@ -327,10 +340,14 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             }
         }
 
+        if (variable == nullptr) {
+            ErrorPrintln("Error: Undefined variable '{}'\n", str);
+            std::exit(-1);
+        }
         return ast::Expression(variable);
     }
 
-    auto& fragments = std::get<std::vector<exprTree>>(_expressionContent.data);
+    auto &fragments = std::get<std::vector<exprTree> >(_expressionContent.data);
 
     if (fragments.size() == 1) {
         return expressionTreeParser(_context, fragments[0]);
@@ -345,7 +362,57 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             auto op = toBaseOperator(opStr);
             const auto priority = operatorPriority.at(op);
 
-            if (i == 0 || fragments[i-1].isOperator) {
+            if (op == ast::BaseOperator::Dot || op == ast::BaseOperator::Arrow) {
+                // 1. 解析左侧表达式 (例如 obj)
+                std::vector leftFragments(fragments.begin(), fragments.begin() + splitIndex);
+                exprTree leftTree(leftFragments);
+                if (leftFragments.size() == 1) leftTree = leftFragments[0];
+                auto leftExpr = expressionTreeParser(_context, leftTree);
+
+                // 2. 获取右侧成员名 (例如 a)
+                // 注意：右边必须是一个单纯的标识符字符串，不能是表达式
+                if (splitIndex + 1 >= fragments.size()) {
+                    ErrorPrintln("Expected member name after '.' or '->'");
+                    std::exit(-1);
+                }
+
+                // 获取右侧的字符串标识符
+                auto memberName = std::get<std::string_view>(fragments[splitIndex + 1].data);
+
+                // 3. 语义透视：通过左侧的类型去挖右侧的 Index
+                auto baseType = leftExpr.GetType();
+
+                // 如果是 ->，先解引用指针
+                if (op == ast::BaseOperator::Arrow) {
+                    if (auto ptrType = std::visit([](auto&& t) -> std::shared_ptr<ast::Type::PointerType> {
+                        using T = std::decay_t<decltype(t)>;
+                        if constexpr (std::is_same_v<T, ast::Type::PointerType>) return std::make_shared<T>(t);
+                        return nullptr;
+                    }, *baseType)) {
+                        baseType = ptrType->GetBaseType().lock();
+                    }
+                }
+
+                // 4. 在 StructDefinition 中定位 Index
+                if (auto structDef = std::get_if<ast::Type::StructDefinition>(baseType.get())) {
+                    for (size_t i = 0; i < structDef->Members.size(); ++i) {
+                        if (structDef->Members[i].Name == memberName) {
+                            // 成功：构建 MemberAccess 并封包成 Expression
+                            auto memberAccess = std::make_shared<ast::MemberAccess>(
+                                std::make_shared<ast::Type::StructDefinition>(*structDef), i
+                            );
+                            // 注意：这里需要把 leftExpr 也传进去（见之前的讨论），
+                            // 否则 CodeGen 找不到基地址。
+                            return ast::Expression(memberAccess);
+                        }
+                    }
+                }
+
+                ErrorPrintln("Type '{}' has no member named '{}'", "unknown", memberName);
+                std::exit(-1);
+            }
+
+            if (i == 0 || fragments[i - 1].isOperator) {
                 if (priority > maxPriority) {
                     maxPriority = priority;
                     splitIndex = i;

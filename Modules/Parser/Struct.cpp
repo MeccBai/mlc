@@ -66,11 +66,10 @@ std::vector<type::StructDefinition> astClass::structDefParser(
         return str;
     };
 
-    auto findStruct = [&structs, trim](std::string_view _typeName) {
+    auto findStruct = [&structs, trim](const std::string_view _typeName) {
       for (const auto &structDef: structs) {
           const auto view = trim(std::string_view(structDef.Name));
-          const auto typeName = trim(_typeName);
-          if (view == typeName) {
+          if (const auto typeName = trim(_typeName); view == typeName) {
               return std::make_shared<ast::Type::CompileType>(structDef);
           }
       }
