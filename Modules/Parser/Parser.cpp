@@ -163,8 +163,12 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 
     for (auto &func: functions) {
+        const auto warper = functionDeclSpliter(func);
+        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(warper.decl));
+    }
+
+    for (auto &func: functions) {
         auto decl = functionDefParser(func);
-        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(decl.ToDeclaration()));
         functionScopeTable.emplace_back(std::make_shared<ast::FunctionScope>(decl));
     }
 }

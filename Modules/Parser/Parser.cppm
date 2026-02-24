@@ -17,8 +17,14 @@ export namespace mlc::parser {
         template<typename _type>
         using ContextTable = std::vector<std::weak_ptr<_type>>;
 
+        struct functionWarper {
+            ast::FunctionDeclaration decl;
+            std::string_view body;
+        };
+
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
         [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent) const;
+        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader) const;
 
         struct exprTree;
         using FragmentData = std::variant<std::string_view, std::vector<exprTree>>;

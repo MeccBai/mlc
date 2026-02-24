@@ -82,3 +82,11 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
 
     return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, args);
 }
+
+astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionContent) const {
+    const auto bracketEndPos = _functionContent.find("){");
+    const auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
+    const auto functionHeader = _functionContent.substr(0, bracketEndPos + 1);
+    const auto functionDecl = functionDeclParser(functionHeader);
+    return {functionDecl, functionBody};
+}

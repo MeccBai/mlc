@@ -1,22 +1,22 @@
 
 
 struct One {
-    int x;
+    i32 x;
     char y;
-    struct Two   * b;
+    Two  $ b;
 };
 
 struct Two {
-    struct One * a;
+    One $ a;
 };
 
-int main() {
+i32 main() {
     struct One a;
-    int x, y;
-    int p = 10;
-    int * p = & x;
-    int xX[10] = {0,1,2,3,4,5};
-    int a[10] = {0,1,2} ,b[10] = {3,4,5,6},*xp = a;
+    i32 x, y;
+    i32 p = 10;
+    i32 * p = & x;
+    i32 xX[10] = {0,1,2,3,4,5};
+    i32 a[10] = {0,1,2} ,b[10] = {3,4,5,6},*xp = a;
     if (p == 0) {
         a.x = 10;
     }
@@ -25,8 +25,8 @@ int main() {
     }
 
     {
-        int xaqw = 10;
-        int ysxa = xaqw;
+        i32 xaqw = 10;
+        i32 ysxa = xaqw;
     }
 
     switch ( !  a.x) {
