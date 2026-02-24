@@ -20,23 +20,26 @@ std::vector<type::StructDefinition> astClass::structDefParser(
     std::vector<std::vector< std::pair<std::shared_ptr<ast::Type::CompileType>,std::string_view> > > lazyPointerTypes(_structContents.size());
 
     for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
-        auto structName = structDef.substr(0, structDef.find('{'));
+        const auto structNameStart = structDef.find("struct") + 6; // 跳过 "struct "
+        auto structName = structDef.substr(structNameStart+1, structDef.find('{')-7);
         auto memberDefs = split(
             structDef.substr(structDef.find('{') + 1, structDef.rfind('}') - structDef.find('{') - 1), ";");
         std::vector<ast::Type::StructMember> members;
         for (const auto &memberDef: memberDefs) {
-            const auto pos = memberDef.find(' ');
-            if (pos == std::string_view::npos) {
-                ErrorPrintln("Error: Invalid struct member definition '{}'\n", memberDef);
-                std::exit(-1);
-            }
-            const auto memberType = memberDef.substr(0, pos);
-            const auto memberName = memberDef.substr(pos + 1);
+            if (memberDef.empty()) continue; // 跳过空成员定义（可能是最后一个分号后面）
             bool isPointer = false;
-            if (memberType[0] == '$') {
+            auto pos = memberDef.find(' ');
+            if (pos == std::string_view::npos) {
+                pos = memberDef.find('$');
+                if (pos == std::string_view::npos) {
+                    ErrorPrintln("Error: Invalid struct member definition '{}'\n", memberDef);
+                    std::exit(-1);
+                }
                 isPointer = true;
             }
-            if (memberType[1] == '$') {
+            const auto memberType = memberDef.substr(0, pos);
+            const auto memberName = memberDef.substr(pos + 1 * (isPointer ? 0 : 1));
+            if (memberName[1] == '$') {
                 ErrorPrintln("Error: Multi-level or two level Pointer is not allowed", memberType);
                 std::exit(-1);
             }
@@ -47,18 +50,27 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 lazyPtrs.emplace_back(ptr,memberType);
                 members.emplace_back(std::string(memberName), ptr);
             } else {
-                if (typePtr.expired()) {
+                if (typePtr.operator->()==nullptr) {
                     ErrorPrintln("Error : Invalid type '{}' for struct member '{}'\n", memberType, memberName);
                     std::exit(-1);
                 }
+                members.emplace_back(std::string(memberName), typePtr);
             }
         }
         structs.emplace_back(std::string(structName), members);
     }
 
-    auto findStruct = [structs](std::string_view typeName) {
+    auto trim = [](std::string_view str) {
+        while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
+        while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
+        return str;
+    };
+
+    auto findStruct = [&structs, trim](std::string_view _typeName) {
       for (const auto &structDef: structs) {
-          if (structDef.Name == typeName) {
+          const auto view = trim(std::string_view(structDef.Name));
+          const auto typeName = trim(_typeName);
+          if (view == typeName) {
               return std::make_shared<ast::Type::CompileType>(structDef);
           }
       }
@@ -67,11 +79,11 @@ std::vector<type::StructDefinition> astClass::structDefParser(
 
     for (const auto& ptrs : lazyPointerTypes) {
         for (const auto &[ptr, name] : ptrs) {
-            auto typePtr = findType(name);
-            if (typePtr.expired()) {
+            std::shared_ptr<ast::Type::CompileType> typePtr = findType(name);
+            if (typePtr.operator->() == nullptr) {
                 typePtr = findStruct(name);
             }
-            if (typePtr.expired()) {
+            if (typePtr.operator->() == nullptr) {
                 ErrorPrintln("Error: Unknown type '{}' for pointer member\n", name);
                 std::exit(-1);
             }

@@ -134,7 +134,7 @@ export namespace mlc::ast::Type {
 
         const std::string Name;
 
-        void Finalize(std::weak_ptr<CompileType> _baseType) {
+        void Finalize(std::shared_ptr<CompileType> _baseType) {
             BaseType = std::move(_baseType);
         }
 
@@ -145,7 +145,7 @@ export namespace mlc::ast::Type {
         const size_t PointerLevel;
 
     private:
-        std::weak_ptr<CompileType> BaseType;
+        std::shared_ptr<CompileType> BaseType;
     };
 } // namespace mlc::ast::Type
 

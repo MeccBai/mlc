@@ -93,7 +93,7 @@ export namespace mlc::parser {
         explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
 
     private:
-        [[nodiscard]] std::weak_ptr<ast::Type::CompileType> findType(std::string_view _typeName) const;
+        [[nodiscard]] std::shared_ptr<ast::Type::CompileType> findType(std::string_view _typeName) const;
     };
 } // namespace mlc::parser
 

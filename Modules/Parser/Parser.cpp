@@ -163,8 +163,8 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 
     for (auto &func: functions) {
-        const auto warper = functionDeclSpliter(func);
-        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(warper.decl));
+        const auto [decl, body] = functionDeclSpliter(func);
+        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(decl));
     }
 
     for (auto &func: functions) {
@@ -173,7 +173,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 }
 
-auto astClass::findType(const std::string_view _typeName) const -> std::weak_ptr<ast::Type::CompileType> {
+auto astClass::findType(const std::string_view _typeName) const -> std::shared_ptr<ast::Type::CompileType> {
     for (const auto &typePtr: typeSymbolTable) {
         if (std::visit([](auto &&arg) -> std::string_view {
             return arg.Name; // 只要所有子类都有 Name，这个就能编译通过
