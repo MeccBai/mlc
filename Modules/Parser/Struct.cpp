@@ -48,7 +48,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
             if (isPointer) {
                 auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(memberName, 1));
                 lazyPtrs.emplace_back(ptr,memberType);
-                members.emplace_back(std::string(memberName), ptr);
+                members.emplace_back(std::string(memberName.substr(1)), ptr);
             } else {
                 if (typePtr.operator->()==nullptr) {
                     ErrorPrintln("Error : Invalid type '{}' for struct member '{}'\n", memberType, memberName);

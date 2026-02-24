@@ -13,3 +13,8 @@ void ErrorPrintln(std::format_string<Args...> fmt, Args&&... args) {
     // 使用 std::vprint_unicode 或 std::vformat 将参数一次性填入模板
     std::println(stderr, fmt, std::forward<Args>(args)...);
 }
+
+export void DisableOutputBuffering() {
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
+    std::setvbuf(stderr, nullptr, _IONBF, 0);
+}

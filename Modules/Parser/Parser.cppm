@@ -70,7 +70,16 @@ export namespace mlc::parser {
         }
 
         ast::Expression expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
-                                             exprTree _expressionContent);
+                                             const exprTree& _expressionContent);
+
+        // Helper methods for expression parsing
+        ast::Expression parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str);
+
+        ast::Expression handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
+                                          const std::vector<exprTree>& fragments,
+                                          int splitIndex);
+
+        int findSplitOperator(const std::vector<exprTree>& fragments);
 
         ast::Expression expressionParser(const std::string_view _expressionContent) {
             ContextTable<ast::VariableStatement> dummyContext;
@@ -96,5 +105,16 @@ export namespace mlc::parser {
         [[nodiscard]] std::shared_ptr<ast::Type::CompileType> findType(std::string_view _typeName) const;
     };
 } // namespace mlc::parser
+
+
+namespace mlc {
+    void ValidateType(const std::shared_ptr<ast::Type::CompileType>& targetType,
+                      const std::shared_ptr<ast::Type::CompileType>& actualType,
+                      std::string_view contextInfo);
+
+    using exprTree = parser::AbstractSyntaxTree::exprTree;
+
+    void dumpFragments(const exprTree &fragment, int indent = 0);
+}
 
 std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);

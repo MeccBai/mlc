@@ -132,10 +132,34 @@ export namespace mlc::ast::Type {
             : Name(_name), PointerLevel(_pointerLevel) {
         }
 
+        explicit PointerType(const std::string_view _name, std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
+            : Name(_name), PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
+        }
+
+        explicit PointerType(std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
+            : PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
+        }
+
+        explicit PointerType(const size_t _pointerLevel = 1) : PointerLevel(_pointerLevel) {
+        }
+
         const std::string Name;
 
         void Finalize(std::shared_ptr<CompileType> _baseType) {
             BaseType = std::move(_baseType);
+            const std::string baseName = std::visit([](auto&& t) -> std::string {
+                    return std::string(t.Name);
+                }, *BaseType);
+            const std::string suffix(PointerLevel, '$');
+            const_cast<std::string&>(Name) = baseName + suffix;
+        }
+
+        [[nodiscard]] std::string GetTypeName() const {
+            std::string name(this->Name.size()+PointerLevel, '*');
+            for (size_t i = 0; i < PointerLevel; ++i) {
+                name[i] = '$';
+            }
+            return name;
         }
 
         [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
@@ -144,7 +168,6 @@ export namespace mlc::ast::Type {
 
         const size_t PointerLevel;
 
-    private:
         std::shared_ptr<CompileType> BaseType;
     };
 } // namespace mlc::ast::Type
@@ -211,7 +234,7 @@ export namespace mlc::ast {
     class MemberAccess {
     public:
         MemberAccess(std::shared_ptr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
-            std::move(_structDef)), Index(_index),Name(_structDef->Members[Index].Name) {
+            std::move(_structDef)), Index(_index),Name(StructDef->Members[Index].Name) {
         }
         std::shared_ptr<Type::StructDefinition> StructDef;
         const size_t Index;

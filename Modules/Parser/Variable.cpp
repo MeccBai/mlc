@@ -64,9 +64,21 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
         return false;
     };
 
-    const auto pos = variableContent.find(' ');
+    auto pos = variableContent.find(' ');
+    bool isPointer = false;
+    if (pos == std::string_view::npos) {
+        if (auto pos2 = variableContent.find('$');pos2 != std::string_view::npos) {
+            if (pos2 < variableContent.find('=')) {
+                pos = variableContent.find('$');
+                isPointer = true;
+            }
+        } else {
+            ErrorPrintln("Error: Invalid variable declaration '{}'\n", variableContent);
+            std::exit(-1);
+        }
+    }
     auto type = variableContent.substr(0, pos);
-    const auto variables = variableContent.substr(pos+1);
+    const auto variables = variableContent.substr(pos+(isPointer?0:1));
 
     const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
         return std::visit([](auto &&arg) -> std::string_view {
@@ -142,10 +154,12 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                     if (declaration[i] == '$') pointerLevel++;
                     else break;
                 }
+                variableName = variableName.substr(pointerLevel);
                 const auto pointerType = std::make_shared<type::PointerType>(
                     type::PointerType(variableName, pointerLevel));
                 pointerType->Finalize(baseType);
-                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
+                auto tempType = std::make_shared<type::CompileType>(*pointerType);
+                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, tempType, expression);
                 result.emplace_back(*varPtr);
                 _context.emplace_back(varPtr);
             } else {

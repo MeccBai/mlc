@@ -112,10 +112,23 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
             return ast::Statement(var);
         }) | std::ranges::to<std::vector<ast::Statement> >();
     }
+    if (auto pos = _statementContent.find('$') ; pos != std::string_view::npos) {
+        auto pos2 = _statementContent.find('=');
+        if (pos2 > pos) {
+            return variableParser(_context, _statementContent) | std::views::transform([](const ast::VariableStatement &var) {;
+                return ast::Statement(var);
+            }) | std::ranges::to<std::vector<ast::Statement> >();
+        }
+    }
     if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
         const auto left = _statementContent.substr(0, pos);
-        const auto right = _statementContent.substr(pos + 1);
-        return {ast::AssignStatement(expressionParser(left), expressionParser(right))};
+        auto right = _statementContent.substr(pos + 1, _statementContent.length() - pos - 2);
+        auto leftExpr = expressionParser(_context, left);
+        auto rightExpr = expressionParser(_context, right);
+        auto leftType = leftExpr.GetType();
+        auto rightType = rightExpr.GetType();
+        ValidateType(leftType,rightType,left);
+        return {ast::AssignStatement(expressionParser(_context, left), expressionParser(_context, right))};
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
