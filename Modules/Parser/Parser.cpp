@@ -17,7 +17,7 @@ using size_t = std::size_t;
 template<typename type>
 using sPtr = std::shared_ptr<type>;
 
-std::vector<std::string_view> argSplit(std::string_view str) {
+std::vector<std::string_view> argSplit(const std::string_view str) {
     std::vector<std::string_view> results;
     int depth = 0;
     size_t start = 0;

@@ -18,17 +18,19 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     auto statements = seg::TokenizeFunctionBody(_functionContent);
     auto functionDecl = functionDeclParser(statements[0]);
     auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
-    for (auto args = functionDeclPtr.Parameters; const auto &arg: args) {
+    for (auto args = functionDeclPtr.Parameters;
+         const auto &arg: args) {
         context.emplace_back(std::make_shared<ast::VariableStatement>(arg));
     }
     const auto statementsParsed = statements | std::views::drop(1) | std::views::transform(
                                       [&](const std::string_view statement) {
-                                          return statementParser(context,statement);
+                                          return statementParser(context, statement);
                                       }) | std::ranges::to<std::vector<ast::Statement> >();
-    return ast::FunctionScope(functionDecl, statementsParsed);
+    return {functionDecl, statementsParsed};
 }
 
-ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(const std::string_view _functionContent) const {
+ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
+    const std::string_view _functionContent) const {
     //void func(int a,int b)
     const std::string_view returnType = _functionContent.substr(0, _functionContent.find(' '));
 

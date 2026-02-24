@@ -32,6 +32,11 @@ export namespace mlc::parser {
             explicit exprTree(std::vector<exprTree> v) : data(std::move(v)), isOperator(false) {}
         };
 
+        struct caseBlock {
+            ast::Expression condition; // case 条件表达式
+            std::vector<ast::Statement> statements; // case 块内的语句
+        };
+
         ast::Statement statementParser(std::string_view statementContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return statementParser(dummyContext, statementContent);
@@ -39,7 +44,7 @@ export namespace mlc::parser {
 
         ast::Statement statementParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
 
-        std::vector<ast::Statement> caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
+        caseBlock caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
 
         ast::Expression expressionParser(ContextTable<ast::VariableStatement> &_context,
                                          std::string_view _expressionContent);
@@ -52,7 +57,7 @@ export namespace mlc::parser {
 
         std::vector<ast::VariableStatement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
 
-        ast::SubScope subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view subScopeContent);
+        ast::SubScope subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view _subScopeContent);
         ast::SubScope subScopeParser(const std::string_view _subScopeContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return subScopeParser(dummyContext, _subScopeContent);
@@ -68,7 +73,7 @@ export namespace mlc::parser {
 
         [[nodiscard]] std::vector<ast::Type::StructDefinition> structDefParser(const std::vector<std::string_view> &_structContents) const;
 
-        ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
+        static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
 
         std::unordered_map<std::string, std::shared_ptr<ast::Type::CompileType>> typeMap;
 

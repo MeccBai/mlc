@@ -123,107 +123,71 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
 
     return fragments;
 }
-
 auto seg::TokenizeFunctionBody(std::string_view _source) -> std::vector<std::string_view> {
     std::vector<std::string_view> fragments;
     size_t cursor = 0;
     const size_t length = _source.length();
 
-    auto isIdChar = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
     auto skipSpace = [&]() {
         while (cursor < length && std::isspace(static_cast<unsigned char>(_source[cursor])))
             cursor++;
     };
 
-    // 1. 切出函数头
-    skipSpace();
-    const size_t headerStart = cursor;
-    while (cursor < length && _source[cursor] != '{')
-        cursor++;
-    if (cursor < length) {
-        fragments.emplace_back(_source.substr(headerStart, cursor - headerStart));
-        cursor++; // 跳过 '{'
-    }
+    // 1. 跳过函数头（假设已经处理过，或者 _source 就是主体）
+    // ... 原有逻辑 ...
 
-    // 2. 循环切分语句块
     while (cursor < length) {
         skipSpace();
-        if (cursor >= length || _source[cursor] == '}')
-            break;
+        if (cursor >= length || _source[cursor] == '}') break;
 
         const size_t start = cursor;
-        const bool isAnonymousSubscope = (_source[cursor] == '{');
-        int brace_depth = 0, paren_depth = 0;
+        int brace_depth = 0;
+        int paren_depth = 0;
 
-        auto checkWord = [&](std::string_view word) {
-            if (cursor + word.length() <= length && _source.substr(cursor, word.length()) == word) {
-                const size_t next = cursor + word.length();
-                return (next == length || !isIdChar(_source[next]));
+        // 识别当前片段是不是控制流（加上 else）
+        auto checkAt = [&](size_t pos, std::string_view word) {
+            if (pos + word.length() <= length && _source.substr(pos, word.length()) == word) {
+                size_t next = pos + word.length();
+                return (next == length || !std::isalnum(static_cast<unsigned char>(_source[next])));
             }
             return false;
         };
 
-        const bool isControl = checkWord("if") || checkWord("for") || checkWord("while") || checkWord("switch");
+        const bool isControl = checkAt(cursor, "if") || checkAt(cursor, "for") ||
+                               checkAt(cursor, "while") || checkAt(cursor, "switch") ||
+                               checkAt(cursor, "else");
 
         while (cursor < length) {
             const char c = _source[cursor];
 
-            // 依旧保留字符串屏蔽，防止字符串里有 ';' 或 '}' 干扰
-            if (c == '"' || c == '\'') {
-                const char q = c;
-                cursor++;
-                while (cursor < length && _source[cursor] != q) {
-                    if (_source[cursor] == '\\')
-                        cursor++;
-                    cursor++;
-                }
-                if (cursor < length)
-                    cursor++;
-                continue;
-            }
+            // 字符串处理（略，保持你原来的）
+            if (c == '"') { /* ... skip ... */ }
 
             if (c == '(') paren_depth++;
             else if (c == ')') paren_depth--;
             else if (c == '{') brace_depth++;
             else if (c == '}') {
-                if (brace_depth == 0)
-                    break;
                 brace_depth--;
                 if (brace_depth == 0 && paren_depth == 0) {
-                    cursor++; // 吃掉这个 '}'
-
-                    // 如果是控制流且后面跟着 else，继续卷入
-                    if (isControl) {
-                        const size_t preElse = cursor;
-                        skipSpace();
-                        if (checkWord("else")) continue;
-                        cursor = preElse;
-                    }
-
-                    // 如果是匿名 Subscope，到这里就该切断了
-                    if (isAnonymousSubscope || isControl) {
-                        break;
-                    }
-                    continue; // 否则继续
+                    cursor++; // 吞掉 '}'
+                    // 💥 关键：如果是 if/else 等控制流，吞完 '}' 必须立刻收刀！
+                    if (isControl) break;
+                    // 只有在非控制流的大括号块里，才继续往后看（比如匿名块后的其他内容）
+                    continue;
                 }
             }
-            if (c == ';' && brace_depth == 0 && paren_depth == 0) {
-                cursor++;
-                break;
+            else if (c == ';' && brace_depth == 0 && paren_depth == 0) {
+                cursor++; // 吞掉 ';'
+                break; // 普通语句结束
             }
+
             cursor++;
 
-            if (paren_depth == 0 && brace_depth == 0) {
-                if (c == ';')
-                    break; // 普通语句
-                if (isControl && c == '}') { // 控制块
-                    const size_t preElse = cursor;
-                    skipSpace();
-                    if (checkWord("else"))
-                        continue; // 连带 else 一起切
-                    cursor = preElse;
-                    break;
-                }
+            // 💡 针对 if(1) int a; 这种没有大括号的特殊情况
+            if (isControl && brace_depth == 0 && paren_depth == 0 && c != ')') {
+                // 如果在控制流里，且已经处理完了第一个语句（遇到了分号）
+                // 此时 cursor 已经在上面被自增过了，这里直接 break
+                if (_source[cursor-1] == ';') break;
             }
         }
         fragments.emplace_back(_source.substr(start, cursor - start));

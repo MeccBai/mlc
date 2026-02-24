@@ -327,7 +327,7 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             }
         }
 
-        return ast::Expression(ast::Variable(str, varType));
+        return ast::Expression(std::make_shared<ast::Variable>(ast::Variable(str, varType)));
     }
 
     auto& fragments = std::get<std::vector<exprTree>>(_expressionContent.data);

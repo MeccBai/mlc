@@ -31,7 +31,6 @@ export namespace mlc::ast {
         FunctionBody,
         IfBlock,
         ElseBlock,
-        ForBlock,
         WhileBlock,
         DoWhileBlock,
         SwitchBlock,
@@ -217,7 +216,7 @@ export namespace mlc::ast {
 
     class Expression {
     public:
-        using Data = std::variant<ConstValue, Variable, std::shared_ptr<FunctionCall>, std::shared_ptr<
+        using Data = std::variant<ConstValue, std::shared_ptr<Variable>, std::shared_ptr<FunctionCall>, std::shared_ptr<
             CompositeExpression> >;
         std::shared_ptr<Data> Storage;
 

@@ -9,7 +9,7 @@ import Compiler;
 
 int main() {
     mlc::parser::AbstractSyntaxTree ast({});
-    const std::string content = "switch(1){case 1:return 0;default: break;}";
+    const std::string content = "do{int a;}while(0);";
 
     mlc::seg::TokenizeFunctionBody(content);
 

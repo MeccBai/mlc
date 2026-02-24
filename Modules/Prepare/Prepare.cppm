@@ -64,7 +64,7 @@ namespace mlc::prepare {
     }
 
     bool isSymbol(const char c) {
-        static constexpr std::string_view symbols = ",;=+-*/()[]{}<>.:&|!%^~?";
+        static constexpr std::string_view symbols = ",;=+-*/()[]{}<>.:&|!%^~?@$";
         return symbols.find(c) != std::string::npos;
     }
 
