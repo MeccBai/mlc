@@ -15,14 +15,19 @@ using size_t = std::size_t;
 
 ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
     ContextTable<ast::VariableStatement> context;
-    auto statements = seg::TokenizeFunctionBody(_functionContent);
-    auto functionDecl = functionDeclParser(statements[0]);
+    auto pos = _functionContent.find(' ');
+    auto bracketPos = _functionContent.find('(');
+    auto bracketEndPos = _functionContent.find("){");
+    auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
+    auto functionHeader = _functionContent.substr(0, bracketEndPos + 1);
+    auto statements = seg::TokenizeFunctionBody(functionBody);
+    auto functionDecl = functionDeclParser(functionHeader);
     auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
     for (auto args = functionDeclPtr.Parameters;
          const auto &arg: args) {
         context.emplace_back(std::make_shared<ast::VariableStatement>(arg));
     }
-    const auto statementsParsed = statements | std::views::drop(1) | std::views::transform(
+    const auto statementsParsed = statements | std::views::transform(
                                       [&](const std::string_view statement) {
                                           return statementParser(context, statement);
                                       }) | std::ranges::to<std::vector<ast::Statement> >();

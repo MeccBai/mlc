@@ -80,6 +80,7 @@ export namespace mlc::parser {
         SymbolTable<ast::Type::CompileType> typeSymbolTable;
         SymbolTable<ast::VariableStatement> variableSymbolTable;
         SymbolTable<ast::FunctionDeclaration> functionSymbolTable;
+        SymbolTable<ast::FunctionScope> functionScopeTable;
 
         std::vector<ast::GlobalStatement> tree;
 

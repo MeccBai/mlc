@@ -49,9 +49,18 @@ std::vector<std::string_view> split(std::string_view str, std::string_view delim
     return result;
 }
 
-ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement>& _context,const std::string_view _statementContent) {
+ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
+                                         const std::string_view _statementContent) {
+    if (_statementContent.starts_with("if(") ||
+        _statementContent.starts_with("while(") ||
+        _statementContent.starts_with("switch(") ||
+        _statementContent.starts_with("do{") ||
+        _statementContent.starts_with("else{")) {
+        return subScopeParser(_context, _statementContent);
+    }
+
     if (_statementContent.find(' ') != std::string_view::npos) {
-        return variableParser(_context,_statementContent)[0];
+        return variableParser(_context, _statementContent)[0];
     }
     if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
         const auto left = _statementContent.substr(0, pos);
@@ -60,29 +69,31 @@ ast::Statement astClass::statementParser(ContextTable<ast::VariableStatement>& _
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
-            return subScopeParser(_context,_statementContent);
+            return subScopeParser(_context, _statementContent);
         }
         if (const auto pos = _statementContent.find("while("); pos == 0) {
-            return subScopeParser(_context,_statementContent);
+            return subScopeParser(_context, _statementContent);
         }
         if (const auto pos = _statementContent.find("switch("); pos == 0) {
-            return subScopeParser(_context,_statementContent);
+            return subScopeParser(_context, _statementContent);
+        }
+        if (const auto pos = _statementContent.find("do{"); pos == 0) {
+            return subScopeParser(_context, _statementContent);
         }
         const auto functionName = _statementContent.substr(0, _statementContent.find('('));
         const auto argsStr = _statementContent.substr(_statementContent.find('(') + 1,
                                                       _statementContent.length() -
                                                       functionName.length() - 1);
-        std::vector<ast::Expression> args = argSplit(argsStr) | std::views::transform([this, &_context](std::string_view arg) {
-            ;
-            return expressionParser(_context,arg);
-        }) | std::ranges::to<std::vector<ast::Expression> >();
+        std::vector<ast::Expression> args = argSplit(argsStr) | std::views::transform(
+                                                [this, &_context](std::string_view arg) {
+                                                    ;
+                                                    return expressionParser(_context, arg);
+                                                }) | std::ranges::to<std::vector<ast::Expression> >();
         return ast::FunctionCallStatement(functionName, args);
     }
     ErrorPrintln("Invalid statement '{}'\n", _statementContent);
     std::exit(-1);
 }
-
-
 
 
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent) {
@@ -129,11 +140,14 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
             )
         );
     }
-
-
-    for (auto &func: functions) {
-        auto decl = functionDefParser(func);
-        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(decl.ToDeclaration()));
+    for (auto &enumDef: enums) {
+        auto enumParsed = enumDefParser(enumDef);
+        auto enumPtr = std::make_shared<ast::Type::CompileType>(enumParsed);
+        typeSymbolTable.emplace_back(enumPtr);
+    }
+    for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
+        auto structPtr = std::make_shared<ast::Type::CompileType>(structDef);
+        typeSymbolTable.emplace_back(structPtr);
     }
 
     for (auto &decl: funcDecls) {
@@ -141,22 +155,17 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(declParsed));
     }
 
-    for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
-        auto structPtr = std::make_shared<ast::Type::CompileType>(structDef);
-        typeSymbolTable.emplace_back(structPtr);
-    }
-
     for (auto &varDecl: varDecls) {
         auto dummyContext = ContextTable<ast::VariableStatement>{};
-        for (const auto varParsed = variableParser(dummyContext,varDecl); auto &v: varParsed) {
+        for (const auto varParsed = variableParser(dummyContext, varDecl); auto &v: varParsed) {
             variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(v));
         }
     }
 
-    for (auto &enumDef: enums) {
-        auto enumParsed = enumDefParser(enumDef);
-        auto enumPtr = std::make_shared<ast::Type::CompileType>(enumParsed);
-        typeSymbolTable.emplace_back(enumPtr);
+    for (auto &func: functions) {
+        auto decl = functionDefParser(func);
+        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(decl.ToDeclaration()));
+        functionScopeTable.emplace_back(std::make_shared<ast::FunctionScope>(decl));
     }
 }
 

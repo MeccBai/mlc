@@ -8,13 +8,18 @@ import Prepare;
 import Compiler;
 
 int main() {
-    mlc::parser::AbstractSyntaxTree ast({});
-    const std::string content = "do{int a;}while(0);";
+    const std::string source = R"(
+        i32 main() {
+            i32 a = 1;
+            do {
+                i32 a = 2; // 这里的 a 应该遮蔽外层的
+                i32 b = a; // b 应该等于 2
+            } while(a > 0); // 这里的 a 应该绑定回最外层的 1
+        }
+    )";
 
-    mlc::seg::TokenizeFunctionBody(content);
+    const std::string content = mlc::prepare::Prepare(source);
+    mlc::parser::AbstractSyntaxTree ast(mlc::seg::TopTokenize(content));
 
-    for (const auto &token: mlc::seg::TokenizeFunctionBody(content)) {
-        std::cout << token << std::endl;
-    }
 
 }
