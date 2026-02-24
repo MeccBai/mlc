@@ -202,8 +202,8 @@ void dumpExpression(const ast::Expression& expr, int indent = 0) {
         return;
     }
 
-    std::visit([&](auto&& arg) {
-        using T = std::decay_t<decltype(arg)>;
+    std::visit([&]<typename type>(type&& arg) {
+        using T = std::decay_t<type>;
 
         if constexpr (std::is_same_v<T, ast::ConstValue>) {
             std::cout << padding << "[Const] " << arg.Value << "\n";
@@ -309,25 +309,25 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             return ast::Expression(ast::ConstValue(str));
         }
 
-        std::weak_ptr<ast::Type::CompileType> varType;
+        std::shared_ptr<ast::Variable> variable;
         for (auto& weakVar : _context) {
             if (auto var = weakVar.lock()) {
                 if (var->Name == str) {
-                    varType = var->VarType;
+                    variable = var;
                     break;
                 }
             }
         }
-        if (varType.expired()) {
+        if (variable.operator->()==nullptr) {
             for (auto& var : variableSymbolTable) {
                 if (var->Name == str) {
-                    varType = var->VarType;
+                    variable = var;
                     break;
                 }
             }
         }
 
-        return ast::Expression(std::make_shared<ast::Variable>(ast::Variable(str, varType)));
+        return ast::Expression(variable);
     }
 
     auto& fragments = std::get<std::vector<exprTree>>(_expressionContent.data);
@@ -345,9 +345,7 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             auto op = toBaseOperator(opStr);
             const auto priority = operatorPriority.at(op);
 
-            auto isPrefix = (i == 0 || fragments[i-1].isOperator);
-
-            if (isPrefix) {
+            if (i == 0 || fragments[i-1].isOperator) {
                 if (priority > maxPriority) {
                     maxPriority = priority;
                     splitIndex = i;

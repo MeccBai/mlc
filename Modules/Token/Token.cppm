@@ -189,12 +189,24 @@ export namespace mlc::ast {
         AddressOf, // &
     };
 
+    class SubScope;
+    class AssignStatement;
+    class VariableStatement;
+    class ReturnStatement;
+    class SwitchCaseScope;
+
+    class BreakStatement {
+    };
+
+    class ContinueStatement {
+    };
+
+
     extern const std::unordered_map<std::string_view, BaseOperator> BaseOperators;
 
-    class ConstValue;
-    class Variable;
     class FunctionCall;
     class CompositeExpression;
+    using Variable = mlc::ast::VariableStatement;
 
     class ConstValue {
     public:
@@ -202,16 +214,6 @@ export namespace mlc::ast {
         }
 
         const std::string Value;
-    };
-
-    class Variable {
-    public:
-        explicit Variable(const std::string_view _name, std::weak_ptr<Type::CompileType> _varType) : Name(_name),
-            VarType(std::move(_varType)) {
-        }
-
-        const std::string Name;
-        const std::weak_ptr<Type::CompileType> VarType;
     };
 
     class Expression {
@@ -274,17 +276,6 @@ export namespace mlc::ast {
 }
 
 export namespace mlc::ast {
-    class SubScope;
-    class AssignStatement;
-    class VariableStatement;
-    class ReturnStatement;
-    class SwitchCaseScope;
-
-    class BreakStatement {
-    };
-
-    class ContinueStatement {
-    };
 
     using FunctionCallStatement = FunctionCall;
 

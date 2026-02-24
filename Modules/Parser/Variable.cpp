@@ -132,11 +132,15 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                     if (declaration[i] == '$') pointerLevel++;
                     else break;
                 }
-                auto pointerType = std::make_shared<type::PointerType>(type::PointerType(variableName, pointerLevel));
+                const auto pointerType = std::make_shared<type::PointerType>(type::PointerType(variableName, pointerLevel));
                 pointerType->Finalize(baseType);
-                result.emplace_back(variableName, std::make_shared<ast::Type::CompileType>(*pointerType), expression);
+                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
+                result.emplace_back(*varPtr);
+                _context.emplace_back(varPtr);
             } else {
-                result.emplace_back(variableName, baseType, expression);
+                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
+                result.emplace_back(*varPtr);
+                _context.emplace_back(varPtr);
             }
         }
     }
