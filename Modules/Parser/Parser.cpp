@@ -16,17 +16,20 @@ using size_t = std::size_t;
 
 template<typename type>
 using sPtr = std::shared_ptr<type>;
-bool isLeftExpression(const ast::Expression & _expression) {
-    if (const auto vPtr = std::get_if<std::shared_ptr<ast::Variable>>(_expression.Storage.get()); vPtr != nullptr) {
+
+bool isLeftExpression(const std::shared_ptr<ast::Expression> &_expression) {
+    if (const auto vPtr = std::get_if<std::shared_ptr<ast::Variable> >(_expression->Storage.get()); vPtr != nullptr) {
         return true;
     }
-    if (const auto fPtr = std::get_if<std::shared_ptr<ast::FunctionCall>>(_expression.Storage.get()); fPtr != nullptr) {
+    if (const auto fPtr = std::get_if<std::shared_ptr<ast::FunctionCall> >(_expression->Storage.get());
+        fPtr != nullptr) {
         return false;
     }
-    if (const auto cPtr = std::get_if<ast::ConstValue>(_expression.Storage.get()); cPtr != nullptr) {
+    if (const auto cPtr = std::get_if<ast::ConstValue>(_expression->Storage.get()); cPtr != nullptr) {
         return false;
     }
-    if (const auto compPtr = std::get_if<std::shared_ptr<ast::CompositeExpression>>(_expression.Storage.get()); compPtr != nullptr) {
+    if (const auto compPtr = std::get_if<std::shared_ptr<ast::CompositeExpression> >(_expression->Storage.get());
+        compPtr != nullptr) {
         auto &operators = compPtr->get()->Operators;
         if (!operators.empty() && !compPtr->get()->isOperatorFirst) {
             // 只有当第一个操作符是访问类操作符（. 或 ->）时，才可能是左值
@@ -76,15 +79,16 @@ std::vector<std::string_view> split(std::string_view str, std::string_view delim
     return result;
 }
 
-std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
-                                                      const std::string_view _statementContent) {
+astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
+                                                                   const std::string_view _statementContent) {
     if (_statementContent.starts_with("if(") ||
         _statementContent.starts_with("while(") ||
         _statementContent.starts_with("switch(") ||
         _statementContent.starts_with("do{") ||
         _statementContent.starts_with("else{") ||
-        _statementContent.starts_with("{")){
-        return {subScopeParser(_context, _statementContent)};
+        _statementContent.starts_with("{")) {
+        auto sub = subScopeParser(_context, _statementContent);
+        return std::vector{std::static_pointer_cast<ast::Statement>(sub)};
     }
 
     if (_statementContent.starts_with("return")) {
@@ -113,33 +117,32 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
             }
 
             if (trimmedBody.empty()) {
-                return {ast::ReturnStatement(nullptr)};
+                return std::vector{std::make_shared<ast::Statement>(ast::ReturnStatement(nullptr))};
             }
 
-            return {ast::ReturnStatement(
-                std::make_shared<ast::Expression>(expressionParser(_context, trimmedBody))
-            )};
-        }
+            return std::vector{
+                std::make_shared<ast::Statement>(
+                    ast::ReturnStatement(
+                        expressionParser(_context, trimmedBody)
+                    ))
+            };
+        };
     }
 
     if (_statementContent.starts_with("break;")) {
-        return {ast::BreakStatement()};
+        return std::vector{std::make_shared<ast::Statement>(ast::BreakStatement())};
     }
     if (_statementContent.starts_with("continue;")) {
-        return {ast::ContinueStatement()};
+        return std::vector{std::make_shared<ast::Statement>(ast::ContinueStatement())};
     }
 
     if (_statementContent.find(' ') != std::string_view::npos) {
-        return variableParser(_context, _statementContent) | std::views::transform([](const ast::VariableStatement &var) {;
-            return ast::Statement(var);
-        }) | std::ranges::to<std::vector<ast::Statement> >();
+        return variableParser(_context, _statementContent);
     }
-    if (auto pos = _statementContent.find('$') ; pos != std::string_view::npos) {
+    if (auto pos = _statementContent.find('$'); pos != std::string_view::npos) {
         auto pos2 = _statementContent.find('=');
         if (pos2 > pos) {
-            return variableParser(_context, _statementContent) | std::views::transform([](const ast::VariableStatement &var) {;
-                return ast::Statement(var);
-            }) | std::ranges::to<std::vector<ast::Statement> >();
+            return variableParser(_context, _statementContent) ;
         }
     }
     if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
@@ -147,37 +150,47 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
         auto right = _statementContent.substr(pos + 1, _statementContent.length() - pos - 2);
         auto leftExpr = expressionParser(_context, left);
         auto rightExpr = expressionParser(_context, right);
-        auto leftType = leftExpr.GetType();
-        auto rightType = rightExpr.GetType();
-        ValidateType(leftType,rightType,left);
+        auto leftType = leftExpr->GetType();
+        auto rightType = rightExpr->GetType();
+        ValidateType(leftType, rightType, left);
         if (!isLeftExpression(leftExpr)) {
             ErrorPrintln("{} is not a valid left-hand expression in assignment\n", left);
             std::exit(-1);
         }
-        return {ast::AssignStatement(leftExpr, rightExpr)};
+        return std::vector{std::make_shared<ast::Statement>(ast::AssignStatement(leftExpr, rightExpr))};
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
-            return {subScopeParser(_context, _statementContent)};
+
+
+
+            return std::vector{
+                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
+            };
         }
         if (const auto pos = _statementContent.find("while("); pos == 0) {
-            return {subScopeParser(_context, _statementContent)};
+
+            auto sub = subScopeParser(_context, _statementContent);
+            return std::vector{std::make_shared<ast::Statement>(*sub)};
         }
         if (const auto pos = _statementContent.find("switch("); pos == 0) {
-            return {subScopeParser(_context, _statementContent)};
+            return std::vector{
+                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
+            };
         }
         if (const auto pos = _statementContent.find("do{"); pos == 0) {
-            return {subScopeParser(_context, _statementContent)};
+            return std::vector{
+                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
+            };
         }
         const auto functionName = _statementContent.substr(0, _statementContent.find('('));
         const auto argsStr = _statementContent.substr(_statementContent.find('(') + 1,
                                                       _statementContent.length() -
                                                       functionName.length() - 1);
-        std::vector<ast::Expression> args = argSplit(argsStr) | std::views::transform(
-                                                [this, &_context](std::string_view arg) {
-                                                    ;
-                                                    return expressionParser(_context, arg);
-                                                }) | std::ranges::to<std::vector<ast::Expression> >();
+        std::vector<sPtr<ast::Expression> > args = argSplit(argsStr) | std::views::transform(
+                                                       [this, &_context](std::string_view arg) {
+                                                           return expressionParser(_context, arg);
+                                                       }) | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
 
         auto decl = std::shared_ptr<ast::FunctionDeclaration>(nullptr);
 
@@ -190,13 +203,13 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
                 } else {
                     for (auto funcArgs = function->Parameters;
                          auto [exp, arg]: std::views::zip(args, funcArgs)) {
-                        auto exprType = exp.GetType();
-                        auto paramType = arg.VarType;
+                        auto exprType = exp->GetType();
+                        auto paramType = arg->VarType;
                         if (exprType == nullptr || paramType == nullptr) {
-                            throw std::runtime_error("Type inference failed for argument: " + arg.Name);
+                            throw std::runtime_error("Type inference failed for argument: " + arg->Name);
                         }
-                        auto getName = [](const ast::Type::CompileType& type) -> std::string {
-                            return std::visit([](auto&& t) -> std::string {
+                        auto getName = [](const ast::Type::CompileType &type) -> std::string {
+                            return std::visit([](auto &&t) -> std::string {
                                 return std::string(t.Name);
                             }, type);
                         };
@@ -204,8 +217,9 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
                         std::string expectedName = getName(*exprType);
 
                         if (std::string actualName = getName(*paramType); expectedName != actualName) {
-                            ErrorPrintln("Error: Argument type mismatch for parameter '{}'. Expected '{}', got '{}'\n",
-                                         arg.Name, actualName, expectedName);
+                            ErrorPrintln(
+                                "Error: Argument type mismatch for parameter '{}'. Expected '{}', got '{}'\n",
+                                arg->Name, actualName, expectedName);
                             std::exit(-1);
                         }
 
@@ -215,8 +229,8 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
                 break;
             }
         }
-
-        return {ast::FunctionCallStatement(decl, args)};
+        return std::vector{std::make_shared<ast::Statement>(
+                ast::Statement(ast::FunctionCallStatement(decl, args)))};
     }
     ErrorPrintln("Invalid statement '{}'\n", _statementContent);
     std::exit(-1);
@@ -285,7 +299,9 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     for (auto &varDecl: varDecls) {
         auto dummyContext = ContextTable<ast::VariableStatement>{};
         for (const auto varParsed = variableParser(dummyContext, varDecl); auto &v: varParsed) {
-            variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(v));
+            auto vPtr = std::get_if<ast::VariableStatement>(v.operator->());
+            auto shadowPtr = std::shared_ptr<ast::VariableStatement>(v,vPtr);
+            variableSymbolTable.emplace_back(shadowPtr);
         }
     }
 

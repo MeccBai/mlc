@@ -15,6 +15,7 @@ namespace type = ast::Type;
 using size_t = std::size_t;
 
 std::string_view getVariableName(std::string_view declaration) {
+
     if (declaration.empty()) return "";
 
     // 1. 确定左边界：跳过所有开头的指针符号 '$'
@@ -33,29 +34,35 @@ std::string_view getVariableName(std::string_view declaration) {
 
 
     return declaration.substr(start, end - start);
+
 }
 
-std::vector<ast::VariableStatement> astClass::globalVariableParser(
+astClass::StatementTable<ast::Statement> astClass::globalVariableParser(
+
     const std::string_view variableContent) {
+
     // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
     auto globalContext = ContextTable<ast::VariableStatement>{};
     const auto result = variableParser(globalContext, variableContent);
     for (const auto &var: result) {
-        variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(var));
+        auto* vptr = std::get_if<ast::VariableStatement>(var.get());
+        variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(*vptr));
     }
     return result;
     //ast::VariableStatement("", {}, std::nullopt);
+
 }
 
-std::vector<ast::VariableStatement> astClass::localVariableParser(
+astClass::StatementTable<ast::Statement> astClass::localVariableParser(
     ContextTable<ast::VariableStatement> &_context, std::string_view variableContent) {
     return variableParser(_context, variableContent);
     //ast::VariableStatement("", {}, std::nullopt);
 }
 
-std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::VariableStatement> &_context,
-                                                             const std::string_view variableContent) {
+astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<ast::VariableStatement> &_context,
+                                                                  const std::string_view variableContent) {
     // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
+
     std::println("{}", variableContent);
 
     auto variableExist = [&_context](std::string_view name) {
@@ -68,7 +75,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
     auto pos = variableContent.find(' ');
     bool isPointer = false;
     if (pos == std::string_view::npos) {
-        if (auto pos2 = variableContent.find('$');pos2 != std::string_view::npos) {
+        if (auto pos2 = variableContent.find('$'); pos2 != std::string_view::npos) {
             if (pos2 < variableContent.find('=')) {
                 pos = variableContent.find('$');
                 isPointer = true;
@@ -79,12 +86,12 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
         }
     }
     auto type = variableContent.substr(0, pos);
-    const auto variables = variableContent.substr(pos+(isPointer?0:1));
+    const auto variables = variableContent.substr(pos + (isPointer ? 0 : 1));
 
     const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
         return std::visit([](auto &&arg) -> std::string_view {
-            return arg.Name; // 只要所有子类都有 Name，这个就能编译通过
-        }, *t) == type;
+            return arg.Name;
+        }, *t) == type; // 注意这里是 *t
     });
 
     if (it == typeSymbolTable.end()) {
@@ -134,7 +141,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
             declarations.emplace_back(lastItem);
         }
     }
-    std::vector<ast::VariableStatement> result;
+    StatementTable<ast::Statement> result;
     for (auto declaration: declarations) {
         auto variableName = getVariableName(declaration);
         if (variableExist(variableName)) {
@@ -145,7 +152,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
         if (declaration.find('=') != std::string_view::npos) {
             const auto expressionContext = declaration.substr(declaration.find('=') + 1);
             if (isPointer) {
-                auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
+                auto expression = expressionParser(_context, expressionContext);
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
                     if (declaration[i] == '$') pointerLevel++;
@@ -156,19 +163,22 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                     type::PointerType(variableName, pointerLevel));
                 pointerType->Finalize(baseType);
                 auto tempType = std::make_shared<type::CompileType>(*pointerType);
-                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, tempType, expression);
-                ValidateType(varPtr->VarType,expression->GetType(),variableName);
-                result.emplace_back(*varPtr);
-                _context.emplace_back(varPtr);
+                auto varPtr = std::make_shared<ast::Statement>(ast::VariableStatement(variableName, tempType, expression));
+                auto vPtr = std::get_if<ast::VariableStatement>(varPtr.get());
+                ValidateType(vPtr->VarType,expression->GetType(),variableName);
+                result.emplace_back(varPtr);
+                auto shadowPtr = std::shared_ptr<ast::VariableStatement>(varPtr, vPtr);
+                _context.emplace_back(shadowPtr);
             } else {
-                auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
-                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
-                ValidateType(varPtr->VarType,expression->GetType(),variableName);
-                result.emplace_back(*varPtr);
-                _context.emplace_back(varPtr);
+                auto expression = expressionParser(_context, expressionContext);
+                auto varPtr = std::make_shared<ast::Statement>(ast::VariableStatement(variableName, baseType, expression));
+                auto vPtr = std::get_if<ast::VariableStatement>(varPtr.get());
+                ValidateType(vPtr->VarType,expression->GetType(),variableName);
+                result.emplace_back(varPtr);
+                auto shadowPtr = std::shared_ptr<ast::VariableStatement>(varPtr, vPtr);
+                _context.emplace_back(shadowPtr);
             }
-        }
-        else {
+        } else {
             if (isPointer) {
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
@@ -179,16 +189,21 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                     type::PointerType(variableName, pointerLevel));
                 pointerType->Finalize(baseType);
                 auto pointerTypeTemp = std::make_shared<ast::Type::CompileType>(*pointerType);
-                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, pointerTypeTemp, nullptr);
-                result.emplace_back(*varPtr);
-                _context.emplace_back(varPtr);
+                auto varPtr = std::make_shared<ast::Statement>(ast::VariableStatement(variableName, pointerTypeTemp, nullptr));
+                result.emplace_back(varPtr);
+                auto* vptr = std::get_if<ast::VariableStatement>(varPtr.get());
+                auto shadowPtr = std::shared_ptr<ast::VariableStatement>(varPtr, vptr);
+                _context.emplace_back(shadowPtr);
             } else {
-                auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, nullptr);
-                result.emplace_back(*varPtr);
-                _context.emplace_back(varPtr);
+                auto varPtr = std::make_shared<ast::Statement>(ast::VariableStatement(variableName, baseType, nullptr));
+                result.emplace_back(varPtr);
+                auto* vptr = std::get_if<ast::VariableStatement>(varPtr.get());
+                auto shadowPtr = std::shared_ptr<ast::VariableStatement>(varPtr, vptr);
+                _context.emplace_back(shadowPtr);
             }
         }
     }
     return result;
     //ast::VariableStatement("", {}, std::nullopt);
+
 }

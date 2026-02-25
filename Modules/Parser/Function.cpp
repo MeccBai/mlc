@@ -25,13 +25,14 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
     for (auto args = functionDeclPtr.Parameters;
          const auto &arg: args) {
-        context.emplace_back(std::make_shared<ast::VariableStatement>(arg));
+        context.emplace_back(arg);
     }
     const auto statementsTemp = statements | std::views::transform(
-                                      [&](const std::string_view statement) {
-                                          return statementParser(context, statement);
-                                      }) | std::ranges::to<std::vector<std::vector<ast::Statement>> >();
-    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<ast::Statement> >();
+                                     [&](const std::string_view statement) {
+                                         return statementParser(context, statement);
+                                     }) | std::ranges::to<std::vector<std::vector<std::shared_ptr<ast::Statement>>>>(); // 这里！！！
+
+    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<ast::Statement>>>(); // 还有这里！！！
 
     return {functionDecl, statementsParsed};
 }
@@ -60,7 +61,7 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, {});
     }
 
-    std::vector<ast::VariableStatement> args;
+    std::vector<sPtr<ast::VariableStatement>> args;
 
     for (const auto argsSplit = split(argsList, ","); const auto &arg: argsSplit) {
         const auto argument = split(arg, " ");
@@ -79,7 +80,7 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
             ErrorPrintln("Error: Unknown type '{}'\n", argType);
             std::exit(-1);
         }
-        args.emplace_back(argName, argTypePtr, nullptr);
+        args.emplace_back(std::make_shared<ast::VariableStatement>(argName, argTypePtr, nullptr));
     }
 
     return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, args);

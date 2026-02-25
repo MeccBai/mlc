@@ -64,7 +64,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
     if (arg->Operators.size() == 1 && arg->Components.size() == 1) {
         auto op = arg->Operators[0];
-        auto subType = arg->Components[0].GetType();
+        auto subType = arg->Components[0]->GetType();
         if (!subType) return nullptr;
         if (op == ast::BaseOperator::AddressOf) {
             // 调试点：观察取地址升维过程
@@ -90,7 +90,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     // 单目运算逻辑
     if (arg->Operators.size() == 1 && arg->Components.size() == 2) {
         auto op = arg->Operators[0];
-        auto subType = arg->Components[0].GetType();
+        auto subType = arg->Components[0]->GetType();
 
         if (!subType) return nullptr;
 
@@ -99,7 +99,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
             // 2. 地毯式检查所有组件
             for (auto &exp : arg->Components) {
-                auto type = exp.GetType();
+                auto type = exp->GetType();
                 if (!type) continue;
 
                 // 3. 核心安检：只要任何一个组件是 PointerType，立刻“枪毙”
@@ -113,7 +113,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
         if (arg->Operators.size() == 1 && arg->Components.size() == 2) {
             auto baseOp = arg->Operators[0];
-            auto leftType = arg->Components[0].GetType();
+            auto leftType = arg->Components[0]->GetType();
             if (!leftType) return nullptr;
 
             // 处理 -> (指针访问成员)
@@ -125,7 +125,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                     auto baseType = ptrData->BaseType;
                     auto baseStruct = std::get_if<ast::Type::StructDefinition>(&(*baseType));
                     if (baseStruct) {
-                        auto &dataVariant = *(arg->Components[1].Storage);
+                        auto &dataVariant = *(arg->Components[1]->Storage);
                         auto memberAccess = *std::get_if<std::shared_ptr<ast::MemberAccess> >(&dataVariant);
                         return baseStruct->Members[memberAccess->Index].Type;
                     } else {
@@ -143,7 +143,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                 // 1. 校验：左边必须得是结构体实例 (StructDefinition)
                 if (auto *baseStruct = std::get_if<ast::Type::StructDefinition>(&(*leftType))) {
                     // 2. 提取右侧成员访问节点
-                    auto &dataVariant = *(arg->Components[1].Storage);
+                    auto &dataVariant = *(arg->Components[1]->Storage);
                     auto *mAccessPtr = std::get_if<std::shared_ptr<ast::MemberAccess> >(&dataVariant);
 
                     if (mAccessPtr && *mAccessPtr) {
@@ -169,7 +169,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                 }
             }
             if (op == ast::BaseOperator::Dereference) { // 假设对应 <*>
-                auto subType = arg->Components[0].GetType();
+                auto subType = arg->Components[0]->GetType();
                 if (!subType) return nullptr;
 
                 // 关键逻辑：必须是指针才能解引用
@@ -188,14 +188,14 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     }
 
     // 二元运算逻辑
-    return arg->Components[0].GetType();
+    return arg->Components[0]->GetType();
 }
 
 std::shared_ptr<ast::Type::CompileType> ast::Expression::GetType() const {
     if (!Storage) return nullptr;
 
     // 1. 先用 holds_alternative 或者简单的 visit 拿到类型标识
-    // 为了极致的调试友好，我们直接在 visit 里根据类型分流到具体的处理函数
+    // 为了极致的调试友好，我们直接在 visit 里根据类型分流到具体处理函数
 
     return std::visit([this](auto &&arg) -> std::shared_ptr<Type::CompileType> {
         using T = std::decay_t<decltype(arg)>;

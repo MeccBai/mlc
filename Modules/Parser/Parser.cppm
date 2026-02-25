@@ -16,6 +16,9 @@ export namespace mlc::parser {
         template<typename _type>
         using ContextTable = std::vector<std::shared_ptr<_type>>;
 
+        template<typename _type>
+        using StatementTable = SymbolTable<_type>;
+
         struct functionWarper {
             ast::FunctionDeclaration decl;
             std::string_view body;
@@ -38,50 +41,50 @@ export namespace mlc::parser {
         };
 
         struct caseBlock {
-            ast::Expression condition; // case 条件表达式
-            std::vector<ast::Statement> statements; // case 块内的语句
+            std::shared_ptr<ast::Expression> condition; // case 条件表达式
+            std::vector<std::shared_ptr<ast::Statement>> statements; // case 块内的语句
         };
 
-        std::vector<ast::Statement> statementParser(std::string_view statementContent) {
+        StatementTable<ast::Statement> statementParser(std::string_view statementContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return statementParser(dummyContext, statementContent);
         }
 
-        std::vector<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
+        StatementTable<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
                                                     std::string_view statementContent);
 
-        caseBlock caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
+        std::shared_ptr<caseBlock> caseBlockParser(ContextTable<ast::VariableStatement> &_context,std::string_view statementContent);
 
-        ast::Expression expressionParser(ContextTable<ast::VariableStatement> &_context,
+        std::shared_ptr<ast::Expression> expressionParser(ContextTable<ast::VariableStatement> &_context,
                                          std::string_view _expressionContent);
 
-        ast::Expression constExpressionParser(std::string_view _constExpressionContent);
+        std::shared_ptr<ast::Expression> constExpressionParser(std::string_view _constExpressionContent);
 
-        std::vector<ast::VariableStatement> globalVariableParser(std::string_view variableContent);
+        StatementTable<ast::Statement> globalVariableParser(std::string_view variableContent);
 
-        std::vector<ast::VariableStatement> localVariableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+        StatementTable<ast::Statement> localVariableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
 
-        std::vector<ast::VariableStatement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+        StatementTable<ast::Statement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
 
-        ast::SubScope subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view _subScopeContent);
-        ast::SubScope subScopeParser(const std::string_view _subScopeContent) {
+        std::shared_ptr<ast::Statement> subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view _subScopeContent);
+        std::shared_ptr<ast::Statement> subScopeParser(const std::string_view _subScopeContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return subScopeParser(dummyContext, _subScopeContent);
         }
 
-        ast::Expression expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
+        std::shared_ptr<ast::Expression> expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
                                              const exprTree& _expressionContent);
 
         // Helper methods for expression parsing
-        ast::Expression parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str);
+        std::shared_ptr<ast::Expression> parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str);
 
-        ast::Expression handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
+        std::shared_ptr<ast::Expression> handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
                                           const std::vector<exprTree>& fragments,
                                           int splitIndex);
 
         int findSplitOperator(const std::vector<exprTree>& fragments);
 
-        ast::Expression expressionParser(const std::string_view _expressionContent) {
+        std::shared_ptr<ast::Expression> expressionParser(const std::string_view _expressionContent) {
             ContextTable<ast::VariableStatement> dummyContext;
             return expressionParser(dummyContext, _expressionContent);
         }

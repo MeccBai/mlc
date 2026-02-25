@@ -68,7 +68,6 @@ const std::unordered_map<ast::BaseOperator, int> operatorPriority = {
 };
 
 
-
 ast::BaseOperator toBaseOperator(const std::string_view _token) {
     if (ast::BaseOperators.contains(_token)) {
         return ast::BaseOperators.at(_token);
@@ -229,8 +228,11 @@ std::string operatorToString(ast::BaseOperator op) {
     return "UnknownOp";
 }
 
-ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
-                                           const std::string_view _expressionContent) {
+template<typename _type>
+using sPtr = std::shared_ptr<_type>;
+
+sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
+                                                 const std::string_view _expressionContent) {
     if (const auto pos = _expressionContent.find('{'); pos != std::string_view::npos) {
         if (_expressionContent.back() != '}') {
             ErrorPrintln("MLC Syntax Error: Unmatched opening brace '{{' in expression: {}", _expressionContent);
@@ -252,14 +254,14 @@ ast::Expression astClass::expressionParser(ContextTable<ast::VariableStatement> 
     return result;
 }
 
-ast::Expression astClass::constExpressionParser(const std::string_view _constExpressionContent) {
+sPtr<ast::Expression> astClass::constExpressionParser(const std::string_view _constExpressionContent) {
     auto dummyContext = ContextTable<ast::VariableStatement>{};
     auto tree = expressionParser(dummyContext, _constExpressionContent);
     return tree;
 }
 
 // --- 1. 原子解析：处理最基础的变量、常量、函数调用 ---
-ast::Expression astClass::parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str) {
+sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str) {
     while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
     while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
 
@@ -274,7 +276,7 @@ ast::Expression astClass::parseAtom(ContextTable<ast::VariableStatement> &_conte
         if (pos != std::string_view::npos) {
             auto funcName = str.substr(0, pos);
             auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
-            std::vector<ast::Expression> args;
+            std::vector<sPtr<ast::Expression> > args;
             if (!argsStr.empty()) {
                 int bracketLevel = 0;
                 size_t start = 0;
@@ -296,32 +298,38 @@ ast::Expression astClass::parseAtom(ContextTable<ast::VariableStatement> &_conte
                     break;
                 }
             }
-            return ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr, args));
+            return std::make_shared<ast::Expression>(
+                ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr, args)));
         }
     }
 
     // 常量处理
-    if (std::isdigit(str[0]) || str[0] == '"' || str[0] == '\'') return ast::Expression(ast::ConstValue(str));
+    if (std::isdigit(str[0]) || str[0] == '"' || str[0] == '\'')
+        return std::make_shared<ast::Expression>(ast::Expression(ast::ConstValue(str)));
 
     // 变量处理
-    for (auto &var: _context) if (var->Name == str) return ast::Expression(var);
-    for (auto &var: variableSymbolTable) if (var->Name == str) return ast::Expression(var);
+    for (auto &var: _context)
+        if (var->Name == str)
+            return std::make_shared<ast::Expression>(ast::Expression(var));
+    for (auto &var: variableSymbolTable)
+        if (var->Name == str)
+            return std::make_shared<ast::Expression>(ast::Expression(var));
 
     ErrorPrintln("Error: Undefined variable '{}'\n", str);
     std::exit(-1);
 }
 
 // --- 2. 链式访问处理器：贪婪收割所有 . 和 -> ---
-ast::Expression astClass::handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
-                                             const std::vector<exprTree> &fragments,
-                                             int splitIndex) {
+sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
+                                                   const std::vector<exprTree> &fragments,
+                                                   int splitIndex) {
     // 1. 解析左侧 (必须是原子变量，因为我们禁止了嵌套)
     std::vector<exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
     if (leftFrags.size() > 1) {
         ErrorPrintln("Nested member access (e.g., a.b.c) is currently disabled.");
         std::exit(-1);
     }
-    ast::Expression leftExpr = parseAtom(_context, std::get<std::string_view>(leftFrags[0].data));
+    sPtr<ast::Expression> leftExpr = parseAtom(_context, std::get<std::string_view>(leftFrags[0].data));
 
     // 2. 获取单次访问的信息
     auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
@@ -329,7 +337,7 @@ ast::Expression astClass::handleMemberAccess(ContextTable<ast::VariableStatement
     auto memberName = std::get<std::string_view>(fragments[splitIndex + 1].data);
 
     // 3. 语义检查：解引用与匹配
-    auto currentType = leftExpr.GetType();
+    auto currentType = leftExpr->GetType();
 
     // 如果是 ->，解开一层指针
     if (op == ast::BaseOperator::Arrow) {
@@ -346,15 +354,16 @@ ast::Expression astClass::handleMemberAccess(ContextTable<ast::VariableStatement
         for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
             if (structDef->Members[idx].Name == memberName) {
                 // 返回 MemberAccess 节点
-                auto sPtr = std::make_shared<ast::Type::StructDefinition>(*structDef);
+                auto structPtr = std::make_shared<ast::Type::StructDefinition>(*structDef);
 
                 // 重点：必须把 leftExpr 传给构造函数，否则后端不知道是从哪个变量偏移！
-                auto memberAccess = std::make_shared<ast::MemberAccess>(sPtr, idx);
-                return ast::Expression(std::make_shared<ast::CompositeExpression>(
-                    std::vector{leftExpr, ast::Expression(memberAccess)},
+                auto memberAccess = std::make_shared<ast::MemberAccess>(structPtr, idx);
+                return std::make_shared<ast::Expression>(ast::Expression(std::make_shared<ast::CompositeExpression>(
+                    std::vector<sPtr<ast::Expression> >
+                    {leftExpr, std::make_shared<ast::Expression>(ast::Expression(memberAccess))},
                     std::vector{op},
                     op == BaseOperator::AddressOf
-                ));
+                )));
             }
         }
     }
@@ -364,8 +373,8 @@ ast::Expression astClass::handleMemberAccess(ContextTable<ast::VariableStatement
 }
 
 // --- 3. 调度中心：主解析器 ---
-ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
-                                               const exprTree &_expressionContent) {
+sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
+                                                     const exprTree &_expressionContent) {
     // --- 1. 处理原子 (叶子节点) ---
     if (auto atomPtr = std::get_if<std::string_view>(&_expressionContent.data)) {
         // 使用你写的 parseAtom 或之前的逻辑处理常量、变量、函数
@@ -400,10 +409,10 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
             ErrorPrintln("Address-of operator '@' must be followed by exactly one operand.");
             std::exit(-1);
         }
-        return ast::Expression(std::make_shared<ast::CompositeExpression>(
+        return std::make_shared<ast::Expression>(ast::Expression(std::make_shared<ast::CompositeExpression>(
             std::vector{expressionTreeParser(_context, fragments[1])},
             std::vector{op}
-        ));
+        )));
     }
 
     // --- 4. 递归构建 CompositeExpression ---
@@ -417,21 +426,20 @@ ast::Expression astClass::expressionTreeParser(ContextTable<ast::VariableStateme
 
     if (leftPart.empty()) {
         // 关键：不能直接返回右边，得给它套个“单目”的壳子！
-        return ast::Expression(std::make_shared<ast::CompositeExpression>(
-            std::vector<ast::Expression>{
-                expressionTreeParser(_context, rightTree)
-            },
-            std::vector<ast::BaseOperator>{op}
-        ));
+        return std::make_shared<ast::Expression>(
+            std::make_shared<ast::CompositeExpression>(
+                std::vector{expressionTreeParser(_context, rightTree)},
+                std::vector{op}
+            )
+        );
     }
 
-    return ast::Expression(std::make_shared<ast::CompositeExpression>(
-        std::vector<ast::Expression>{
-            expressionTreeParser(_context, leftTree),
-            expressionTreeParser(_context, rightTree)
-        },
-        std::vector<ast::BaseOperator>{op}
-    ));
+    return std::make_shared<ast::Expression>(
+        std::make_shared<ast::CompositeExpression>(
+            std::vector{expressionTreeParser(_context,leftTree),expressionTreeParser(_context, rightTree)},
+            std::vector{op}
+        )
+    );
 }
 
 int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
