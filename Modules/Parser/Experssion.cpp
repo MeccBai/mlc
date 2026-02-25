@@ -352,7 +352,8 @@ ast::Expression astClass::handleMemberAccess(ContextTable<ast::VariableStatement
                 auto memberAccess = std::make_shared<ast::MemberAccess>(sPtr, idx);
                 return ast::Expression(std::make_shared<ast::CompositeExpression>(
                     std::vector{leftExpr, ast::Expression(memberAccess)},
-                    std::vector{op}
+                    std::vector{op},
+                    op == BaseOperator::AddressOf
                 ));
             }
         }

@@ -55,6 +55,24 @@ astClass::caseBlock astClass::caseBlockParser(
                                 }) | std::ranges::to<std::vector<std::vector<ast::Statement>> >();
     const auto statements = statementsTemp | std::views::join | std::ranges::to<std::vector<ast::Statement> >();
 
+    std::function<void(const ast::Statement&)> checkNoVarDef = [&](const ast::Statement& stmt) {
+        if (const auto varStmt = std::get_if<ast::VariableStatement>(&stmt)) {
+            ErrorPrintln("Define variable : {} in case/default block is not allowed", varStmt->Name);
+            std::exit(-1);
+        }
+
+        if (const auto subScope = std::get_if<ast::SubScope>(&stmt)) {
+            // 现在这里调用 checkNoVarDef 就没问题了！
+            for (const auto& s : subScope->Statements) {
+                checkNoVarDef(s);
+            }
+        }
+    };
+
+    for (const auto &stmt: statements) {
+        checkNoVarDef(stmt);
+    }
+
     return {condition, statements};
 }
 
@@ -109,10 +127,14 @@ ast::SubScope astClass::subScopeParser(ContextTable<ast::VariableStatement> &_co
         const auto statements = bodyToStatements(body);
 
         return ast::SubScope(statements, ast::SubScopeType::DoWhileBlock, condition);
-    } else if (_subScopeContent.find("else{")) {
+    } else if (_subScopeContent.find("else{") != std::string_view::npos) {
         const auto body = _subScopeContent.substr(5, _subScopeContent.length() - 6);
         const auto statements = bodyToStatements(body);
         return ast::SubScope(statements, ast::SubScopeType::ElseBlock, {});
+    } else if (_subScopeContent.starts_with("{")) {
+        const auto body = _subScopeContent.substr(1, _subScopeContent.length() - 1);
+        const auto statements = bodyToStatements(body);
+        return ast::SubScope(statements, ast::SubScopeType::AnonymousBlock, {});
     }
 
     return ast::SubScope({}, {}, {});

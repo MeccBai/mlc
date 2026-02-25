@@ -304,12 +304,13 @@ export namespace mlc::ast {
     class CompositeExpression {
     public:
         explicit CompositeExpression(std::vector<Expression> _components,
-                                     std::vector<BaseOperator> _operators) : Operators(std::move(_operators)),
-                                                                             Components(std::move(_components)) {
+                                     std::vector<BaseOperator> _operators,const bool _isOperatorFirst=false) : Operators(std::move(_operators)),
+                                                                             Components(std::move(_components)),isOperatorFirst(_isOperatorFirst) {
         }
 
         const std::vector<BaseOperator> Operators;
         const std::vector<Expression> Components;
+        const bool isOperatorFirst;
 
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetResultType() const {
             if (Components.empty()) {

@@ -17,9 +17,9 @@ using size_t = std::size_t;
 std::string_view getVariableName(std::string_view declaration) {
     if (declaration.empty()) return "";
 
-    // 1. 确定左边界：跳过所有开头的指针符号 '*'
-    // 因为已经没有空格了，直接从第一个不是 '*' 的字符开始
-    const size_t start = declaration.find_first_not_of('*');
+    // 1. 确定左边界：跳过所有开头的指针符号 '$'
+    // 因为已经没有空格了，直接从第一个不是 '$' 的字符开始
+    const size_t start = declaration.find_first_not_of('$');
     if (start == std::string_view::npos) return "";
 
     // 2. 确定右边界：变量名结束于第一个 '[' 或 '='
@@ -30,6 +30,7 @@ std::string_view getVariableName(std::string_view declaration) {
         // 如果没有 [ 或 =，说明整个剩余部分就是变量名
         return declaration.substr(start);
     }
+
 
     return declaration.substr(start, end - start);
 }
@@ -141,14 +142,10 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
             std::exit(-1);
         }
         std::println("{} : {}", variableName, declaration);
-        bool isPointer = false;
-        if (declaration[0] == '$') {
-            isPointer = true;
-        }
         if (declaration.find('=') != std::string_view::npos) {
             const auto expressionContext = declaration.substr(declaration.find('=') + 1);
-            auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
             if (isPointer) {
+                auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
                 size_t pointerLevel = 1;
                 for (size_t i = 1; i < declaration.length(); i++) {
                     if (declaration[i] == '$') pointerLevel++;
@@ -164,6 +161,7 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                 result.emplace_back(*varPtr);
                 _context.emplace_back(varPtr);
             } else {
+                auto expression = std::make_shared<ast::Expression>(expressionParser(_context, expressionContext));
                 auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
                 ValidateType(varPtr->VarType,expression->GetType(),variableName);
                 result.emplace_back(*varPtr);

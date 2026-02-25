@@ -16,6 +16,27 @@ using size_t = std::size_t;
 
 template<typename type>
 using sPtr = std::shared_ptr<type>;
+bool isLeftExpression(const ast::Expression & _expression) {
+    if (const auto vPtr = std::get_if<std::shared_ptr<ast::Variable>>(_expression.Storage.get()); vPtr != nullptr) {
+        return true;
+    }
+    if (const auto fPtr = std::get_if<std::shared_ptr<ast::FunctionCall>>(_expression.Storage.get()); fPtr != nullptr) {
+        return false;
+    }
+    if (const auto cPtr = std::get_if<ast::ConstValue>(_expression.Storage.get()); cPtr != nullptr) {
+        return false;
+    }
+    if (const auto compPtr = std::get_if<std::shared_ptr<ast::CompositeExpression>>(_expression.Storage.get()); compPtr != nullptr) {
+        auto &operators = compPtr->get()->Operators;
+        if (!operators.empty() && !compPtr->get()->isOperatorFirst) {
+            // 只有当第一个操作符是访问类操作符（. 或 ->）时，才可能是左值
+            if (operators[0] == ast::BaseOperator::Dot) return true;
+            if (operators[0] == ast::BaseOperator::Arrow) return true;
+            if (operators[0] == ast::BaseOperator::Subscript) return true;
+        }
+    }
+    return false;
+}
 
 std::vector<std::string_view> argSplit(const std::string_view str) {
     std::vector<std::string_view> results;
@@ -61,7 +82,8 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
         _statementContent.starts_with("while(") ||
         _statementContent.starts_with("switch(") ||
         _statementContent.starts_with("do{") ||
-        _statementContent.starts_with("else{")) {
+        _statementContent.starts_with("else{") ||
+        _statementContent.starts_with("{")){
         return {subScopeParser(_context, _statementContent)};
     }
 
@@ -128,7 +150,11 @@ std::vector<ast::Statement> astClass::statementParser(ContextTable<ast::Variable
         auto leftType = leftExpr.GetType();
         auto rightType = rightExpr.GetType();
         ValidateType(leftType,rightType,left);
-        return {ast::AssignStatement(expressionParser(_context, left), expressionParser(_context, right))};
+        if (!isLeftExpression(leftExpr)) {
+            ErrorPrintln("{} is not a valid left-hand expression in assignment\n", left);
+            std::exit(-1);
+        }
+        return {ast::AssignStatement(leftExpr, rightExpr)};
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
