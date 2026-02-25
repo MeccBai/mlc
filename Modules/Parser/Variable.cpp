@@ -160,10 +160,12 @@ std::vector<ast::VariableStatement> astClass::variableParser(ContextTable<ast::V
                 pointerType->Finalize(baseType);
                 auto tempType = std::make_shared<type::CompileType>(*pointerType);
                 auto varPtr = std::make_shared<ast::VariableStatement>(variableName, tempType, expression);
+                ValidateType(varPtr->VarType,expression->GetType(),variableName);
                 result.emplace_back(*varPtr);
                 _context.emplace_back(varPtr);
             } else {
                 auto varPtr = std::make_shared<ast::VariableStatement>(variableName, baseType, expression);
+                ValidateType(varPtr->VarType,expression->GetType(),variableName);
                 result.emplace_back(*varPtr);
                 _context.emplace_back(varPtr);
             }

@@ -9,6 +9,12 @@ mlc::ast::Expression::~Expression() = default;
 
 
 namespace ast = mlc::ast;
+std::string baseOperator(ast::BaseOperator _op) {
+    for (const auto &[token, op] : ast::BaseOperators) {
+        if (op == _op) return std::string(token);
+    }
+    return "UnknownOperator";
+}
 
 extern const std::vector ast::Type::BaseTypes = {
     BaseType("i32", 4), BaseType("u32", 4), BaseType("f32", 4), BaseType("f64", 8),
@@ -45,6 +51,9 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
         trueType->Finalize(strType);
         return strType; // 假设 "void" 代表字符串类型，或者你可以定义一个专门的字符串类型
     }
+    if (Value.front() == '\'') {
+        return std::make_shared<Type::CompileType>(Type::BaseTypes[4]);
+    }
     return {};
 }
 
@@ -60,7 +69,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
         if (op == ast::BaseOperator::AddressOf) {
             // 调试点：观察取地址升维过程
             if (auto *ptrData = std::get_if<ast::Type::PointerType>(&(*subType))) {
-                auto newLevel = ptrData->PointerLevel + 1;
+                auto newLevel = ptrData->PointerLevel;
                 // 这里你可以打印或者观察 ptrData->Name
                 auto returnPtr = std::make_shared<ast::Type::CompileType>(
                     ast::Type::PointerType(newLevel));
@@ -85,6 +94,22 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
         if (!subType) return nullptr;
 
+        if (op == ast::BaseOperator::Add || op == ast::BaseOperator::Sub ||
+            op == ast::BaseOperator::Mul || op == ast::BaseOperator::Div) {
+
+            // 2. 地毯式检查所有组件
+            for (auto &exp : arg->Components) {
+                auto type = exp.GetType();
+                if (!type) continue;
+
+                // 3. 核心安检：只要任何一个组件是 PointerType，立刻“枪毙”
+                if (std::holds_alternative<ast::Type::PointerType>(*type)) {
+                    ErrorPrintln("MLC Semantic Error: Pointer arithmetic is strictly forbidden! \n"
+                                 "Cannot use operator '{}' with pointer types.",baseOperator(op)); // 假设你有这个转换函数
+                    std::exit(-1);
+                }
+            }
+            }
 
         if (arg->Operators.size() == 1 && arg->Components.size() == 2) {
             auto baseOp = arg->Operators[0];

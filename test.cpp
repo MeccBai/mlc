@@ -14,15 +14,22 @@ int main() {
         struct One { i32 a; Two $b;};
         struct Two { i32 a; One $b;};
         i32 main() {
-            One a=10;
-            a.a = 100+5*3;
-            Two$bx=@(a.b);
-            bx->b=@a;
-            bx->b=@a+10;
-            func(a);
-            return 0;
+            Two$ t_ptr;
+            i8 result;
+
+            // 测试：深层成员访问与赋值
+            t_ptr->b->a = 100;
+
+            // 测试：在 switch 里处理数组索引和字符
+            switch(t_ptr->b->b->b->a) {
+                case 'd': { // 看看字符常量还崩不崩
+                    return 1;
+                }
+                default: {
+                    return 0;
+                }
+            }
         }
-        void func(One a) {}
     )";
 
     const std::string content = mlc::prepare::Prepare(source);

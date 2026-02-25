@@ -67,6 +67,8 @@ const std::unordered_map<ast::BaseOperator, int> operatorPriority = {
     {BaseOperator::Or, 12},
 };
 
+
+
 ast::BaseOperator toBaseOperator(const std::string_view _token) {
     if (ast::BaseOperators.contains(_token)) {
         return ast::BaseOperators.at(_token);

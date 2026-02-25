@@ -9,12 +9,46 @@ import aux;
 namespace ast = mlc::ast;
 using size_t = std::size_t;
 using astClass = mlc::parser::AbstractSyntaxTree;
+std::vector<std::string_view> splitCaseBlocks(std::string_view str) {
+    std::vector<std::string_view> segments;
+    const std::string_view patterns[] = {"case ", "default"};
 
+    size_t start = 0;
+    while (start < str.length()) {
+        // 1. 寻找当前块的起点（跳过前面的空格或杂质，定位到 case 或 default）
+        size_t p0 = str.find(patterns[0], start);
+        size_t p1 = str.find(patterns[1], start);
+        size_t currentBlockStart = std::min(p0, p1);
+
+        if (currentBlockStart == std::string_view::npos) break;
+
+        // 2. 从当前起点之后，寻找下一个 case 或 default 作为终点
+        size_t nextP0 = str.find(patterns[0], currentBlockStart + 7); // "default" 长度 7
+        size_t nextP1 = str.find(patterns[1], currentBlockStart + 7);
+        size_t nextBlockStart = std::min(nextP0, nextP1);
+
+        // 3. 切割并存入结果
+        if (nextBlockStart == std::string_view::npos) {
+            segments.push_back(str.substr(currentBlockStart+5)); // 最后一个块
+            break;
+        } else {
+            segments.push_back(str.substr(currentBlockStart+5, nextBlockStart - currentBlockStart-5));
+            start = nextBlockStart; // 挪动指针到下一个块开头
+        }
+    }
+    return segments;
+}
 astClass::caseBlock astClass::caseBlockParser(
     ContextTable<ast::VariableStatement> &_context, std::string_view statementContent) {
     const auto conditionStr = statementContent.substr(0, statementContent.find(':'));
     const auto statementsStr = statementContent.substr(statementContent.find(':') + 1);
-    const auto condition = expressionParser(_context, conditionStr);
+    ast::Expression condition;
+    if (conditionStr  == "lt") {
+        condition = ast::Expression({});
+    }
+    else {
+        condition = expressionParser(_context, conditionStr);
+    }
     const auto statementsTemp = seg::TokenizeFunctionBody(statementsStr) | std::views::transform(
                                 [&](const std::string_view statement) {
                                     return statementParser(_context, statement);
@@ -32,7 +66,7 @@ ast::SubScope astClass::subScopeParser(ContextTable<ast::VariableStatement> &_co
         const auto pos = _subScopeContent.find("){");
         const auto condition = expressionParser(newContext, _subScopeContent.substr(7, pos - 7));
         const auto caseBlocksStr = _subScopeContent.substr(pos + 2, _subScopeContent.length() - pos - 3);
-        const auto caseBlocks = split(caseBlocksStr, "case ");
+        const auto caseBlocks = splitCaseBlocks(caseBlocksStr);
         auto toBlock = [this, &newContext](const std::string_view block) {
             return caseBlockParser(newContext, block);
         };
