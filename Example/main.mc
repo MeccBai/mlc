@@ -1,6 +1,4 @@
-
-import std;
-
 i32 main() {
-    std_func();
+    i32$ a = nullptr;
+    i64$ b = nullptr;
 }

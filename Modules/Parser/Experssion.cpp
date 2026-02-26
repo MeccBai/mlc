@@ -239,6 +239,10 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
     while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
     while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
 
+    if (str == "nullptr") {
+        return std::make_shared<ast::Expression>(ast::Expression(ast::ConstValue("nullptr")));
+    }
+
     if (str.empty()) {
         ErrorPrintln("Empty expression atom");
         std::exit(-1);
@@ -408,11 +412,14 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
         );
     }
 
+    const auto leftExpr = expressionTreeParser(_context, leftTree);
+    const auto rightExpr = expressionTreeParser(_context, rightTree);
+    ast::ValidateType(leftExpr->GetType(), rightExpr->GetType(), "Binary operator type mismatch");
+
     return std::make_shared<ast::Expression>(
         std::make_shared<ast::CompositeExpression>(
             std::vector{
-                expressionTreeParser(_context,leftTree),
-                expressionTreeParser(_context, rightTree)
+                leftExpr,rightExpr
             },
             std::vector{op}
         )

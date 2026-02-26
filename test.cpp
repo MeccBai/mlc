@@ -7,21 +7,27 @@ import std;
 import Prepare;
 import Compiler;
 import aux;
+import Token;
+import Generator;
+
+namespace ast = mlc::ast;
+namespace Type = ast::Type;
 
 int main() {
     DisableOutputBuffering() ;
-    const std::string source = R"(
-        struct One { i32 a; Two $b;};
-        struct Two { i32 a; One $b;};
-        i32 main() {
-            i32 a[10][10] = {{1,i64(10)},{3,4}};
-        }
-    )";
 
-    const std::string content = mlc::prepare::Prepare(source);
-    std::println("{}",content);
+    std::vector<Type::StructMember> members = {
+        {"x", std::make_shared<Type::CompileType>(Type::BaseTypes[0])},
+        {"y", std::make_shared<Type::CompileType>(Type::BaseTypes[0])},
+    };
 
-    mlc::parser::AbstractSyntaxTree ast(mlc::seg::TopTokenize(content));
+    auto one = Type::StructDefinition(
+        "One", members
+    );
 
+    mlc::ir::gen::IRGenerator generator;
+    auto ptr = std::make_shared<Type::StructDefinition>(one);
+    std::print("{}",generator.Struct(ptr));
 
+     return 0;
 }

@@ -69,23 +69,21 @@ export namespace mlc::ast::Type {
 
     class BaseType {
     public:
-        explicit BaseType(const std::string_view _name, std::size_t _size) : Name(_name), Size(_size) {
+        explicit BaseType(const std::string_view _name, const std::size_t _size) : Name(_name), size(_size) {
         }
-
         const std::string Name;
-        const std::size_t Size;
-
+        std::size_t Size() const {return size;}
         bool operator ==(const BaseType &_other) const {
             return _other.Name == Name;
         }
-
         bool operator >(const BaseType &_other) const {
-            return Size > _other.Size;
+            return size > _other.Size();
         }
-
         bool operator <(const BaseType &_other) const {
-            return Size < _other.Size;
+            return size < _other.Size();
         }
+    private:
+        const std::size_t size;
     };
 
     extern const std::vector<BaseType> BaseTypes;
@@ -98,6 +96,11 @@ export namespace mlc::ast::Type {
 
         const std::string Name;
         const std::vector<std::string> Values;
+
+        static std::size_t Size() {
+            return 4;
+        }
+
     };
 
     struct StructMember {
@@ -107,29 +110,34 @@ export namespace mlc::ast::Type {
 
     class StructDefinition {
     public:
-        explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
-            : Name(_name), Members(std::move(_members)) {
+        explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members,const bool _isExported = false)
+            : Name(_name), Members(std::move(_members)), IsExported(_isExported) {
         }
 
         const std::string Name;
         const std::vector<StructMember> Members; // type and name
+        const bool IsExported ;
+
+        [[nodiscard]] size_t Size() const;
     };
 
     class ArrayType {
     public:
         [[nodiscard]] std::string GetTypeName() const;
 
-        explicit ArrayType(std::shared_ptr<CompileType> _baseType, std::size_t _size) : BaseType(std::move(_baseType)),
-            Size(_size), Name(this->GetTypeName()) {
+        explicit ArrayType(std::shared_ptr<CompileType> _baseType, std::size_t _length) : BaseType(std::move(_baseType)),
+            Length(_length), Name(this->GetTypeName()) {
         }
 
-        std::weak_ptr<CompileType> GetBaseType() const {
+        [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
             return BaseType;
         }
 
         const std::shared_ptr<CompileType> BaseType;
-        const std::size_t Size; // 0 for incomplete array
+        const std::size_t Length; // 0 for incomplete array
         const std::string Name;
+
+        [[nodiscard]] size_t Size() const;
     };
 
     class PointerType {
@@ -163,6 +171,10 @@ export namespace mlc::ast::Type {
         const size_t PointerLevel;
 
         std::shared_ptr<CompileType> BaseType;
+
+        static std::size_t Size() {
+            return 8;
+        }
     };
 } // namespace mlc::ast::Type
 
@@ -282,8 +294,9 @@ export namespace mlc::ast {
     class InitializerList {
     public:
         const std::string Name = "InitializerList";
-        std::vector<std::shared_ptr<Expression>> Values;
-        explicit InitializerList(std::vector<std::shared_ptr<Expression>> _values) : Values(std::move(_values)) {
+        std::vector<std::shared_ptr<Expression> > Values;
+
+        explicit InitializerList(std::vector<std::shared_ptr<Expression> > _values) : Values(std::move(_values)) {
         }
     };
 
@@ -380,15 +393,19 @@ export namespace mlc::ast {
         using Args = std::vector<std::shared_ptr<VariableStatement> >;
 
         explicit FunctionDeclaration(std::string _name, const std::shared_ptr<Type::CompileType> &_returnType,
-                                     Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
-            Name(std::move(_name)),
-            Parameters(std::move(_args)), ReturnType(_returnType) {
+                                     Args _args, const bool _isVarList = false,
+                                     const bool _isExported = false) : IsVarList(_isVarList),
+                                                                       Name(std::move(_name)),
+                                                                       Parameters(std::move(_args)),
+                                                                       ReturnType(_returnType),
+                                                                       IsExported(_isExported) {
         }
 
         const bool IsVarList;
         const std::string Name;
         const Args Parameters;
         const std::shared_ptr<Type::CompileType> ReturnType;
+        const bool IsExported ;
     };
 
     class FunctionScope {
@@ -397,24 +414,24 @@ export namespace mlc::ast {
 
         FunctionScope(std::string _name, std::vector<std::shared_ptr<Statement> > _statements,
                       std::shared_ptr<Type::CompileType> _returnType,
-                      Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
+                      Args _args, const bool _isVarList = false,const bool _isExported = false) : IsVarList(_isVarList),
                                                                    Name(std::move(_name)),
                                                                    Statements(std::move(_statements)),
                                                                    Parameters(std::move(_args)),
-                                                                   ReturnType(std::move(_returnType)) {
+                                                                   ReturnType(std::move(_returnType)),IsExported(_isExported) {
         }
 
         FunctionScope(const FunctionDeclaration &_functionDeclaration,
-                      std::vector<std::shared_ptr<Statement> > _statements)
+                      std::vector<std::shared_ptr<Statement> > _statements,const bool _isExported = false)
             : IsVarList(_functionDeclaration.IsVarList),
               Name(_functionDeclaration.Name),
               Statements(std::move(_statements)),
               Parameters(_functionDeclaration.Parameters),
-              ReturnType(_functionDeclaration.ReturnType) {
+              ReturnType(_functionDeclaration.ReturnType),IsExported(_isExported) {
         }
 
         const bool IsVarList;
-
+        const bool IsExported = false;
         const std::string Name;
         const std::vector<std::shared_ptr<Statement> > Statements;
         const Args Parameters;
@@ -429,7 +446,7 @@ export namespace mlc::ast {
     using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>
     ;
 
-    void ValidateType(const std::shared_ptr<ast::Type::CompileType>& targetType,
-                  const std::shared_ptr<ast::Type::CompileType>& actualType,
-                  std::string_view contextInfo);
+    void ValidateType(const std::shared_ptr<ast::Type::CompileType> &targetType,
+                      const std::shared_ptr<ast::Type::CompileType> &actualType,
+                      std::string_view contextInfo);
 }

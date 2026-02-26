@@ -21,7 +21,7 @@ std::string baseOperator(ast::BaseOperator _op) {
 extern const std::vector ast::Type::BaseTypes = {
     BaseType("i32", 4), BaseType("u32", 4), BaseType("f32", 4), BaseType("f64", 8),
     BaseType("i8", 1), BaseType("u8", 1), BaseType("void", 0), BaseType("i16", 2),
-    BaseType("u16", 2), BaseType("i64", 8), BaseType("u64", 8),
+    BaseType("u16", 2), BaseType("i64", 8), BaseType("u64", 8), BaseType("null", 0)
 };
 
 std::string ast::Type::ArrayType::GetTypeName() const {
@@ -29,7 +29,7 @@ std::string ast::Type::ArrayType::GetTypeName() const {
         // 这里调用各类型的 GetTypeName()
         return arg.Name;
     }, *BaseType);
-    return std::format("{}[{}]", baseName, Size);
+    return std::format("{}[{}]", baseName, Length);
 }
 
 const std::unordered_map<std::string_view, ast::BaseOperator> mlc::ast::BaseOperators = {
@@ -48,6 +48,12 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     // 假设你的字符串值存放在 value 成员中
     if (Value.empty()) {
         return {};
+    }
+
+    std::string nullPointer = "nullptr";
+    nullPointer.pop_back();
+    if (Value == "nullptr" || Value == nullPointer) {
+        return std::make_shared<Type::CompileType>(Type::BaseTypes[11]);
     }
     if (std::isdigit(Value[0]) || (Value[0] == '-' && Value.size() > 1)) {
         if (Value.find('.') != std::string::npos) {
@@ -86,6 +92,12 @@ void mlc::ast::ValidateType(const std::shared_ptr<ast::Type::CompileType> &targe
 
     // 3. 获取类型名称进行比对
     std::string expectedName = getName(*targetType);
+
+    const auto targetPtr = std::get_if<Type::PointerType>(&*targetType);
+    if (const auto actualPtr = std::get_if<Type::BaseType>(&*actualType);
+        targetPtr && actualPtr && actualPtr->Name == "null") {
+        return;
+    }
 
     if (std::string actualName = getName(*actualType); expectedName != actualName) {
         ErrorPrintln("Error: Type mismatch for {}. Expected '{}', got '{}'\n",
@@ -297,19 +309,20 @@ void ast::VariableStatement::InitListValidCheck() const {
 
     if (arrayType || structType) {
         // 定义递归 Lambda
-        auto recursiveCheck = [&](auto& self,
-                                  const std::shared_ptr<Type::CompileType>& target,
-                                  const std::shared_ptr<Expression>& init) -> void {
-            if (const auto listPtrTemp = std::get_if<std::shared_ptr<InitializerList>>(&*(init->Storage))) {
-                const auto& list = *listPtrTemp;
+        auto recursiveCheck = [&](auto &self,
+                                  const std::shared_ptr<Type::CompileType> &target,
+                                  const std::shared_ptr<Expression> &init) -> void {
+            if (const auto listPtrTemp = std::get_if<std::shared_ptr<InitializerList> >(&*(init->Storage))) {
+                const auto &list = *listPtrTemp;
 
                 // 情况 A: 目标是数组
                 if (const auto arr = std::get_if<Type::ArrayType>(&(*target))) {
-                    if (list->Values.size() > arr->Size) {
-                        ErrorPrintln("Error: Too many initializers (expected {}, got {}).\n", arr->Size, list->Values.size());
+                    if (list->Values.size() > arr->Length) {
+                        ErrorPrintln("Error: Too many initializers (expected {}, got {}).\n", arr->Length,
+                                     list->Values.size());
                         std::exit(-1);
                     }
-                    for (const auto& val : list->Values) {
+                    for (const auto &val: list->Values) {
                         self(self, arr->BaseType, val); // 递归进入下一层
                     }
                 }
@@ -322,8 +335,7 @@ void ast::VariableStatement::InitListValidCheck() const {
                     for (size_t i = 0; i < list->Values.size(); ++i) {
                         self(self, str->Members[i].Type, list->Values[i]); // 递归进入成员
                     }
-                }
-                else {
+                } else {
                     ErrorPrintln("Error: Cannot use initializer list for non-composite type.\n");
                     std::exit(-1);
                 }
@@ -340,4 +352,23 @@ void ast::VariableStatement::InitListValidCheck() const {
 
 ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
     return FunctionDeclaration(Name, ReturnType, Parameters, IsVarList);
+}
+
+size_t ast::Type::StructDefinition::Size() const {
+    size_t currentOffset = 0;
+    size_t maxAlign = 1;
+    for (const auto &[name, type]: Members) {
+        size_t mSize = std::visit([](auto &&t) { return t.Size(); }, *type);
+        size_t mAlign = mSize;
+        currentOffset = (currentOffset + mAlign - 1) & ~(mAlign - 1);
+        currentOffset += mSize;
+        if (mAlign > maxAlign) maxAlign = mAlign;
+    }
+    return size_t(maxAlign + currentOffset - 1ul) & ~size_t(maxAlign - 1ul);
+}
+
+
+size_t ast::Type::ArrayType::Size() const {
+    const size_t baseSize = std::visit([](auto &&t) { return t.Size(); }, *BaseType);
+    return baseSize * Length;
 }
