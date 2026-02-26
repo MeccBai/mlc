@@ -82,7 +82,7 @@ export namespace mlc::parser {
                                           const std::vector<exprTree>& fragments,
                                           int splitIndex);
 
-        int findSplitOperator(const std::vector<exprTree>& fragments);
+        static int findSplitOperator(const std::vector<exprTree>& fragments);
 
         std::shared_ptr<ast::Expression> expressionParser(const std::string_view _expressionContent) {
             ContextTable<ast::VariableStatement> dummyContext;
@@ -111,9 +111,6 @@ export namespace mlc::parser {
 
 
 namespace mlc {
-    void ValidateType(const std::shared_ptr<ast::Type::CompileType>& targetType,
-                      const std::shared_ptr<ast::Type::CompileType>& actualType,
-                      std::string_view contextInfo);
 
     using exprTree = parser::AbstractSyntaxTree::exprTree;
 

@@ -14,9 +14,7 @@ int main() {
         struct One { i32 a; Two $b;};
         struct Two { i32 a; One $b;};
         i32 main() {
-            i64 a[10][100];
-            i64 b[10];
-            a[0]=b;
+            i32 a[10][10] = {{1,i64(10)},{3,4}};
         }
     )";
 

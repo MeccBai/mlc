@@ -155,7 +155,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
         auto rightExpr = expressionParser(_context, right);
         auto leftType = leftExpr->GetType();
         auto rightType = rightExpr->GetType();
-        ValidateType(leftType, rightType, left);
+        ast::ValidateType(leftType, rightType, left);
         if (!isLeftExpression(leftExpr)) {
             ErrorPrintln("{} is not a valid left-hand expression in assignment\n", left);
             std::exit(-1);

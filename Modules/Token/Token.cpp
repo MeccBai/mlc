@@ -5,6 +5,7 @@
 module Token;
 import aux;
 import std;
+import Parser;
 mlc::ast::Expression::~Expression() = default;
 
 
@@ -64,6 +65,33 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
         return std::make_shared<Type::CompileType>(Type::BaseTypes[4]);
     }
     return {};
+}
+
+void mlc::ast::ValidateType(const std::shared_ptr<ast::Type::CompileType> &targetType,
+                            const std::shared_ptr<ast::Type::CompileType> &actualType,
+                            const std::string_view contextInfo) {
+    // 1. 安全检查：如果任何一边类型丢失，说明推导系统出了大问题
+    if (!targetType || !actualType) {
+        ErrorPrintln("Compiler internal error.\n", contextInfo);
+        std::exit(-1);
+    }
+
+    // 2. 提取名称的辅助 Lambda
+    auto getName = [](const ast::Type::CompileType &type) -> std::string {
+        return std::visit([](auto &&t) -> std::string {
+            // 这里假设你的 CompileType 各个分支都有 Name 成员
+            return std::string(t.Name);
+        }, type);
+    };
+
+    // 3. 获取类型名称进行比对
+    std::string expectedName = getName(*targetType);
+
+    if (std::string actualName = getName(*actualType); expectedName != actualName) {
+        ErrorPrintln("Error: Type mismatch for {}. Expected '{}', got '{}'\n",
+                     contextInfo, expectedName, actualName);
+        std::exit(-1);
+    }
 }
 
 // 将复杂的复合表达式逻辑抽离，方便单独挂断点调试
@@ -248,6 +276,67 @@ std::shared_ptr<ast::Type::CompileType> ast::Expression::GetType() const {
     }, *Storage);
 }
 
+
+void ast::VariableStatement::InitListValidCheck() const {
+    if (!Initializer) {
+        return;
+    }
+    const auto listPtr = std::get_if<std::shared_ptr<InitializerList> >(&*(Initializer->Storage));
+    if (!listPtr) {
+        return;
+    }
+    const auto initializerList = *listPtr;
+
+    auto type = this->VarType;
+    auto structType = std::get_if<Type::StructDefinition>(&(*type));
+    auto arrayType = std::get_if<Type::ArrayType>(&(*type));
+    if (!structType && !arrayType) {
+        ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
+        std::exit(-1);
+    }
+
+    if (arrayType || structType) {
+        // 定义递归 Lambda
+        auto recursiveCheck = [&](auto& self,
+                                  const std::shared_ptr<Type::CompileType>& target,
+                                  const std::shared_ptr<Expression>& init) -> void {
+            if (const auto listPtrTemp = std::get_if<std::shared_ptr<InitializerList>>(&*(init->Storage))) {
+                const auto& list = *listPtrTemp;
+
+                // 情况 A: 目标是数组
+                if (const auto arr = std::get_if<Type::ArrayType>(&(*target))) {
+                    if (list->Values.size() > arr->Size) {
+                        ErrorPrintln("Error: Too many initializers (expected {}, got {}).\n", arr->Size, list->Values.size());
+                        std::exit(-1);
+                    }
+                    for (const auto& val : list->Values) {
+                        self(self, arr->BaseType, val); // 递归进入下一层
+                    }
+                }
+                // 情况 B: 目标是结构体
+                else if (const auto str = std::get_if<Type::StructDefinition>(&(*target))) {
+                    if (list->Values.size() > str->Members.size()) {
+                        ErrorPrintln("Error: Struct '{}' has only {} members.\n", str->Name, str->Members.size());
+                        std::exit(-1);
+                    }
+                    for (size_t i = 0; i < list->Values.size(); ++i) {
+                        self(self, str->Members[i].Type, list->Values[i]); // 递归进入成员
+                    }
+                }
+                else {
+                    ErrorPrintln("Error: Cannot use initializer list for non-composite type.\n");
+                    std::exit(-1);
+                }
+            } else {
+                // 2. 触底反弹：这已经是一个具体的表达式了，执行最终校验
+                auto typeName = std::visit([](auto &&t) { return t.Name; }, *target);
+                auto tip = std::format("element of type '{}'", typeName);
+                ValidateType(target, init->GetType(), tip);
+            }
+        };
+        recursiveCheck(recursiveCheck, this->VarType, this->Initializer);
+    }
+}
 
 ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
     return FunctionDeclaration(Name, ReturnType, Parameters, IsVarList);

@@ -21,33 +21,7 @@ bool isOpChar(const char c) {
     return operators.contains(c);
 }
 
-void mlc::ValidateType(const std::shared_ptr<ast::Type::CompileType> &targetType,
-                       const std::shared_ptr<ast::Type::CompileType> &actualType,
-                       const std::string_view contextInfo) {
-    // 1. 安全检查：如果任何一边类型丢失，说明推导系统出了大问题
-    if (!targetType || !actualType) {
-        ErrorPrintln("Compiler internal error.\n", contextInfo);
-        std::exit(-1);
-    }
 
-    // 2. 提取名称的辅助 Lambda
-    auto getName = [](const ast::Type::CompileType &type) -> std::string {
-        return std::visit([](auto &&t) -> std::string {
-            // 这里假设你的 CompileType 各个分支都有 Name 成员
-            return std::string(t.Name);
-        }, type);
-    };
-
-    // 3. 获取类型名称进行比对
-    std::string expectedName = getName(*targetType);
-    std::string actualName = getName(*actualType);
-
-    if (expectedName != actualName) {
-        ErrorPrintln("Error: Type mismatch for {}. Expected '{}', got '{}'\n",
-                     contextInfo, expectedName, actualName);
-        std::exit(-1);
-    }
-}
 
 using BaseOperator = ast::BaseOperator;
 const std::unordered_map<ast::BaseOperator, int> operatorPriority = {
@@ -329,11 +303,11 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
         ErrorPrintln("Nested member access (e.g., a.b.c) is currently disabled.");
         std::exit(-1);
     }
-    sPtr<ast::Expression> leftExpr = parseAtom(_context, std::get<std::string_view>(leftFrags[0].data));
+    const sPtr<ast::Expression> leftExpr = parseAtom(_context, std::get<std::string_view>(leftFrags[0].data));
 
     // 2. 获取单次访问的信息
-    auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
-    auto op = toBaseOperator(opStr);
+    const auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
+    const auto op = toBaseOperator(opStr);
     auto memberName = std::get<std::string_view>(fragments[splitIndex + 1].data);
 
     // 3. 语义检查：解引用与匹配
@@ -350,7 +324,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
     }
 
     // 4. 结构体成员查找
-    if (auto structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
+    if (const auto structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
         for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
             if (structDef->Members[idx].Name == memberName) {
                 // 返回 MemberAccess 节点
@@ -376,7 +350,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
                                                      const exprTree &_expressionContent) {
     // --- 1. 处理原子 (叶子节点) ---
-    if (auto atomPtr = std::get_if<std::string_view>(&_expressionContent.data)) {
+    if (const auto atomPtr = std::get_if<std::string_view>(&_expressionContent.data)) {
         // 使用你写的 parseAtom 或之前的逻辑处理常量、变量、函数
         return parseAtom(_context, *atomPtr);
     }
@@ -393,8 +367,8 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
     // 如果没找到操作符，说明是某种未处理的语法错误
     if (splitIndex == -1) return expressionTreeParser(_context, fragments[0]);
 
-    auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
-    auto op = toBaseOperator(opStr);
+    const auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
+    const auto op = toBaseOperator(opStr);
 
     // --- 3. 拦截成员访问 (最高优先级处理) ---
     // 这里顺应你的想法：一旦遇到 . 或 -> 且它是当前的分割点（或者手动拦截）

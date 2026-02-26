@@ -225,6 +225,7 @@ export namespace mlc::ast {
     class CompositeExpression;
     class FunctionDeclaration;
     using Variable = VariableStatement;
+    class InitializerList;
 
     class MemberAccess {
     public:
@@ -250,30 +251,23 @@ export namespace mlc::ast {
     class Expression {
     public:
         using Data = std::variant<ConstValue, std::shared_ptr<Variable>, std::shared_ptr<FunctionCall>, std::shared_ptr<
-            CompositeExpression>, std::shared_ptr<MemberAccess> >;
+            CompositeExpression>, std::shared_ptr<MemberAccess>, std::shared_ptr<InitializerList> >;
         std::shared_ptr<Data> Storage;
 
-        // --- 宽松且安全的构造函数 ---
         template<typename T>
             requires (
-                // 1. 排除掉 Expression 本身及其子类，防止拦截拷贝/移动构造
                 !std::is_same_v<std::remove_cvref_t<T>, Expression> &&
-                // 2. 只有当 T 能被用来构造 Data 时，才启用这个模板
                 std::is_constructible_v<Data, T>
             )
         explicit Expression(T &&_val)
             : Storage(std::make_shared<Data>(std::forward<T>(_val))) {
         }
 
-
-        // 默认构造：初始化一个空的或者默认状态的 Data
         Expression() : Storage(std::make_shared<Data>(ConstValue("0"))) {
         }
 
-        // 显式声明，去 .cpp 里 = default
         ~Expression();
 
-        // 拷贝与移动保持 default
         Expression(const Expression &) = default;
 
         Expression(Expression &&) noexcept = default;
@@ -283,6 +277,14 @@ export namespace mlc::ast {
         Expression &operator=(Expression &&) noexcept = default;
 
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetType() const;
+    };
+
+    class InitializerList {
+    public:
+        const std::string Name = "InitializerList";
+        std::vector<std::shared_ptr<Expression>> Values;
+        explicit InitializerList(std::vector<std::shared_ptr<Expression>> _values) : Values(std::move(_values)) {
+        }
     };
 
     using FunctionCallStatement = FunctionCall;
@@ -338,9 +340,12 @@ export namespace mlc::ast {
 
     class VariableStatement {
     public:
+        void InitListValidCheck() const;
+
         explicit VariableStatement(const std::string_view _name, const std::shared_ptr<Type::CompileType> &_varType,
                                    std::shared_ptr<Expression> _initializer = nullptr)
             : Name(_name), VarType(_varType), Initializer(std::move(_initializer)) {
+            InitListValidCheck();
         }
 
         const std::string Name;
@@ -423,4 +428,8 @@ export namespace mlc::ast {
 export namespace mlc::ast {
     using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>
     ;
+
+    void ValidateType(const std::shared_ptr<ast::Type::CompileType>& targetType,
+                  const std::shared_ptr<ast::Type::CompileType>& actualType,
+                  std::string_view contextInfo);
 }

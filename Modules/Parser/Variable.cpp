@@ -15,7 +15,6 @@ namespace type = ast::Type;
 using size_t = std::size_t;
 
 std::string_view getVariableName(std::string_view declaration) {
-
     if (declaration.empty()) return "";
 
     // 1. 确定左边界：跳过所有开头的指针符号 '$'
@@ -34,23 +33,20 @@ std::string_view getVariableName(std::string_view declaration) {
 
 
     return declaration.substr(start, end - start);
-
 }
 
 astClass::StatementTable<ast::Statement> astClass::globalVariableParser(
 
     const std::string_view variableContent) {
-
     // 这里可以进一步解析变量声明，提取变量类型、名称和初始化表达式等信息
     auto globalContext = ContextTable<ast::VariableStatement>{};
     const auto result = variableParser(globalContext, variableContent);
     for (const auto &var: result) {
-        auto* vptr = std::get_if<ast::VariableStatement>(var.get());
+        auto *vptr = std::get_if<ast::VariableStatement>(var.get());
         variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(*vptr));
     }
     return result;
     //ast::VariableStatement("", {}, std::nullopt);
-
 }
 
 astClass::StatementTable<ast::Statement> astClass::localVariableParser(
@@ -76,7 +72,7 @@ std::vector<VariablePack> variablePacked(const std::string_view _variable) {
     std::string_view baseType = _variable.substr(0, typePos);
     std::string_view remaining = _variable.substr(typePos);
     // 去掉开头的空格，但保留 $，因为它属于变量修饰部分
-    while(!remaining.empty() && std::isspace(remaining.front())) remaining.remove_prefix(1);
+    while (!remaining.empty() && std::isspace(remaining.front())) remaining.remove_prefix(1);
 
     // 2. 扫描并切分多个声明 (a[10], $b=10)
     std::stack<char> brackets;
@@ -92,8 +88,8 @@ std::vector<VariablePack> variablePacked(const std::string_view _variable) {
         // 遇到外层逗号或模拟的分号
         else if ((c == ',' || c == ';') && brackets.empty()) {
             std::string_view fullDecl = remaining.substr(start, i - start);
-            while(!fullDecl.empty() && std::isspace(fullDecl.front())) fullDecl.remove_prefix(1);
-            while(!fullDecl.empty() && std::isspace(fullDecl.back())) fullDecl.remove_suffix(1);
+            while (!fullDecl.empty() && std::isspace(fullDecl.front())) fullDecl.remove_prefix(1);
+            while (!fullDecl.empty() && std::isspace(fullDecl.back())) fullDecl.remove_suffix(1);
 
             if (!fullDecl.empty()) {
                 // 3. 进一步拆分 Name 和 InitExpression
@@ -114,41 +110,63 @@ std::vector<VariablePack> variablePacked(const std::string_view _variable) {
     return packs;
 }
 
+std::vector<std::string_view> initializerListSplit(const std::string_view initExpr) {
+    std::vector<std::string_view> elements;
+    std::string_view content = initExpr;
+    if (content.starts_with('{') and content.ends_with('}')) {
+        content = content.substr(1, content.size() - 2);
+    }
+    size_t start = 0;
+    int depth = 0;
+    for (size_t i = 0; i <= content.length(); ++i) {
+        const char c = (i < content.length()) ? content[i] : ',';
+        if (c == '{') depth++;
+        else if (c == '}') depth--;
+        else if (c == ',' and depth == 0) {
+            std::string_view element = content.substr(start, i - start);
+            while (!element.empty() and std::isspace(element.front())) element.remove_prefix(1);
+            while (!element.empty() and std::isspace(element.back())) element.remove_suffix(1);
+            if (!element.empty()) elements.push_back(element);
+            start = i + 1;
+        }
+    }
+    return elements;
+}
+
 astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<ast::VariableStatement> &_context,
                                                                   const std::string_view variableContent) {
     auto packs = variablePacked(variableContent);
     StatementTable<ast::Statement> result;
 
-    for (const auto&[Type, Name, InitExpression] : packs) {
-        // 1. 获取 BaseType
+    for (const auto &[type, name, initExpression] : packs) {
+        // --- 1. 获取 BaseType (基础类型) ---
         const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
-            return std::visit([](auto &&arg) { return arg.Name; }, *t) == Type;
+            return std::visit([](auto &&arg) { return arg.Name; }, *t) == type;
         });
         if (it == typeSymbolTable.end()) {
-            ErrorPrintln("Error: Unknown type '{}'\n", Type);
-            std::exit(-1);
+            ErrorPrintln("Error: Unknown type '{}'\n", type); std::exit(-1);
         }
         auto currentType = *it;
 
-        // 2. 处理修饰符 (指针 & 多维数组) 并提取纯变量名
-        std::string_view decl = Name;
+        // --- 2. 解析修饰符 (指针 & 数组) 确定最终类型 ---
+        std::string_view decl = name;
 
-        // --- 处理指针前缀 $$$ ---
+        // 处理指针 $
         size_t pLevel = 0;
-        while(pLevel < decl.size() && decl[pLevel] == '$') pLevel++;
-        if(pLevel > 0) {
+        while (pLevel < decl.size() and decl[pLevel] == '$') pLevel++;
+        if (pLevel > 0) {
             auto pType = std::make_shared<type::PointerType>(pLevel);
             pType->Finalize(currentType);
             currentType = std::make_shared<type::CompileType>(*pType);
             decl.remove_prefix(pLevel);
         }
 
-        // --- 处理数组后缀 [10][20] ---
+        // 处理数组 [10]
         auto bracketPos = decl.find('[');
-        std::string_view realName = decl.substr(0, bracketPos);
+        std::string_view realName = decl.substr(0, bracketPos); // 现在的 realName 才是真正的变量名
         if (bracketPos != std::string_view::npos) {
             std::string_view suffix = decl.substr(bracketPos);
-            while(!suffix.empty() && suffix[0] == '[') {
+            while (!suffix.empty() && suffix[0] == '[') {
                 size_t end = suffix.find(']');
                 size_t dim = std::stoull(std::string(suffix.substr(1, end - 1)));
                 currentType = std::make_shared<type::CompileType>(
@@ -158,19 +176,51 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
             }
         }
 
+        // --- 3. 处理初始化逻辑 (此时 currentType 已经完全确定) ---
         sPtr<ast::Expression> initExpr = nullptr;
-        if (!InitExpression.empty()) {
-            initExpr = expressionParser(_context, InitExpression);
-            ValidateType(currentType, initExpr->GetType(), realName);
+        if (!initExpression.empty()) {
+            if (initExpression.starts_with('{') and initExpression.ends_with('}')) {
+                // 只有数组和结构体可以这样初始化
+                auto parseInitList = [&](auto& self, const std::string_view expr) -> sPtr<ast::Expression> {
+                    if (expr.starts_with('{') and expr.ends_with('}')) {
+                        auto elementViews = initializerListSplit(expr);
+                        std::vector<sPtr<ast::Expression>> elements;
+
+                        for (auto ev : elementViews) {
+                            // 递归点：如果是括号就继续自己调自己，否则交给原有的 expressionParser
+                            if (ev.starts_with('{') and ev.ends_with('}')) {
+                                elements.push_back(self(self, ev));
+                            } else {
+                                elements.push_back(expressionParser(_context, ev));
+                            }
+                        }
+
+                        return std::make_shared<ast::Expression>(
+                            ast::Expression::Data(std::make_shared<ast::InitializerList>(elements))
+                        );
+                    }
+                    //兜底逻辑，按理说如果不是括号开头，直接调 expressionParser 即可
+                    return expressionParser(_context, expr);
+                };
+                initExpr = parseInitList(parseInitList, initExpression);
+                return std::vector{std::make_shared<ast::Statement>(ast::VariableStatement(realName, currentType, initExpr))};
+            } else {
+                // 普通表达式赋值
+                initExpr = expressionParser(_context, initExpression);
+                ast::ValidateType(currentType, initExpr->GetType(), realName);
+            }
         }
 
-        // 4. 构建并注册
+        // --- 4. 构建、包装、注册 ---
+        // 注意：这里使用 realName 存储
         auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, initExpr);
-        auto stmtPtr = std::make_shared<ast::Statement>(std::move(*varStmt));
-        auto* vPtr = std::get_if<ast::VariableStatement>(stmtPtr.get());
 
-        result.emplace_back(stmtPtr);
-        _context.emplace_back(std::shared_ptr<ast::VariableStatement>(stmtPtr, vPtr));
+        // 这里的 ast::Statement 构造需要适配你的 variant 结构
+        auto stmtPtr = std::make_shared<ast::Statement>(*varStmt);
+
+        // 关键点：将 VariableStatement 的引用存入 context，方便后续查找
+        _context.emplace_back(varStmt);
+        result.push_back(stmtPtr);
     }
     return result;
 }
