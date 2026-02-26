@@ -9,8 +9,9 @@ mlc::ast::Expression::~Expression() = default;
 
 
 namespace ast = mlc::ast;
+
 std::string baseOperator(ast::BaseOperator _op) {
-    for (const auto &[token, op] : ast::BaseOperators) {
+    for (const auto &[token, op]: ast::BaseOperators) {
         if (op == _op) return std::string(token);
     }
     return "UnknownOperator";
@@ -21,6 +22,14 @@ extern const std::vector ast::Type::BaseTypes = {
     BaseType("i8", 1), BaseType("u8", 1), BaseType("void", 0), BaseType("i16", 2),
     BaseType("u16", 2), BaseType("i64", 8), BaseType("u64", 8),
 };
+
+std::string ast::Type::ArrayType::GetTypeName() const {
+    std::string baseName = std::visit([](auto &&arg) -> std::string {
+        // 这里调用各类型的 GetTypeName()
+        return arg.Name;
+    }, *BaseType);
+    return std::format("{}[{}]", baseName, Size);
+}
 
 const std::unordered_map<std::string_view, ast::BaseOperator> mlc::ast::BaseOperators = {
     {"+", BaseOperator::Add}, {"-", BaseOperator::Sub}, {"*", BaseOperator::Mul},
@@ -47,7 +56,7 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     }
     if (Value.front() == '"') {
         auto strType = std::make_shared<Type::CompileType>(Type::BaseTypes[4]);
-        const auto trueType = std::make_shared<Type::PointerType>("", 1);
+        const auto trueType = std::make_shared<Type::PointerType>(1);
         trueType->Finalize(strType);
         return strType; // 假设 "void" 代表字符串类型，或者你可以定义一个专门的字符串类型
     }
@@ -62,6 +71,28 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     const std::shared_ptr<ast::CompositeExpression> &arg) {
     if (!arg || arg->Components.empty()) return nullptr;
 
+    if (arg->Operators[0] == ast::BaseOperator::Subscript) {
+        // 1. 递归获取左侧操作数的类型 (比如 a[0][0] 的左侧是 a[0])
+        auto currentType = arg->Components[0]->GetType();
+
+        if (!currentType) return nullptr;
+
+        // 2. 针对当前类型进行“降级”
+        // 使用 std::visit 是处理 variant 指针最优雅的方式
+        return std::visit([](auto &&type) -> std::shared_ptr<ast::Type::CompileType> {
+            using T = std::decay_t<decltype(type)>;
+
+            if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
+                return type.BaseType; // 剥掉一层数组维度
+            } else if constexpr (std::is_same_v<T, ast::Type::PointerType>) {
+                return type.BaseType; // 剥掉一层指针级别 ($)
+            }
+
+            // 如果既不是数组也不是指针，说明用户在尝试对标量（如 i32）用下标
+            return nullptr;
+        }, *currentType);
+    }
+
     if (arg->Operators.size() == 1 && arg->Components.size() == 1) {
         auto op = arg->Operators[0];
         auto subType = arg->Components[0]->GetType();
@@ -73,15 +104,15 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                 // 这里你可以打印或者观察 ptrData->Name
                 auto returnPtr = std::make_shared<ast::Type::CompileType>(
                     ast::Type::PointerType(newLevel));
-                auto& tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
+                auto &tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
                 tempPointer.Finalize(subType);
                 return returnPtr;
             }
 
             // 基础类型升维
-            auto returnPtr= std::make_shared<ast::Type::CompileType>(
-                ast::Type::PointerType("", subType, 1));
-            auto& tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
+            auto returnPtr = std::make_shared<ast::Type::CompileType>(
+                ast::Type::PointerType(subType, 1));
+            auto &tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
             tempPointer.Finalize(subType);
             return returnPtr;
         }
@@ -96,20 +127,19 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
         if (op == ast::BaseOperator::Add || op == ast::BaseOperator::Sub ||
             op == ast::BaseOperator::Mul || op == ast::BaseOperator::Div) {
-
             // 2. 地毯式检查所有组件
-            for (auto &exp : arg->Components) {
+            for (auto &exp: arg->Components) {
                 auto type = exp->GetType();
                 if (!type) continue;
 
                 // 3. 核心安检：只要任何一个组件是 PointerType，立刻“枪毙”
                 if (std::holds_alternative<ast::Type::PointerType>(*type)) {
                     ErrorPrintln("MLC Semantic Error: Pointer arithmetic is strictly forbidden! \n"
-                                 "Cannot use operator '{}' with pointer types.",baseOperator(op)); // 假设你有这个转换函数
+                                 "Cannot use operator '{}' with pointer types.", baseOperator(op)); // 假设你有这个转换函数
                     std::exit(-1);
                 }
             }
-            }
+        }
 
         if (arg->Operators.size() == 1 && arg->Components.size() == 2) {
             auto baseOp = arg->Operators[0];
@@ -168,7 +198,8 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                     std::exit(-1);
                 }
             }
-            if (op == ast::BaseOperator::Dereference) { // 假设对应 <*>
+            if (op == ast::BaseOperator::Dereference) {
+                // 假设对应 <*>
                 auto subType = arg->Components[0]->GetType();
                 if (!subType) return nullptr;
 

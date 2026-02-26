@@ -359,7 +359,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
                 // 重点：必须把 leftExpr 传给构造函数，否则后端不知道是从哪个变量偏移！
                 auto memberAccess = std::make_shared<ast::MemberAccess>(structPtr, idx);
                 return std::make_shared<ast::Expression>(ast::Expression(std::make_shared<ast::CompositeExpression>(
-                    std::vector<sPtr<ast::Expression> >
+                    std::vector
                     {leftExpr, std::make_shared<ast::Expression>(ast::Expression(memberAccess))},
                     std::vector{op},
                     op == BaseOperator::AddressOf
@@ -436,7 +436,10 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     return std::make_shared<ast::Expression>(
         std::make_shared<ast::CompositeExpression>(
-            std::vector{expressionTreeParser(_context,leftTree),expressionTreeParser(_context, rightTree)},
+            std::vector{
+                expressionTreeParser(_context,leftTree),
+                expressionTreeParser(_context, rightTree)
+            },
             std::vector{op}
         )
     );

@@ -46,7 +46,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
             auto typePtr = findType(memberType);
 
             if (isPointer) {
-                auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(memberName, 1));
+                auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(1));
                 lazyPtrs.emplace_back(ptr,memberType);
                 members.emplace_back(std::string(memberName.substr(1)), ptr);
             } else {

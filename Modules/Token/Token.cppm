@@ -117,25 +117,23 @@ export namespace mlc::ast::Type {
 
     class ArrayType {
     public:
-        explicit ArrayType(const std::string_view _name, std::weak_ptr<CompileType> _baseType, std::size_t _size)
-            : Name(_name), BaseType(std::move(_baseType)), Size(_size) {
+        [[nodiscard]] std::string GetTypeName() const;
+
+        explicit ArrayType(std::shared_ptr<CompileType> _baseType, std::size_t _size) : BaseType(std::move(_baseType)),
+            Size(_size), Name(this->GetTypeName()) {
         }
 
-        const std::string Name;
-        const std::weak_ptr<CompileType> BaseType;
+        std::weak_ptr<CompileType> GetBaseType() const {
+            return BaseType;
+        }
+
+        const std::shared_ptr<CompileType> BaseType;
         const std::size_t Size; // 0 for incomplete array
+        const std::string Name;
     };
 
     class PointerType {
     public:
-        explicit PointerType(const std::string_view _name, const size_t _pointerLevel = 1)
-            : Name(_name), PointerLevel(_pointerLevel) {
-        }
-
-        explicit PointerType(const std::string_view _name, std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
-            : Name(_name), PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
-        }
-
         explicit PointerType(std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
             : PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
         }
@@ -147,19 +145,15 @@ export namespace mlc::ast::Type {
 
         void Finalize(std::shared_ptr<CompileType> _baseType) {
             BaseType = std::move(_baseType);
-            const std::string baseName = std::visit([](auto&& t) -> std::string {
-                    return std::string(t.Name);
-                }, *BaseType);
+            const std::string baseName = std::visit([](auto &&t) -> std::string {
+                return std::string(t.Name);
+            }, *BaseType);
             const std::string suffix(PointerLevel, '$');
-            const_cast<std::string&>(Name) = baseName + suffix;
+            const_cast<std::string &>(Name) = baseName + suffix;
         }
 
         [[nodiscard]] std::string GetTypeName() const {
-            std::string name(this->Name.size()+PointerLevel, '*');
-            for (size_t i = 0; i < PointerLevel; ++i) {
-                name[i] = '$';
-            }
-            return name;
+            return Name;
         }
 
         [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
@@ -231,11 +225,13 @@ export namespace mlc::ast {
     class CompositeExpression;
     class FunctionDeclaration;
     using Variable = VariableStatement;
+
     class MemberAccess {
     public:
         MemberAccess(std::shared_ptr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
-            std::move(_structDef)), Index(_index),Name(StructDef->Members[Index].Name) {
+            std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
         }
+
         std::shared_ptr<Type::StructDefinition> StructDef;
         const size_t Index;
         const std::string Name;
@@ -254,7 +250,7 @@ export namespace mlc::ast {
     class Expression {
     public:
         using Data = std::variant<ConstValue, std::shared_ptr<Variable>, std::shared_ptr<FunctionCall>, std::shared_ptr<
-            CompositeExpression> ,std::shared_ptr<MemberAccess>>;
+            CompositeExpression>, std::shared_ptr<MemberAccess> >;
         std::shared_ptr<Data> Storage;
 
         // --- 宽松且安全的构造函数 ---
@@ -293,23 +289,26 @@ export namespace mlc::ast {
 
     class FunctionCall {
     public:
-        explicit FunctionCall(const std::shared_ptr<FunctionDeclaration> &_functionDecl, std::vector<std::shared_ptr<Expression>> &_arguments)
+        explicit FunctionCall(const std::shared_ptr<FunctionDeclaration> &_functionDecl,
+                              std::vector<std::shared_ptr<Expression> > &_arguments)
             : FunctionDecl(_functionDecl), Arguments(std::move(_arguments)) {
         }
 
         const std::shared_ptr<FunctionDeclaration> FunctionDecl;
-        const std::vector<std::shared_ptr<Expression>> Arguments;
+        const std::vector<std::shared_ptr<Expression> > Arguments;
     };
 
     class CompositeExpression {
     public:
-        explicit CompositeExpression(std::vector<std::shared_ptr<Expression>> _components,
-                                     std::vector<BaseOperator> _operators,const bool _isOperatorFirst=false) : Operators(std::move(_operators)),
-                                                                             Components(std::move(_components)),isOperatorFirst(_isOperatorFirst) {
+        explicit CompositeExpression(std::vector<std::shared_ptr<Expression> > _components,
+                                     std::vector<BaseOperator> _operators,
+                                     const bool _isOperatorFirst = false) : Operators(std::move(_operators)),
+                                                                            Components(std::move(_components)),
+                                                                            isOperatorFirst(_isOperatorFirst) {
         }
 
         const std::vector<BaseOperator> Operators;
-        const std::vector<std::shared_ptr<Expression>> Components;
+        const std::vector<std::shared_ptr<Expression> > Components;
         const bool isOperatorFirst;
 
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetResultType() const {
@@ -322,15 +321,15 @@ export namespace mlc::ast {
 }
 
 export namespace mlc::ast {
-
     using Statement = std::variant<
         VariableStatement, AssignStatement, FunctionCallStatement,
         ReturnStatement, SubScope, ContinueStatement, BreakStatement>;
 
     class AssignStatement {
     public:
-        explicit AssignStatement(std::shared_ptr<Expression> _baseValue, std::shared_ptr<Expression> _value) : BaseValue(std::move(_baseValue)),
-                                                                             Value(std::move(_value)) {
+        explicit AssignStatement(std::shared_ptr<Expression> _baseValue,
+                                 std::shared_ptr<Expression> _value) : BaseValue(std::move(_baseValue)),
+                                                                       Value(std::move(_value)) {
         }
 
         const std::shared_ptr<Expression> BaseValue;
@@ -360,20 +359,20 @@ export namespace mlc::ast {
 
     class SubScope {
     public:
-        explicit SubScope(std::vector<std::shared_ptr<Statement>> _statements, const SubScopeType _type,
+        explicit SubScope(std::vector<std::shared_ptr<Statement> > _statements, const SubScopeType _type,
                           std::shared_ptr<Expression> _condition) : Statements(std::move(
-                                                       _statements)), Condition(std::move(_condition)),
-                                                   ScopeType(_type) {
+                                                                        _statements)), Condition(std::move(_condition)),
+                                                                    ScopeType(_type) {
         }
 
-        const std::vector<std::shared_ptr<Statement>> Statements;
+        const std::vector<std::shared_ptr<Statement> > Statements;
         const std::shared_ptr<Expression> Condition;
         const SubScopeType ScopeType = SubScopeType::AnonymousBlock;
     };
 
     class FunctionDeclaration {
     public:
-        using Args = std::vector<std::shared_ptr<VariableStatement>>;
+        using Args = std::vector<std::shared_ptr<VariableStatement> >;
 
         explicit FunctionDeclaration(std::string _name, const std::shared_ptr<Type::CompileType> &_returnType,
                                      Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
@@ -389,9 +388,9 @@ export namespace mlc::ast {
 
     class FunctionScope {
     public:
-        using Args = std::vector<std::shared_ptr<VariableStatement>>;
+        using Args = std::vector<std::shared_ptr<VariableStatement> >;
 
-        FunctionScope(std::string _name, std::vector<std::shared_ptr<Statement>> _statements,
+        FunctionScope(std::string _name, std::vector<std::shared_ptr<Statement> > _statements,
                       std::shared_ptr<Type::CompileType> _returnType,
                       Args _args, const bool _isVarList = false) : IsVarList(_isVarList),
                                                                    Name(std::move(_name)),
@@ -400,7 +399,8 @@ export namespace mlc::ast {
                                                                    ReturnType(std::move(_returnType)) {
         }
 
-        FunctionScope(const FunctionDeclaration &_functionDeclaration, std::vector<std::shared_ptr<Statement>> _statements)
+        FunctionScope(const FunctionDeclaration &_functionDeclaration,
+                      std::vector<std::shared_ptr<Statement> > _statements)
             : IsVarList(_functionDeclaration.IsVarList),
               Name(_functionDeclaration.Name),
               Statements(std::move(_statements)),
@@ -411,7 +411,7 @@ export namespace mlc::ast {
         const bool IsVarList;
 
         const std::string Name;
-        const std::vector<std::shared_ptr<Statement>> Statements;
+        const std::vector<std::shared_ptr<Statement> > Statements;
         const Args Parameters;
         const std::shared_ptr<Type::CompileType> ReturnType;
 

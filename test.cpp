@@ -14,13 +14,14 @@ int main() {
         struct One { i32 a; Two $b;};
         struct Two { i32 a; One $b;};
         i32 main() {
-            i64 a[10];
-            a[0]=i64(100);
+            i64 a[10][100];
+            i64 b[10];
+            a[0]=b;
         }
     )";
 
     const std::string content = mlc::prepare::Prepare(source);
-    std::print("{}",content);
+    std::println("{}",content);
 
     mlc::parser::AbstractSyntaxTree ast(mlc::seg::TopTokenize(content));
 
