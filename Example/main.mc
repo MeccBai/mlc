@@ -1,4 +1,4 @@
+
 i32 main() {
-    i32$ a = nullptr;
-    i64$ b = nullptr;
+    i64$x,$y=nullptr;
 }

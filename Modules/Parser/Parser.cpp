@@ -131,20 +131,17 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
             };
         };
     }
-
     if (_statementContent.starts_with("break;")) {
         return std::vector{std::make_shared<ast::Statement>(ast::BreakStatement())};
     }
     if (_statementContent.starts_with("continue;")) {
         return std::vector{std::make_shared<ast::Statement>(ast::ContinueStatement())};
     }
-
     if (_statementContent.find(' ') != std::string_view::npos) {
         return variableParser(_context, _statementContent);
     }
     if (auto pos = _statementContent.find('$'); pos != std::string_view::npos) {
-        auto pos2 = _statementContent.find('=');
-        if (pos2 > pos) {
+        if (auto pos2 = _statementContent.find('='); pos2 > pos) {
             return variableParser(_context, _statementContent) ;
         }
     }
@@ -164,9 +161,6 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
     }
     if (_statementContent.find('(') != std::string_view::npos) {
         if (const auto pos = _statementContent.find("if("); pos == 0) {
-
-
-
             return std::vector{
                 std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
             };
@@ -318,7 +312,6 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         functionScopeTable.emplace_back(std::make_shared<ast::FunctionScope>(decl));
     }
 
-    return;
 }
 
 auto astClass::findType(const std::string_view _typeName) const -> std::shared_ptr<ast::Type::CompileType> {

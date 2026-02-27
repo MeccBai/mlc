@@ -60,11 +60,11 @@ export namespace mlc::parser {
 
         std::shared_ptr<ast::Expression> constExpressionParser(std::string_view _constExpressionContent);
 
-        StatementTable<ast::Statement> globalVariableParser(std::string_view variableContent);
+        StatementTable<ast::Statement> globalVariableParser(std::string_view _variableContent);
 
-        StatementTable<ast::Statement> localVariableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+        StatementTable<ast::Statement> localVariableParser(ContextTable<ast::VariableStatement> &_context,std::string_view _variableContent);
 
-        StatementTable<ast::Statement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view variableContent);
+        StatementTable<ast::Statement> variableParser(ContextTable<ast::VariableStatement> &_context,std::string_view _variableContent);
 
         std::shared_ptr<ast::Statement> subScopeParser(ContextTable<ast::VariableStatement> &_context,std::string_view _subScopeContent);
         std::shared_ptr<ast::Statement> subScopeParser(const std::string_view _subScopeContent) {

@@ -1,3 +1,1 @@
-export i32 func() {
-    return 0;
-}
+export i32 printf(....);

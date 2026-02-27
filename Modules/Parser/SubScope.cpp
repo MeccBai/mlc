@@ -14,30 +14,24 @@ using sPtr = std::shared_ptr<type>;
 
 std::vector<std::string_view> splitCaseBlocks(std::string_view str) {
     std::vector<std::string_view> segments;
-    const std::string_view patterns[] = {"case ", "default"};
-
     size_t start = 0;
     while (start < str.length()) {
+        constexpr std::string_view patterns[] = {"case ", "default"};
         // 1. 寻找当前块的起点（跳过前面的空格或杂质，定位到 case 或 default）
-        size_t p0 = str.find(patterns[0], start);
-        size_t p1 = str.find(patterns[1], start);
-        size_t currentBlockStart = std::min(p0, p1);
-
+        const size_t p0 = str.find(patterns[0], start);
+        const size_t p1 = str.find(patterns[1], start);
+        const size_t currentBlockStart = std::min(p0, p1);
         if (currentBlockStart == std::string_view::npos) break;
-
         // 2. 从当前起点之后，寻找下一个 case 或 default 作为终点
-        size_t nextP0 = str.find(patterns[0], currentBlockStart + 7); // "default" 长度 7
-        size_t nextP1 = str.find(patterns[1], currentBlockStart + 7);
-        size_t nextBlockStart = std::min(nextP0, nextP1);
-
-        // 3. 切割并存入结果
+        const size_t nextP0 = str.find(patterns[0], currentBlockStart + 7); // "default" 长度 7
+        const size_t nextP1 = str.find(patterns[1], currentBlockStart + 7);
+        const size_t nextBlockStart = std::min(nextP0, nextP1);
         if (nextBlockStart == std::string_view::npos) {
             segments.push_back(str.substr(currentBlockStart + 5)); // 最后一个块
             break;
-        } else {
-            segments.push_back(str.substr(currentBlockStart + 5, nextBlockStart - currentBlockStart - 5));
-            start = nextBlockStart; // 挪动指针到下一个块开头
         }
+        segments.push_back(str.substr(currentBlockStart + 5, nextBlockStart - currentBlockStart - 5));
+        start = nextBlockStart; // 挪动指针到下一个块开头
     }
     return segments;
 }
@@ -58,16 +52,14 @@ sPtr<astClass::caseBlock> astClass::caseBlockParser(
                                     }) | std::ranges::to<std::vector<std::vector<sPtr<ast::Statement> > > >();
     const auto statements = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
-
-    std::function<void(const std::shared_ptr<ast::Statement> &)> checkNoVarDef = [&
-            ](const std::shared_ptr<ast::Statement> &stmt) {
+    std::function<void(const std::shared_ptr<ast::Statement> &)> checkNoVarDef
+            = [&](const std::shared_ptr<ast::Statement> &stmt) {
         if (const auto varStmt = std::get_if<ast::VariableStatement>(stmt.operator->())) {
             ErrorPrintln("Define variable : {} in case/default block is not allowed", varStmt->Name);
             std::exit(-1);
         }
 
         if (const auto subScope = std::get_if<ast::SubScope>(stmt.operator->())) {
-            // 现在这里调用 checkNoVarDef 就没问题了！
             for (const auto &s: subScope->Statements) {
                 checkNoVarDef(s);
             }
@@ -127,13 +119,13 @@ sPtr<ast::Statement> astClass::subScopeParser(ContextTable<ast::VariableStatemen
     if (_subScopeContent.starts_with("{")) {
         const auto body = _subScopeContent.substr(1, _subScopeContent.length() - 1);
         const auto statements = bodyToStatements(body);
-        return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::AnonymousBlock, {}));
+        return std::make_shared<ast::Statement>(ast::SubScope(statements));
     }
 
     if (_subScopeContent.find("else{") != std::string_view::npos) {
         const auto body = _subScopeContent.substr(5, _subScopeContent.length() - 6);
         const auto statements = bodyToStatements(body);
-        return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::ElseBlock, {}));
+        return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::ElseBlock));
     }
 
     auto offest = 0;

@@ -383,9 +383,13 @@ export namespace mlc::ast {
                                                                     ScopeType(_type) {
         }
 
+        explicit SubScope(std::vector<std::shared_ptr<Statement> > _statements, const SubScopeType _type = SubScopeType::AnonymousBlock) : Statements(std::move(
+                                                                        _statements)), ScopeType(_type) {
+        }
+
         const std::vector<std::shared_ptr<Statement> > Statements;
         const std::shared_ptr<Expression> Condition;
-        const SubScopeType ScopeType = SubScopeType::AnonymousBlock;
+        const SubScopeType ScopeType;
     };
 
     class FunctionDeclaration {

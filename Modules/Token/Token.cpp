@@ -119,8 +119,8 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
         // 2. 针对当前类型进行“降级”
         // 使用 std::visit 是处理 variant 指针最优雅的方式
-        return std::visit([](auto &&type) -> std::shared_ptr<ast::Type::CompileType> {
-            using T = std::decay_t<decltype(type)>;
+        return std::visit([]<typename T0>(T0 &&type) -> std::shared_ptr<ast::Type::CompileType> {
+            using T = std::decay_t<T0>;
 
             if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
                 return type.BaseType; // 剥掉一层数组维度
@@ -213,14 +213,11 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                 // 1. 校验：左边必须得是结构体实例 (StructDefinition)
                 if (auto *baseStruct = std::get_if<ast::Type::StructDefinition>(&(*leftType))) {
                     // 2. 提取右侧成员访问节点
-                    auto &dataVariant = *(arg->Components[1]->Storage);
-                    auto *mAccessPtr = std::get_if<std::shared_ptr<ast::MemberAccess> >(&dataVariant);
+                    const auto &dataVariant = *(arg->Components[1]->Storage);
 
-                    if (mAccessPtr && *mAccessPtr) {
-                        auto memberAccess = *mAccessPtr;
-
+                    if (const auto *mAccessPtr = std::get_if<std::shared_ptr<ast::MemberAccess> >(&dataVariant); mAccessPtr && *mAccessPtr) {
                         // 3. 安全检查：确保索引在范围内
-                        if (memberAccess->Index < baseStruct->Members.size()) {
+                        if (const auto memberAccess = *mAccessPtr; memberAccess->Index < baseStruct->Members.size()) {
                             // 成功推导出成员类型
                             return baseStruct->Members[memberAccess->Index].Type;
                         } else {
@@ -240,11 +237,11 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
             }
             if (op == ast::BaseOperator::Dereference) {
                 // 假设对应 <*>
-                auto subType = arg->Components[0]->GetType();
-                if (!subType) return nullptr;
+                const auto argSubType = arg->Components[0]->GetType();
+                if (!argSubType) return nullptr;
 
                 // 关键逻辑：必须是指针才能解引用
-                if (auto *ptrData = std::get_if<ast::Type::PointerType>(&(*subType))) {
+                if (auto *ptrData = std::get_if<ast::Type::PointerType>(&(*argSubType))) {
                     // 核心：直接返回指针指向的基类型 (BaseType)
                     // 如果原本是 One$ (Level 1)，解引用后就变成了 One
                     // 如果原本是 One$$ (Level 2)，解引用后就变成了 One$

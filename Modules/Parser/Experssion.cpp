@@ -202,8 +202,8 @@ std::string operatorToString(ast::BaseOperator op) {
     return "UnknownOp";
 }
 
-template<typename _type>
-using sPtr = std::shared_ptr<_type>;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
 
 sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableStatement> &_contextTable,
                                                  const std::string_view _expressionContent) {
