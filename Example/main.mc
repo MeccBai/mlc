@@ -1,4 +1,4 @@
 
 i32 main() {
-    i64$x,$y=nullptr;
+    i8 ax[10]="Hello";
 }

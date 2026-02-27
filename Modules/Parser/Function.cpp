@@ -15,8 +15,6 @@ using size_t = std::size_t;
 
 ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
     ContextTable<ast::VariableStatement> context;
-    auto pos = _functionContent.find(' ');
-    auto bracketPos = _functionContent.find('(');
     auto bracketEndPos = _functionContent.find("){");
     auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
     auto functionHeader = _functionContent.substr(0, bracketEndPos + 1);
@@ -28,11 +26,13 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
         context.emplace_back(arg);
     }
     const auto statementsTemp = statements | std::views::transform(
-                                     [&](const std::string_view statement) {
-                                         return statementParser(context, statement);
-                                     }) | std::ranges::to<std::vector<std::vector<std::shared_ptr<ast::Statement>>>>(); // 这里！！！
+                                    [&](const std::string_view statement) {
+                                        return statementParser(context, statement);
+                                    }) | std::ranges::to<std::vector<std::vector<std::shared_ptr<
+                                    ast::Statement> > > >(); // 这里！！！
 
-    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<ast::Statement>>>(); // 还有这里！！！
+    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
+                                ast::Statement> > >(); // 还有这里！！！
 
     return {functionDecl, statementsParsed};
 }
@@ -47,21 +47,21 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
     const auto argsList = _functionContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
     const auto functionName = _functionContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
 
-    const std::shared_ptr<ast::Type::CompileType> returnTypePtr = findType(returnType);
-
-    if (argsList == "...") {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, {}, true);
-    }
-
-    if (returnTypePtr.operator->()==nullptr) {
+    const auto returnTypePtr = findType(returnType);
+    if (!returnTypePtr) {
         ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
         std::exit(-1);
     }
-    if (argsList.empty()) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, {});
+    if (argsList == "...") {
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true);
     }
 
-    std::vector<sPtr<ast::VariableStatement>> args;
+
+    if (argsList.empty()) {
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {});
+    }
+
+    std::vector<sPtr<ast::VariableStatement> > args;
 
     for (const auto argsSplit = split(argsList, ","); const auto &arg: argsSplit) {
         const auto argument = split(arg, " ");
@@ -75,15 +75,15 @@ ast::FunctionDeclaration mlc::parser::AbstractSyntaxTree::functionDeclParser(
             std::exit(-1);
         }
         const auto argName = argument[1];
-        std::shared_ptr<ast::Type::CompileType> argTypePtr = findType(argType);
-        if (argTypePtr.operator->() == nullptr) {
+        auto argTypePtr = findType(argType);
+        if (!argTypePtr) {
             ErrorPrintln("Error: Unknown type '{}'\n", argType);
             std::exit(-1);
         }
-        args.emplace_back(std::make_shared<ast::VariableStatement>(argName, argTypePtr, nullptr));
+        args.emplace_back(std::make_shared<ast::VariableStatement>(argName, argTypePtr.value(), nullptr));
     }
 
-    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr, args);
+    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args);
 }
 
 astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionContent) const {

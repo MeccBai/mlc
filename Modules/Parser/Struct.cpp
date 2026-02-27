@@ -44,17 +44,16 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 std::exit(-1);
             }
             auto typePtr = findType(memberType);
-
             if (isPointer) {
                 auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(1));
                 lazyPtrs.emplace_back(ptr,memberType);
                 members.emplace_back(std::string(memberName.substr(1)), ptr);
             } else {
-                if (typePtr.operator->()==nullptr) {
+                if (!typePtr) {
                     ErrorPrintln("Error : Invalid type '{}' for struct member '{}'\n", memberType, memberName);
                     std::exit(-1);
                 }
-                members.emplace_back(std::string(memberName), typePtr);
+                members.emplace_back(std::string(memberName), typePtr.value());
             }
         }
         structs.emplace_back(std::string(structName), members);
@@ -78,16 +77,16 @@ std::vector<type::StructDefinition> astClass::structDefParser(
 
     for (const auto& ptrs : lazyPointerTypes) {
         for (const auto &[ptr, name] : ptrs) {
-            std::shared_ptr<ast::Type::CompileType> typePtr = findType(name);
-            if (typePtr.operator->() == nullptr) {
+            auto typePtr = findType(name);
+            if constexpr (typePtr.operator->() == nullptr) {
                 typePtr = findStruct(name);
             }
-            if (typePtr.operator->() == nullptr) {
+            if constexpr (typePtr.operator->() == nullptr) {
                 ErrorPrintln("Error: Unknown type '{}' for pointer member\n", name);
                 std::exit(-1);
             }
             auto* specificPtr = std::get_if<ast::Type::PointerType>(ptr.get());
-            specificPtr->Finalize(typePtr);
+            specificPtr->Finalize(typePtr.value());
         }
     }
 

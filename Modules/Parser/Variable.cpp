@@ -34,8 +34,8 @@ std::vector<std::string_view> initializerListSplit(const std::string_view initEx
         }
     }
     if (!elements.empty()) {
-        const auto elementEnd = (elements.end()-1);
-        *elementEnd = elementEnd->substr(0,elementEnd->size()-1);
+        const auto elementEnd = (elements.end() - 1);
+        *elementEnd = elementEnd->substr(0, elementEnd->size() - 1);
     }
     return elements;
 }
@@ -59,6 +59,12 @@ astClass::StatementTable<ast::Statement> astClass::globalVariableParser(
     const auto result = variableParser(globalContext, _variableContent);
     for (const auto &var: result) {
         auto *vptr = std::get_if<ast::VariableStatement>(var.get());
+        if (vptr == nullptr) {
+            ErrorPrintln("Error: Expected a variable statement in global variable parser\n");
+            std::exit(-1);
+        }
+        if (vptr->Initializer != nullptr) {
+        }
         variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(*vptr));
     }
     return result;
@@ -88,8 +94,7 @@ std::vector<VariablePack> variablePacked(const std::string_view _variable) {
     }
     const std::string_view type = _variable.substr(0, pos);
     const std::string_view variableList = _variable.substr(pos);
-    auto variables = initializerListSplit(variableList);
-    for (auto variable : variables) {
+    for (const auto variables = initializerListSplit(variableList); auto variable: variables) {
         std::string_view name;
         std::string_view initExpr;
         if (const auto equalPos = variable.find('='); equalPos != std::string_view::npos) {
@@ -113,15 +118,13 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
                                                                   const std::string_view _variableContent) {
     auto packs = variablePacked(_variableContent);
     StatementTable<ast::Statement> result;
-
-    for (const auto &[type, name, initExpression] : packs) {
-        const auto it = std::ranges::find_if(typeSymbolTable, [&](const auto &t) {
-            return std::visit([](auto &&arg) { return arg.Name; }, *t) == type;
-        });
-        if (it == typeSymbolTable.end()) {
-            ErrorPrintln("Error: Unknown type '{}'\n", type); std::exit(-1);
+    for (const auto &[type, name, initExpression]: packs) {
+        auto typePtr = findType(type);
+        if (typePtr == std::nullopt) {
+            ErrorPrintln("Error: Unknown type '{}'\n", type);
+            std::exit(-1);
         }
-        auto currentType = *it;
+        auto currentType = typePtr.value();
         std::string_view decl = name;
         size_t pLevel = 0;
         while (pLevel < decl.size() and decl[pLevel] == '$') pLevel++;
@@ -138,43 +141,64 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
             while (!suffix.empty() && suffix[0] == '[') {
                 const size_t end = suffix.find(']');
                 const size_t dim = std::stoull(std::string(suffix.substr(1, end - 1)));
-                currentType = std::make_shared<type::CompileType>(
-                    ast::Type::ArrayType(currentType, dim)
-                );
+                currentType = std::make_shared<type::CompileType>(ast::Type::ArrayType(currentType, dim));
                 suffix = suffix.substr(end + 1);
             }
         }
-        sPtr<ast::Expression> initExpr = nullptr;
+
+        sPtr<ast::Expression> finalInitExpr = nullptr;
         if (!initExpression.empty()) {
             if (initExpression.starts_with('{') and initExpression.ends_with('}')) {
-                auto parseInitList = [&](auto& self, const std::string_view expr) -> sPtr<ast::Expression> {
+                auto parseInitList = [&](auto &self, const std::string_view expr) -> sPtr<ast::Expression> {
                     if (expr.starts_with('{') and expr.ends_with('}')) {
                         const auto elementViews = initializerListSplit(expr);
                         std::vector<sPtr<ast::Expression>> elements;
-                        for (auto ev : elementViews) {
-                            if (ev.starts_with('{') and ev.ends_with('}')) {
-                                elements.push_back(self(self, ev));
-                            } else {
-                                elements.push_back(expressionParser(_context, ev));
-                            }
+                        for (auto ev: elementViews) {
+                            if (ev.starts_with('{') and ev.ends_with('}')) elements.push_back(self(self, ev));
+                            else elements.push_back(expressionParser(_context, ev));
                         }
-                        return std::make_shared<ast::Expression>(
-                            ast::Expression::Data(std::make_shared<ast::InitializerList>(elements))
-                        );
+                        return std::make_shared<ast::Expression>(ast::Expression::Data(std::make_shared<ast::InitializerList>(elements)));
                     }
                     return expressionParser(_context, expr);
                 };
-                initExpr = parseInitList(parseInitList, initExpression);
-                return std::vector{std::make_shared<ast::Statement>(ast::VariableStatement(realName, currentType, initExpr))};
-            } else {
-                initExpr = expressionParser(_context, initExpression);
-                ast::ValidateType(currentType, initExpr->GetType(), realName);
+                finalInitExpr = parseInitList(parseInitList, initExpression);
+                finalInitExpr = std::make_shared<ast::Expression>(fillDefaultValue(currentType, finalInitExpr));
             }
+            else if (initExpression.starts_with('"') and initExpression.ends_with('"')) {
+                auto str = initExpression.substr(1, initExpression.size() - 2) | std::views::transform(
+                    [](const char c) {
+                        return std::make_shared<ast::Expression>(ast::ConstValue(std::string_view(&c, 1), true));
+                    }) | std::ranges::to<std::vector<sPtr<ast::Expression>>>();
+                finalInitExpr = std::make_shared<ast::Expression>(ast::Expression::Data(std::make_shared<ast::InitializerList>(str)));
+                finalInitExpr = std::make_shared<ast::Expression>(fillDefaultValue(currentType, finalInitExpr));
+            }
+            else {
+                finalInitExpr = expressionParser(_context, initExpression);
+                type::ValidateType(currentType, finalInitExpr->GetType(), realName);
+            }
+        } else {
+            finalInitExpr = std::make_shared<ast::Expression>(fillDefaultValue(currentType, nullptr));
         }
-        auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, initExpr);
-        auto stmtPtr = std::make_shared<ast::Statement>(*varStmt);
+        auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, finalInitExpr);
         _context.emplace_back(varStmt);
-        result.push_back(stmtPtr);
+        result.push_back(std::make_shared<ast::Statement>(*varStmt));
     }
     return result;
+}
+
+bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
+    const auto data = &(*_expr->Storage);
+    if (std::get_if<ConstValue>(data) != nullptr) {
+        return true;
+    }
+    if (const auto funcCall = std::get_if<sPtr<FunctionCall> >(data); funcCall != nullptr) {
+        return std::ranges::all_of((*funcCall)->Arguments, ConstExpressionCheck);
+    }
+    if (const auto compExpr = std::get_if<sPtr<CompositeExpression> >(data); compExpr != nullptr) {
+        return std::ranges::all_of((*compExpr)->Components, ConstExpressionCheck);
+    }
+    if (const auto varPtr = std::get_if<sPtr<Variable> >(data); varPtr != nullptr) {
+        return (*varPtr)->Initializer != nullptr && ConstExpressionCheck((*varPtr)->Initializer);
+    }
+    return false;
 }

@@ -9,7 +9,8 @@ import aux;
 namespace ast = mlc::ast;
 using size_t = std::size_t;
 using astClass = mlc::parser::AbstractSyntaxTree;
-using exprTree = mlc::exprTree;
+using exprTree = ast::exprTree;
+namespace type = ast::Type;
 
 std::set operators = {
     '+', '-', '*', '/', '%',
@@ -20,7 +21,6 @@ std::set operators = {
 bool isOpChar(const char c) {
     return operators.contains(c);
 }
-
 
 
 using BaseOperator = ast::BaseOperator;
@@ -159,7 +159,7 @@ exprTree deepSplit(std::string_view expr) {
     return exprTree(expr, false);
 }
 
-void mlc::dumpFragments(const exprTree &fragment, const int indent) {
+void mlc::ast::dumpFragments(const exprTree &fragment, const int indent) {
     std::visit([&]<typename T>(T &&arg) {
         using Type = std::decay_t<T>;
 
@@ -221,7 +221,7 @@ sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableState
 
     const auto expressionTree = deepSplit(_expressionContent);
 
-    dumpFragments(expressionTree);
+    ast::dumpFragments(expressionTree);
 
     auto result = expressionTreeParser(_contextTable, expressionTree);
 
@@ -230,8 +230,7 @@ sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableState
 
 sPtr<ast::Expression> astClass::constExpressionParser(const std::string_view _constExpressionContent) {
     auto dummyContext = ContextTable<ast::VariableStatement>{};
-    auto tree = expressionParser(dummyContext, _constExpressionContent);
-    return tree;
+    return expressionParser(dummyContext, _constExpressionContent);
 }
 
 // --- 1. 原子解析：处理最基础的变量、常量、函数调用 ---
@@ -253,7 +252,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
         auto pos = str.find('(');
         if (pos != std::string_view::npos) {
             auto funcName = str.substr(0, pos);
-            auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
+            const auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
             std::vector<sPtr<ast::Expression> > args;
             if (!argsStr.empty()) {
                 int bracketLevel = 0;
@@ -262,22 +261,19 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
                     if (argsStr[i] == '(' || argsStr[i] == '[' || argsStr[i] == '{') bracketLevel++;
                     else if (argsStr[i] == ')' || argsStr[i] == ']' || argsStr[i] == '}') bracketLevel--;
                     else if (argsStr[i] == ',' && bracketLevel == 0) {
-                        args.push_back(expressionParser(_context, argsStr.substr(start, i - start)));
+                        args.emplace_back(expressionParser(_context, argsStr.substr(start, i - start)));
                         start = i + 1;
                     }
                 }
-                if (start < argsStr.length()) args.push_back(expressionParser(_context, argsStr.substr(start)));
+                if (start < argsStr.length()) args.emplace_back(expressionParser(_context, argsStr.substr(start)));
             }
-
-            std::shared_ptr<ast::FunctionDeclaration> functionPtr = nullptr;
-            for (auto &function: functionSymbolTable) {
-                if (function->Name == funcName) {
-                    functionPtr = function;
-                    break;
-                }
+            auto functionPtr = FindFunction(funcName);
+            if (!functionPtr) {
+                ErrorPrintln("Error: Undefined function '{}'\n", funcName);
+                std::exit(-1);
             }
             return std::make_shared<ast::Expression>(
-                ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr, args)));
+                ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr.value(), args)));
         }
     }
 
@@ -286,13 +282,14 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
         return std::make_shared<ast::Expression>(ast::Expression(ast::ConstValue(str)));
 
     // 变量处理
-    for (auto &var: _context)
-        if (var->Name == str)
-            return std::make_shared<ast::Expression>(ast::Expression(var));
-    for (auto &var: variableSymbolTable)
-        if (var->Name == str)
-            return std::make_shared<ast::Expression>(ast::Expression(var));
-
+    auto typeOpt = FindVariable(str,_context);
+    if (typeOpt) {
+        return std::make_shared<ast::Expression>(ast::Expression(typeOpt.value()));
+    }
+    typeOpt = FindVariable(str);
+    if (typeOpt) {
+        return std::make_shared<ast::Expression>(ast::Expression(typeOpt.value()));
+    }
     ErrorPrintln("Error: Undefined variable '{}'\n", str);
     std::exit(-1);
 }
@@ -319,7 +316,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 
     // 如果是 ->，解开一层指针
     if (op == ast::BaseOperator::Arrow) {
-        if (auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
+        if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
             currentType = ptr->GetBaseType().lock();
         } else {
             ErrorPrintln("'->' must be used with a pointer type.");
@@ -395,12 +392,12 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     // --- 4. 递归构建 CompositeExpression ---
     // 左侧：从开始到 splitIndex 之前的所有片段
-    std::vector<exprTree> leftPart(fragments.begin(), fragments.begin() + splitIndex);
-    exprTree leftTree = (leftPart.size() == 1) ? leftPart[0] : exprTree(leftPart);
+    const std::vector leftPart(fragments.begin(), fragments.begin() + splitIndex);
+    const exprTree leftTree = (leftPart.size() == 1) ? leftPart[0] : exprTree(leftPart);
 
     // 右侧：从 splitIndex 之后到最后的所有片段
-    std::vector<exprTree> rightPart(fragments.begin() + splitIndex + 1, fragments.end());
-    exprTree rightTree = (rightPart.size() == 1) ? rightPart[0] : exprTree(rightPart);
+    const std::vector rightPart(fragments.begin() + splitIndex + 1, fragments.end());
+    const exprTree rightTree = (rightPart.size() == 1) ? rightPart[0] : exprTree(rightPart);
 
     if (leftPart.empty()) {
         // 关键：不能直接返回右边，得给它套个“单目”的壳子！
@@ -414,7 +411,7 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     const auto leftExpr = expressionTreeParser(_context, leftTree);
     const auto rightExpr = expressionTreeParser(_context, rightTree);
-    ast::ValidateType(leftExpr->GetType(), rightExpr->GetType(), "Binary operator type mismatch");
+    type::ValidateType(leftExpr->GetType(), rightExpr->GetType(), "Binary operator type mismatch");
 
     return std::make_shared<ast::Expression>(
         std::make_shared<ast::CompositeExpression>(
@@ -430,9 +427,9 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
     int maxPriority = -1;
     int splitIndex = -1;
 
-    for (int i = 0; i < (int) fragments.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(fragments.size()); ++i) {
         if (fragments[i].isOperator) {
-            auto opStr = std::get<std::string_view>(fragments[i].data);
+            const auto opStr = std::get<std::string_view>(fragments[i].data);
             auto op = toBaseOperator(opStr);
             const auto priority = operatorPriority.at(op);
 
@@ -455,3 +452,4 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
 
     return splitIndex;
 }
+
