@@ -27,7 +27,7 @@ ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent)
                                                _enumContent.rfind('}') - _enumContent.find('{') - 1);
     auto memberDefs = split(memberStr, ",");
 
-    auto options = memberDefs | std::views::transform([](std::string_view member) {
+    auto options = memberDefs | std::views::transform([](const std::string_view member) {
         return std::string(member);
     }) | std::ranges::to<std::vector<std::string> >();
 
@@ -63,6 +63,8 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
                 )
             )
         );
+        const auto isTypeConvert = const_cast<bool*>(&functionSymbolTable.back().get()->IsTypeConvert);
+        *isTypeConvert = true;
     }
     for (auto &enumDef: enums) {
         auto enumParsed = enumDefParser(enumDef);
@@ -107,8 +109,9 @@ ast::Expression astClass::GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_t
     }
     const std::string value = _type->Name.starts_with("f") ? "0.0" : "0";
     auto args = std::vector{std::make_shared<ast::Expression>(ast::ConstValue(value))};
-    auto functionCall = std::make_shared<ast::FunctionCall>(func.value(), args);
-    return ast::Expression(functionCall);
+    return ast::Expression(
+        std::make_shared<ast::FunctionCall>(func.value(), args)
+    );
 }
 
 ast::Expression astClass::GetStructDefaultValue(const sPtr<type::StructDefinition> &_type) {
@@ -140,50 +143,60 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
 }
 
 ast::Expression astClass::fillDefaultValue(const sPtr<type::CompileType> &_type,
-                                           const std::shared_ptr<ast::Expression> &_initExpr) {
+                                           const sPtr<ast::Expression> &_initExpr) {
     if (_initExpr == nullptr) {
-        return std::visit([this]<typename T0>(T0&& arg) -> ast::Expression {
+        return std::visit([this]<typename T0>(T0 &&arg) -> ast::Expression {
             using T = std::decay_t<T0>;
             if constexpr (std::is_same_v<T, type::ArrayType>) {
                 auto defaultValues = std::views::iota(0ULL, arg.Length)
-                    | std::views::transform([&](auto) {
-                        return std::make_shared<ast::Expression>(GetDefaultValue(arg.BaseType));
-                    }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression>>>();
+                                     | std::views::transform([&](auto) {
+                                         return std::make_shared<ast::Expression>(GetDefaultValue(arg.BaseType));
+                                     }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression> > >();
                 return ast::Expression(std::make_shared<ast::InitializerList>(std::move(defaultValues)));
-            }
-            else if constexpr (std::is_same_v<T, type::StructDefinition>) {
+            } else if constexpr (std::is_same_v<T, type::StructDefinition>) {
                 auto memberInits = arg.Members
-                    | std::views::transform([this](const auto& member) {
-                        return std::make_shared<ast::Expression>(GetDefaultValue(member.Type));
-                    }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression>>>();
-
+                                   | std::views::transform([this](const auto &member) {
+                                       return std::make_shared<ast::Expression>(GetDefaultValue(member.Type));
+                                   }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression> > >();
                 return ast::Expression(std::make_shared<ast::InitializerList>(std::move(memberInits)));
             }
             return ast::Expression(ast::ConstValue("0"));
         }, *_type);
     }
-    if (const auto list = std::get_if<ast::InitializerList>(&*_initExpr->Storage)) {
-        return std::visit([&]<typename T0>(T0&& arg) -> ast::Expression {
+    if (const auto list = std::get_if<sPtr<ast::InitializerList> >(&*_initExpr->Storage)) {
+        return std::visit([&]<typename T0>(T0 &&arg) -> ast::Expression {
             using T = std::decay_t<T0>;
             if constexpr (std::is_same_v<T, type::ArrayType> || std::is_same_v<T, type::StructDefinition>) {
-                size_t expectedSize = std::is_same_v<T, type::ArrayType> ? arg.Length : arg.Members.size();
-                if (list->Values.size() > expectedSize) {
+                size_t expectedSize = 0;
+                if constexpr (std::is_same_v<T, type::ArrayType>) {
+                    expectedSize = arg.Length;
+                } else {
+                    expectedSize = arg.Members.size();
+                }
+                if (list->get()->Values.size() > expectedSize) {
                     ErrorPrintln("Error: Too many initializers. Expected {}, got {}.\n",
-                                 expectedSize, list->Values.size());
+                                 expectedSize, list->get()->Values.size());
                     std::exit(-1);
                 }
-                std::vector<std::shared_ptr<ast::Expression>> filledValues = list->Values; // 先拷贝已有的
+                std::vector<sPtr<ast::Expression> > filledValues = list->get()->Values;
                 filledValues.reserve(expectedSize);
-                for (size_t i = list->Values.size(); i < expectedSize; ++i) {
-                    auto typeToFill = std::is_same_v<T, type::ArrayType> ? arg.BaseType : arg.Members[i].Type;
-                    filledValues.emplace_back(std::make_shared<ast::Expression>(GetDefaultValue(typeToFill)));
-                }
+                auto newDefaultValue = [&](auto i) {
+                    sPtr<type::CompileType> typeToFill;
+                    if constexpr (std::is_same_v<T, type::ArrayType>) {
+                        typeToFill = arg.BaseType;
+                    } else {
+                        typeToFill = arg.Members[i].Type;
+                    }
+                    return std::make_shared<ast::Expression>(GetDefaultValue(typeToFill));
+                };
+                auto newDefaults = std::views::iota(list->get()->Values.size(), expectedSize)
+                                   | std::views::transform(newDefaultValue);
+                std::ranges::copy(newDefaults, std::back_inserter(filledValues));
                 return ast::Expression(std::make_shared<ast::InitializerList>(std::move(filledValues)));
             }
             return *_initExpr;
         }, *_type);
     }
-
     return *_initExpr;
 }
 

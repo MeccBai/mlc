@@ -8,6 +8,9 @@ export module Token:Type;
 import std;
 using size_t = std::size_t;
 export namespace mlc::ast::Type {
+    template <typename type>
+    using sPtr = std::shared_ptr<type>;
+
     class BaseType;
     class StructDefinition;
     class EnumDefinition;
@@ -134,5 +137,8 @@ export namespace mlc::ast::Type {
     void ValidateType(const std::shared_ptr<CompileType> &targetType,
                       const std::shared_ptr<CompileType> &actualType,
                       std::string_view contextInfo);
+
+    bool IsArrayOrPointer (const sPtr<CompileType>& _type );
+
 
 } // namespace mlc::ast::Type

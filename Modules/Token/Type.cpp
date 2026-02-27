@@ -18,3 +18,6 @@ namespace type = ast::Type;
 
 
 
+bool type::IsArrayOrPointer(const sPtr<CompileType> &_type) {
+    return std::holds_alternative<ArrayType>(*_type) || std::holds_alternative<PointerType>(*_type);
+}

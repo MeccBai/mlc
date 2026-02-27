@@ -269,6 +269,33 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
             }
             auto functionPtr = FindFunction(funcName);
             if (!functionPtr) {
+                if (funcName.ends_with('p')) {
+                    size_t level = 0;
+                    while (funcName.length() > level && funcName[funcName.length() - 1 - level] == 'p') {
+                        level++;
+                    }
+                    if (const auto optType = findType(funcName.substr(0, funcName.length() - level))) {
+                        auto typePtr = optType.value();
+                        for (size_t i = 0; i < level; ++i) {
+                            auto pType = std::make_shared<type::PointerType>(1);
+                            pType->Finalize(typePtr);
+                            typePtr = std::make_shared<type::CompileType>(*pType);
+                        }
+                        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(
+                            ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true)));
+                        const auto isTypeConvert = const_cast<bool*>(&functionSymbolTable.back().get()->IsTypeConvert);
+                        *isTypeConvert = true;
+                        if (args.size() > 1) {
+                            ErrorPrintln("Error: Type Converty '{}' require unique variable", funcName);
+                            std::exit(-1);
+                        }
+                        if (!type::IsArrayOrPointer(args[0]->GetType())) {
+                            ErrorPrintln("Error: Type Converty '{}' require array or pointer", funcName);
+                        }
+                        return std::make_shared<ast::Expression>(
+                            ast::Expression(std::make_shared<ast::FunctionCall>(functionSymbolTable.back(), args)));
+                    }
+                }
                 ErrorPrintln("Error: Undefined function '{}'\n", funcName);
                 std::exit(-1);
             }
@@ -282,7 +309,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
         return std::make_shared<ast::Expression>(ast::Expression(ast::ConstValue(str)));
 
     // 变量处理
-    auto typeOpt = FindVariable(str,_context);
+    auto typeOpt = FindVariable(str, _context);
     if (typeOpt) {
         return std::make_shared<ast::Expression>(ast::Expression(typeOpt.value()));
     }
@@ -416,7 +443,7 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
     return std::make_shared<ast::Expression>(
         std::make_shared<ast::CompositeExpression>(
             std::vector{
-                leftExpr,rightExpr
+                leftExpr, rightExpr
             },
             std::vector{op}
         )
@@ -452,4 +479,3 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
 
     return splitIndex;
 }
-

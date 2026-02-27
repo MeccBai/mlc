@@ -113,6 +113,7 @@ export namespace mlc::ast {
         }
 
         const bool IsVarList;
+        const bool IsTypeConvert = false;
         const std::string Name;
         const Args Parameters;
         const std::shared_ptr<Type::CompileType> ReturnType;
