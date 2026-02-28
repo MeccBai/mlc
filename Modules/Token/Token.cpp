@@ -225,6 +225,8 @@ std::shared_ptr<ast::Type::CompileType> ast::Expression::GetType() const {
         } else if constexpr (std::is_same_v<T, std::shared_ptr<CompositeExpression> >) {
             // 调试点：进入复合表达式推导
             return handleCompositeType(arg);
+        } else if constexpr (std::is_same_v<T, EnumValue>) {
+            return std::make_shared<Type::CompileType>(*(arg.EnumDef));
         }
 
         return nullptr;

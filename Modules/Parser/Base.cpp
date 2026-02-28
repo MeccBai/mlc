@@ -84,7 +84,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
         _statementContent.starts_with("do{") ||
         _statementContent.starts_with("else{") ||
         _statementContent.starts_with("{")) {
-        auto sub = subScopeParser(_context, _statementContent);
+        const auto sub = subScopeParser(_context, _statementContent);
         return std::vector{std::static_pointer_cast<ast::Statement>(sub)};
     }
 

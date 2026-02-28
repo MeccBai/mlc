@@ -1,6 +1,12 @@
 
+enum Season {
+    Spr,Sum,Aut,Win
+};
 
 i32 main() {
+    Season s = Season::Spr;
+    i32 s_num = GetSeason(s);
+    s_num = GetSeason(Season::Aut);
     f32 xa = switch_case(i64(1),nullptr);
     i8 ax[10][100];
     i8 $$x=i8pp(ax);
@@ -50,11 +56,24 @@ struct One {
     Two$b;
 };
 
-i32 max(i32 if,i32 b) {
-    if (if>b) {
-        return if;
+i32 max(i32 ix,i32 b) {
+    if (ix>b) {
+        return ix;
     }
     else {
         return b;
+    }
+}
+
+i32 GetSeason(Season s) {
+    switch (s) {
+        case Season::Spr:
+            return 1;
+        case Season::Sum:
+            return 2;
+        case Season::Aut:
+            return 3;
+        case Season::Win:
+            return 4;
     }
 }

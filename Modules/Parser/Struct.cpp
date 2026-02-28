@@ -16,8 +16,8 @@ namespace type = ast::Type;
 
 std::vector<type::StructDefinition> astClass::structDefParser(
     const std::vector<std::string_view> &_structContents) const {
-    std::vector<ast::Type::StructDefinition> structs;
-    std::vector<std::vector< std::pair<std::shared_ptr<ast::Type::CompileType>,std::string_view> > > lazyPointerTypes(_structContents.size());
+    std::vector<type::StructDefinition> structs;
+    std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string_view>>> lazyPointerTypes(_structContents.size());
 
     for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
         const auto structNameStart = structDef.find("struct") + 6; // 跳过 "struct "
@@ -65,7 +65,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
         return str;
     };
 
-    auto findStruct = [&structs, trim](const std::string_view _typeName) {
+    const auto findStruct = [&structs, trim](const std::string_view _typeName) {
       for (const auto &structDef: structs) {
           const auto view = trim(std::string_view(structDef.Name));
           if (const auto typeName = trim(_typeName); view == typeName) {

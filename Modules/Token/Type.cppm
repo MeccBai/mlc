@@ -68,7 +68,7 @@ export namespace mlc::ast::Type {
         explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
             Values(std::move(_values)) {
             IsValidName(Name);
-            std::ranges::for_each(Values,[](std::string_view _name){IsValidName(_name);});
+            std::ranges::for_each(Values,[](const std::string_view _name){IsValidName(_name);});
         }
 
         const std::string Name;
@@ -77,6 +77,16 @@ export namespace mlc::ast::Type {
         static std::size_t Size() {
             return 4;
         }
+
+        [[nodiscard]] std::optional<size_t> GetValueIndex(const std::string_view _value) const {
+            for (size_t i = 0; i < Values.size(); ++i) {
+                if (Values[i] == _value) {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        }
+
     };
 
     struct StructMember {

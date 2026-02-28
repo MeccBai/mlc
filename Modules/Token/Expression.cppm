@@ -71,7 +71,7 @@ export namespace mlc::ast {
     class MemberAccess {
     public:
         MemberAccess(std::shared_ptr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
-            std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
+                std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
         }
 
         std::shared_ptr<Type::StructDefinition> StructDef;
@@ -92,11 +92,25 @@ export namespace mlc::ast {
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetType() const;
     };
 
+    class EnumValue {
+    public:
+        explicit EnumValue(const std::shared_ptr<Type::EnumDefinition> &_enumDef, const size_t _index)
+            : Index(_index), EnumDef(_enumDef) {
+        }
+
+        const size_t Index;
+        const std::shared_ptr<Type::EnumDefinition> EnumDef;
+
+        [[nodiscard]] std::shared_ptr<Type::CompileType> GetType() const {
+            return std::make_shared<Type::CompileType>(*EnumDef);
+        }
+    };
+
     class Expression {
     public:
-        using Data = std::variant<ConstValue, std::shared_ptr<Variable>, std::shared_ptr<FunctionCall>, std::shared_ptr<
-            CompositeExpression>, std::shared_ptr<MemberAccess>, std::shared_ptr<InitializerList> >;
-        std::shared_ptr<Data> Storage;
+        using Data = std::variant<ConstValue, EnumValue, Type::sPtr<Variable>, Type::sPtr<FunctionCall>,
+            Type::sPtr<CompositeExpression>, Type::sPtr<MemberAccess>, Type::sPtr<InitializerList> >;
+        Type::sPtr<Data> Storage;
 
         template<typename T>
             requires (
@@ -142,7 +156,7 @@ export namespace mlc::ast {
         }
 
         const std::shared_ptr<FunctionDeclaration> FunctionDecl;
-        const std::vector<std::shared_ptr<Expression>> Arguments;
+        const std::vector<std::shared_ptr<Expression> > Arguments;
     };
 
     class CompositeExpression {
@@ -165,5 +179,4 @@ export namespace mlc::ast {
             return Components[0]->GetType();
         }
     };
-
 }

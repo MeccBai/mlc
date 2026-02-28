@@ -31,7 +31,11 @@ ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent)
         return std::string(member);
     }) | std::ranges::to<std::vector<std::string> >();
 
-    return ast::Type::EnumDefinition(enumName, options);
+    auto name = enumName;
+    while (!name.empty() && std::isspace(name.front())) name.remove_prefix(1);
+    while (!name.empty() && std::isspace(name.back())) name.remove_suffix(1);
+
+    return ast::Type::EnumDefinition(name, options);
 }
 
 

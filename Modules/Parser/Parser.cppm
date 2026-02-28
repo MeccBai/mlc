@@ -153,10 +153,20 @@ export namespace mlc::parser {
             return std::nullopt;
         }
 
+        [[nodiscard]] sOptional<type::EnumDefinition> FindEnum(const std::string_view _name) const {
+            for (const auto &type: typeSymbolTable) {
+                if (const auto enumDefPtr = std::get_if<ast::Type::EnumDefinition>(&*type)) {
+                    if (enumDefPtr->Name == _name) {
+                        return std::make_shared<type::EnumDefinition>(*enumDefPtr);
+                    }
+                }
+            }
+            return std::nullopt;
+        }
+
         SymbolTable<ast::FunctionScope> functionScopeTable;
 
         explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
-
 
         [[nodiscard]] ast::Expression GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_type) const;
         ast::Expression GetStructDefaultValue(const sPtr<type::StructDefinition> &_type);

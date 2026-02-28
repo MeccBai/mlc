@@ -230,6 +230,7 @@ sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableState
         std::exit(-1);
     }
 
+
     const auto expressionTree = deepSplit(_expressionContent);
 
     ast::dumpFragments(expressionTree);
@@ -324,6 +325,23 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
     typeOpt = FindVariable(str);
     if (typeOpt) {
         return std::make_shared<ast::Expression>(ast::Expression(typeOpt.value()));
+    }
+
+    if (const auto pos = str.find("::"); pos != std::string_view::npos) {
+        auto left = str.substr(0, pos);
+        auto right = str.substr(pos + 2);
+        const auto enumType =  FindEnum(left);
+        if (!enumType) {
+            ErrorPrintln("MLC Syntax Error: Undefined enum type '{}' in expression: {}", left, str);
+            std::exit(-1);
+        }
+        const auto index = enumType.value()->GetValueIndex(right);
+        if (!index) {
+            ErrorPrintln("MLC Syntax Error: Undefined enum value '{}' for enum type '{}' in expression: {}",
+                         right, left, str);
+            std::exit(-1);
+        }
+        return std::make_shared<ast::Expression>(ast::Expression(ast::EnumValue(enumType.value(), index.value())));
     }
     ErrorPrintln("Error: Undefined variable '{}'\n", str);
     std::exit(-1);
