@@ -4,8 +4,12 @@ enum Season {
 };
 
 i32 main() {
-    Season s = Season::Spr;
-    i32 s_num = GetSeason(s);
+    i32 s_num = 5;
+    One o = {0,nullptr };
+    if (o.b == nullptr) {
+        s_num = i32(106.456);
+    }
+    i32 su = s_num >> 5 + 8;
     s_num = GetSeason(Season::Aut);
     f32 xa = switch_case(i64(1),nullptr);
     i8 ax[10][100];
@@ -15,7 +19,7 @@ i32 main() {
         switch_case(i64(1),nullptr)
     };
     i32 i = 0;
-    One o = {0,nullptr };
+
     Two t = {0,@o};
     o.b->a = 10;
     i32 xasd = o.b->a;
@@ -27,6 +31,7 @@ i32 main() {
         }
         i=i+1;
     }
+
     if (o.a > t.a) {
         return o.a;
     }

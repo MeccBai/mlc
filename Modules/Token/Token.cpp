@@ -150,6 +150,11 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                                  "Cannot use operator '{}' with pointer types.", baseOperator(op));
                     std::exit(-1);
                 }
+                if (std::holds_alternative<ast::Type::EnumDefinition>(*type)) {
+                    ErrorPrintln("MLC Semantic Error: Cannot use operator '{}' with enum types.\n",
+                                 baseOperator(op));
+                    std::exit(-1);
+                }
             }
         }
 
@@ -294,7 +299,6 @@ void ast::VariableStatement::InitListValidCheck() const {
         recursiveCheck(recursiveCheck, this->VarType, this->Initializer);
     }
 }
-
 ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
     return FunctionDeclaration(Name, ReturnType, Parameters, IsVarList);
 }
@@ -303,8 +307,8 @@ size_t ast::Type::StructDefinition::Size() const {
     size_t currentOffset = 0;
     size_t maxAlign = 1;
     for (const auto &[name, type]: Members) {
-        size_t mSize = std::visit([](auto &&t) { return t.Size(); }, *type);
-        size_t mAlign = mSize;
+        const size_t mSize = std::visit([](auto &&t) { return t.Size(); }, *type);
+        const size_t mAlign = mSize;
         currentOffset = (currentOffset + mAlign - 1) & ~(mAlign - 1);
         currentOffset += mSize;
         if (mAlign > maxAlign) maxAlign = mAlign;

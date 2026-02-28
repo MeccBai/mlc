@@ -65,6 +65,7 @@ export namespace mlc::ast {
                                    std::shared_ptr<Expression> _initializer = nullptr)
             : Name(_name), VarType(_varType), Initializer(std::move(_initializer)) {
             InitListValidCheck();
+
         }
 
         const std::string Name;

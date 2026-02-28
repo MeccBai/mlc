@@ -16,6 +16,8 @@ template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
+
+
 std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> &_structDef) {
     const auto title = std::format("%{}.{} = {} {{", kv::Struct, _structDef->Name, kv::Type);
 
@@ -50,9 +52,18 @@ std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variab
     std::exit(-1);
 }
 
-std::string GenClass::LocalVariable(const std::string_view _functionName,
+std::string GenClass::LocalVariable(
                                     const sPtr<ast::VariableStatement> &_variable) {
-    auto registerName = std::format("%{}.{}", _functionName, _variable->Name);
+
+    auto registerName = std::format("%{}",_variable->Name);
+    auto alignSize = std::visit([](auto &&t) -> size_t {
+        return t.Size();
+    }, *_variable->VarType);
+
+    auto alloca = std::format("{} = alloca {}, align {}\n", registerName, TypeToLLVM(_variable->VarType),alignSize);
+    const auto [llvmType, resultVar, code] = ExpressionExpand(_variable->Initializer);
+    auto store = std::format("store {} {}, {}* {}, align {}\n", llvmType, resultVar, TypeToLLVM(_variable->VarType), registerName,alignSize);
+    return std::format("{}{}{}", alloca, code, store);
 }
 
 std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType) {
@@ -84,59 +95,4 @@ std::string determineCastOperator(const type::BaseType *_sourceType, const type:
         return "trunc";
     }
     return "bitcast";
-}
-
-GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression) {
-
-}
-
-std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
-                                            const sPtr<ast::Expression> &_expression) {
-    if (!_expression || !_expression->Storage) return "";
-    const auto &data = *_expression->Storage;
-    if (const auto *constVal = std::get_if<ast::ConstValue>(&data)) {
-        std::string typeStr = GetTypeName(*_expression->GetType());
-        return std::format("{} {}", typeStr, constVal->Value);
-    }
-    if (const auto *initListPtr = std::get_if<sPtr<ast::InitializerList>>(&data)) {
-        const auto& initList = *initListPtr;
-        auto elementStrings = initList->Values
-                              | std::views::transform([](const sPtr<ast::Expression> &expr) {
-                                  return ConstExpressionExpand(expr->GetType(), expr);
-                              });
-        std::string joinedElements = elementStrings
-                                     | std::views::join_with(std::string(", "))
-                                     | std::ranges::to<std::string>();
-        if (std::get_if<type::StructDefinition>(&*_type)) {
-            return std::format("{{ {} }}", joinedElements);
-        }
-        if (const auto* arrayType = std::get_if<type::ArrayType>(&*_type)) {
-            return std::format("[{} x {}] {{ {} }}", arrayType->Length, GetTypeName(*arrayType->BaseType), joinedElements);
-        }
-    }
-
-    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression>>(&data)) {
-        const auto& compExpr = *compExprPtr;
-        if (compExpr->Components.empty()) return "";
-
-        std::string result = ConstExpressionExpand(compExpr->Components[0]->GetType(), compExpr->Components[0]);
-        for (size_t i = 0; i < compExpr->Operators.size(); ++i) {
-            std::string opSymbol = ast::BaseIROperators.at(compExpr->Operators[i]);
-            std::string nextComponent = ConstExpressionExpand(compExpr->Components[i + 1]->GetType(), compExpr->Components[i + 1]);
-            result = std::format("{} ({} {}, {})", opSymbol, GetTypeName(*_expression->GetType()), result, nextComponent);
-        }
-        return result;
-    }
-
-    if (const auto *funcCallPtr = std::get_if<sPtr<ast::FunctionCall>>(&data)) {
-        const auto& funcCall = *funcCallPtr;
-        auto functionName = funcCall->FunctionDecl ? funcCall->FunctionDecl->Name : "unknown_func";
-        auto sourceType = std::get_if<type::BaseType>(&*funcCall->Arguments[0]->GetType());
-        auto convertFuncType = &*std::ranges::find_if(type::BaseTypes, [&](const type::BaseType &baseType) { return baseType.Name == functionName; });
-        std::string castOp = determineCastOperator(sourceType, convertFuncType);
-        return std::format("{} ({} {})", castOp, GetTypeName(*convertFuncType), ConstExpressionExpand(funcCall->Arguments[0]->GetType(), funcCall->Arguments[0]));
-    }
-
-    ErrorPrintln("Error: Expression is not a constant expression and cannot be evaluated at compile time.\n");
-    std::exit(-1);
 }

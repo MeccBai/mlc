@@ -102,7 +102,7 @@ exprTree deepSplit(std::string_view expr) {
             if (c == '.') {
                 bool isFloat = false;
                 if (i > 0 && i < expr.length() - 1) {
-                    if (std::isdigit(expr[i-1]) && std::isdigit(expr[i+1])) {
+                    if (std::isdigit(expr[i - 1]) && std::isdigit(expr[i + 1])) {
                         isFloat = true;
                     }
                 }
@@ -226,8 +226,10 @@ sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableState
     }
 
     if (const auto pos = _expressionContent.find('='); pos != std::string_view::npos) {
-        ErrorPrintln("MLC Syntax Error: Unexpected assignment operator '=' in expression: {}", _expressionContent);
-        std::exit(-1);
+        if (_expressionContent[pos + 1] != '=') {
+            ErrorPrintln("MLC Syntax Error: Unexpected assignment operator '=' in expression: {}", _expressionContent);
+            std::exit(-1);
+        }
     }
 
 
@@ -292,7 +294,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
                         typePtr = std::make_shared<type::CompileType>(*pType);
                         functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(
                             ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true)));
-                        const auto isTypeConvert = const_cast<bool*>(&functionSymbolTable.back().get()->IsTypeConvert);
+                        const auto isTypeConvert = const_cast<bool *>(&functionSymbolTable.back().get()->IsTypeConvert);
                         *isTypeConvert = true;
                         if (args.size() > 1) {
                             ErrorPrintln("Error: Type Converty '{}' require unique variable", funcName);
@@ -330,7 +332,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
     if (const auto pos = str.find("::"); pos != std::string_view::npos) {
         auto left = str.substr(0, pos);
         auto right = str.substr(pos + 2);
-        const auto enumType =  FindEnum(left);
+        const auto enumType = FindEnum(left);
         if (!enumType) {
             ErrorPrintln("MLC Syntax Error: Undefined enum type '{}' in expression: {}", left, str);
             std::exit(-1);
@@ -355,7 +357,8 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
     std::vector<exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
 
     // [关键修改]：左侧也必须通过解析器递归解析
-    sPtr<ast::Expression> currentExpr = expressionTreeParser(_context, leftFrags.size() == 1 ? leftFrags[0] : exprTree(leftFrags));
+    sPtr<ast::Expression> currentExpr = expressionTreeParser(
+        _context, leftFrags.size() == 1 ? leftFrags[0] : exprTree(leftFrags));
 
     // 2. 迭代处理剩余的成员访问算符和成员名 (从 splitIndex 开始)
     for (size_t i = splitIndex; i < fragments.size(); i += 2) {
@@ -367,7 +370,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
             std::exit(-1);
         }
 
-        const auto memberName = std::get<std::string_view>(fragments[i+1].data);
+        const auto memberName = std::get<std::string_view>(fragments[i + 1].data);
 
         auto currentType = currentExpr->GetType();
 
@@ -393,7 +396,9 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
                     // 将本次访问封装进 CompositeExpression
                     currentExpr = std::make_shared<ast::Expression>(
                         std::make_shared<ast::CompositeExpression>(
-                            std::vector<sPtr<ast::Expression>>{currentExpr, std::make_shared<ast::Expression>(memberAccess)},
+                            std::vector<sPtr<ast::Expression> >{
+                                currentExpr, std::make_shared<ast::Expression>(memberAccess)
+                            },
                             std::vector<BaseOperator>{op}
                         )
                     );
@@ -413,13 +418,14 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 }
 
 sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
-                                                   const std::vector<exprTree> &fragments,
-                                                   const int splitIndex) {
+                                                      const std::vector<exprTree> &fragments,
+                                                      const int splitIndex) {
     const std::vector leftPart(fragments.begin(), fragments.begin() + splitIndex);
-    const sPtr<ast::Expression> leftExpr = expressionTreeParser(_context, leftPart.size() == 1 ? leftPart[0] : exprTree(leftPart));
-    const auto& opFrag = fragments[splitIndex];
+    const sPtr<ast::Expression> leftExpr = expressionTreeParser(
+        _context, leftPart.size() == 1 ? leftPart[0] : exprTree(leftPart));
+    const auto &opFrag = fragments[splitIndex];
     const auto op = toBaseOperator(std::get<std::string_view>(opFrag.data));
-    const exprTree& rightFragment = fragments[splitIndex + 1];
+    const exprTree &rightFragment = fragments[splitIndex + 1];
     const sPtr<ast::Expression> indexExpr = expressionTreeParser(_context, rightFragment);
     if (!type::IsIntegerType(*(indexExpr->GetType()))) {
         ErrorPrintln("Subscript operator '[]' requires an integer index.");
@@ -444,9 +450,9 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
 
     // --- 2. 处理容器 (std::vector<exprTree>) ---
-    const auto fragments = std::get<std::vector<exprTree>>(_expressionContent.data);
+    const auto fragments = std::get<std::vector<exprTree> >(_expressionContent.data);
 
-   // 安全检查：如果容器里只有一个元素，剥壳重来
+    // 安全检查：如果容器里只有一个元素，剥壳重来
     if (fragments.size() == 1) return expressionTreeParser(_context, fragments[0]);
 
     // 查找当前层级结合力最弱的分割点
@@ -517,10 +523,10 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
 bool isUnary(ast::BaseOperator op) {
     switch (op) {
-        case BaseOperator::Sub:  // -a
+        case BaseOperator::Sub: // -a
         case BaseOperator::AddressOf: // &a
-        case BaseOperator::Dereference:// *a
-        case BaseOperator::Not:// !a
+        case BaseOperator::Dereference: // *a
+        case BaseOperator::Not: // !a
         case BaseOperator::BitNot: // ~a
             return true;
         default:
