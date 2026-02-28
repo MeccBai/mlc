@@ -75,6 +75,10 @@ std::string_view stripOuterBrackets(const std::string_view _expr) {
     return stripOuterBrackets(_expr.substr(1, _expr.size() - 2));
 }
 
+bool isNameChar(const char c) {
+    return std::isalnum(c) || c == '_';
+}
+
 exprTree deepSplit(std::string_view expr) {
     expr = stripOuterBrackets(expr);
     if (expr.empty()) return exprTree("", false);
@@ -94,9 +98,16 @@ exprTree deepSplit(std::string_view expr) {
             bracketLevel--;
             continue;
         }
-
         if (bracketLevel == 0 && isOpChar(c)) {
-            // --- 你的双字合并逻辑 ---
+            if (c == '.') {
+                bool isFloat = false;
+                if (i > 0 && i < expr.length() - 1) {
+                    if (std::isdigit(expr[i-1]) && std::isdigit(expr[i+1])) {
+                        isFloat = true;
+                    }
+                }
+                if (isFloat) continue;
+            }
             std::string_view op = expr.substr(i, 1);
             if (i + 1 < expr.length()) {
                 if (const char next = expr[i + 1];
@@ -249,8 +260,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 
     // 函数调用处理
     if (str.back() == ')') {
-        auto pos = str.find('(');
-        if (pos != std::string_view::npos) {
+        if (const auto pos = str.find('('); pos != std::string_view::npos) {
             auto funcName = str.substr(0, pos);
             const auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
             std::vector<sPtr<ast::Expression> > args;
@@ -276,11 +286,9 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
                     }
                     if (const auto optType = findType(funcName.substr(0, funcName.length() - level))) {
                         auto typePtr = optType.value();
-                        for (size_t i = 0; i < level; ++i) {
-                            auto pType = std::make_shared<type::PointerType>(1);
-                            pType->Finalize(typePtr);
-                            typePtr = std::make_shared<type::CompileType>(*pType);
-                        }
+                        const auto pType = std::make_shared<type::PointerType>(level);
+                        pType->Finalize(typePtr);
+                        typePtr = std::make_shared<type::CompileType>(*pType);
                         functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(
                             ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true)));
                         const auto isTypeConvert = const_cast<bool*>(&functionSymbolTable.back().get()->IsTypeConvert);
@@ -324,25 +332,18 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 // --- 2. 链式访问处理器：贪婪收割所有 . 和 -> ---
 sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
                                                    const std::vector<exprTree> &fragments,
-                                                   int splitIndex) {
-    // 1. 解析左侧 (必须是原子变量，因为我们禁止了嵌套)
-    std::vector<exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
-    if (leftFrags.size() > 1) {
-        ErrorPrintln("Nested member access (e.g., a.b.c) is currently disabled.");
-        std::exit(-1);
-    }
-    const sPtr<ast::Expression> leftExpr = parseAtom(_context, std::get<std::string_view>(leftFrags[0].data));
+                                                   const int splitIndex) {
+    const std::vector<exprTree>& leftFrags = fragments;
 
-    // 2. 获取单次访问的信息
+    const auto pointer = std::get<std::string_view>(leftFrags[0].data);
+    const sPtr<ast::Expression> leftExpr = parseAtom(_context, pointer);
     const auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
     const auto op = toBaseOperator(opStr);
     auto memberName = std::get<std::string_view>(fragments[splitIndex + 1].data);
 
-    // 3. 语义检查：解引用与匹配
     auto currentType = leftExpr->GetType();
 
-    // 如果是 ->，解开一层指针
-    if (op == ast::BaseOperator::Arrow) {
+    if (op == BaseOperator::Arrow) {
         if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
             currentType = ptr->GetBaseType().lock();
         } else {
@@ -374,6 +375,27 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
     std::exit(-1);
 }
 
+sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
+                                                   const std::vector<exprTree> &fragments,
+                                                   const int splitIndex) {
+    const std::vector leftPart(fragments.begin(), fragments.begin() + splitIndex);
+    const sPtr<ast::Expression> leftExpr = expressionTreeParser(_context, leftPart.size() == 1 ? leftPart[0] : exprTree(leftPart));
+    const auto& opFrag = fragments[splitIndex];
+    const auto op = toBaseOperator(std::get<std::string_view>(opFrag.data));
+    const exprTree& rightFragment = fragments[splitIndex + 1];
+    const sPtr<ast::Expression> indexExpr = expressionTreeParser(_context, rightFragment);
+    if (!type::IsIntegerType(*(indexExpr->GetType()))) {
+        ErrorPrintln("Subscript operator '[]' requires an integer index.");
+        std::exit(-1);
+    }
+    return std::make_shared<ast::Expression>(
+        std::make_shared<ast::CompositeExpression>(
+            std::vector{leftExpr, indexExpr},
+            std::vector{op}
+        )
+    );
+}
+
 // --- 3. 调度中心：主解析器 ---
 sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
                                                      const exprTree &_expressionContent) {
@@ -383,10 +405,11 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
         return parseAtom(_context, *atomPtr);
     }
 
-    // --- 2. 处理容器 (std::vector<exprTree>) ---
-    const auto fragments = std::get<std::vector<exprTree> >(_expressionContent.data);
 
-    // 安全检查：如果容器里只有一个元素，剥壳重来
+    // --- 2. 处理容器 (std::vector<exprTree>) ---
+    const auto fragments = std::get<std::vector<exprTree>>(_expressionContent.data);
+
+   // 安全检查：如果容器里只有一个元素，剥壳重来
     if (fragments.size() == 1) return expressionTreeParser(_context, fragments[0]);
 
     // 查找当前层级结合力最弱的分割点
@@ -400,10 +423,14 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     // --- 3. 拦截成员访问 (最高优先级处理) ---
     // 这里顺应你的想法：一旦遇到 . 或 -> 且它是当前的分割点（或者手动拦截）
-    if (op == ast::BaseOperator::Dot || op == ast::BaseOperator::Arrow) {
+    if (op == BaseOperator::Dot || op == BaseOperator::Arrow) {
         // 注意：因为 findSplitOperator 找的是最低优先级，
         // 如果它找到了 . 说明这一层只有后缀运算。
         return handleMemberAccess(_context, fragments, splitIndex);
+    }
+
+    if (op == BaseOperator::Subscript) {
+        return handleSubscriptAccess(_context, fragments, splitIndex);
     }
 
     if (op == BaseOperator::AddressOf) {
@@ -450,6 +477,20 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
     );
 }
 
+
+bool isUnary(ast::BaseOperator op) {
+    switch (op) {
+        case BaseOperator::Sub:  // -a
+        case BaseOperator::AddressOf: // &a
+        case BaseOperator::Dereference:// *a
+        case BaseOperator::Not:// !a
+        case BaseOperator::BitNot: // ~a
+            return true;
+        default:
+            return false;
+    }
+}
+
 int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
     int maxPriority = -1;
     int splitIndex = -1;
@@ -479,3 +520,27 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
 
     return splitIndex;
 }
+#if 0
+int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
+    int maxPriority = -1;
+    int splitIndex = -1;
+
+    for (int i = 0; i < static_cast<int>(fragments.size()); ++i) {
+        if (fragments[i].isOperator) {
+            const auto opStr = std::get<std::string_view>(fragments[i].data);
+            auto op = toBaseOperator(opStr);
+            const auto priority = operatorPriority.at(op);
+
+            // 【关键修改】：实现左结合性
+            // 找到优先级最高的（数值最大）的运算符作为分割点
+            if (priority > maxPriority) {
+                maxPriority = priority;
+                splitIndex = i;
+            }
+            // 如果优先级相同，且它是左结合的运算符（如 []），保留之前找到的最左边的那个
+            // 也就是在 if (priority > maxPriority) 中就已经包含了对左结合的处理
+        }
+    }
+    return splitIndex;
+}
+#endif

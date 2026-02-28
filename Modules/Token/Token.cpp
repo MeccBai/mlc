@@ -124,6 +124,13 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
             tempPointer.Finalize(subType);
             return returnPtr;
         }
+        if (op == ast::BaseOperator::Dereference) {
+            if (const auto *ptrData = std::get_if<ast::Type::PointerType>(&(*subType))) {
+                return ptrData->BaseType;
+            }
+            ErrorPrintln("Error: Cannot dereference a non-pointer type.\n");
+            std::exit(-1);
+        }
     }
 
     // 单目运算逻辑

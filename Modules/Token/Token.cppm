@@ -58,5 +58,15 @@ export namespace mlc::ast::Type {
         }, type);
      }
 
+    bool IsIntegerType(const CompileType &type) {
+        return std::visit([]<typename T0>(T0 &&t) -> bool {
+            using T = std::decay_t<T0>;
+            if constexpr (std::is_same_v<T, BaseType>) {
+                return t.Name.starts_with('i') || t.Name.starts_with('u');
+            }
+            return false;
+        }, type);
+    }
+
 
 }

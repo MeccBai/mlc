@@ -36,9 +36,11 @@ export namespace mlc::parser {
 
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
 
-        [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent) const;
+        [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent);
 
-        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader) const;
+        sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
+
+        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader);
 
         struct exprTree;
         using FragmentData = std::variant<std::string_view, std::vector<exprTree> >;
@@ -85,6 +87,10 @@ export namespace mlc::parser {
 
         sPtr<ast::Statement> subScopeParser(ContextTable<ast::VariableStatement> &_context,
                                             std::string_view _subScopeContent);
+
+        sPtr<ast::Expression> handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
+                                                   const std::vector<exprTree> &fragments,
+                                                   int splitIndex);
 
         sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent) {
             ContextTable<ast::VariableStatement> dummyContext;
@@ -174,3 +180,4 @@ export namespace mlc::ast {
 }
 
 std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);
+std::vector<std::string_view> argSplit(const std::string_view str);

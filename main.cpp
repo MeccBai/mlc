@@ -4,8 +4,11 @@ import Prepare;
 import Token;
 import Compiler;
 import Parser;
+import aux;
 
 int main() {
+    DisableOutputBuffering();
+
     std::ifstream file("example/main.mc");
     const auto code = std::string((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
     std::println("{}",code);

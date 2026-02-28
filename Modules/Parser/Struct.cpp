@@ -78,10 +78,10 @@ std::vector<type::StructDefinition> astClass::structDefParser(
     for (const auto& ptrs : lazyPointerTypes) {
         for (const auto &[ptr, name] : ptrs) {
             auto typePtr = findType(name);
-            if constexpr (typePtr.operator->() == nullptr) {
+            if (!typePtr) {
                 typePtr = findStruct(name);
             }
-            if constexpr (typePtr.operator->() == nullptr) {
+            if (typePtr == nullptr) {
                 ErrorPrintln("Error: Unknown type '{}' for pointer member\n", name);
                 std::exit(-1);
             }

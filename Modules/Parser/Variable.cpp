@@ -34,8 +34,9 @@ std::vector<std::string_view> initializerListSplit(const std::string_view initEx
         }
     }
     if (!elements.empty()) {
-        const auto elementEnd = (elements.end() - 1);
-        *elementEnd = elementEnd->substr(0, elementEnd->size() - 1);
+        if (const auto elementEnd = (elements.end() - 1); elementEnd->back() == ',' || elementEnd->back() == ';') {
+            *elementEnd = elementEnd->substr(0, elementEnd->size() - 1);
+        }
     }
     return elements;
 }
@@ -152,27 +153,28 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
                 auto parseInitList = [&](auto &self, const std::string_view expr) -> sPtr<ast::Expression> {
                     if (expr.starts_with('{') and expr.ends_with('}')) {
                         const auto elementViews = initializerListSplit(expr);
-                        std::vector<sPtr<ast::Expression>> elements;
+                        std::vector<sPtr<ast::Expression> > elements;
                         for (auto ev: elementViews) {
                             if (ev.starts_with('{') and ev.ends_with('}')) elements.push_back(self(self, ev));
                             else elements.push_back(expressionParser(_context, ev));
                         }
-                        return std::make_shared<ast::Expression>(ast::Expression::Data(std::make_shared<ast::InitializerList>(elements)));
+                        return std::make_shared<ast::Expression>(
+                            ast::Expression::Data(std::make_shared<ast::InitializerList>(elements)));
                     }
                     return expressionParser(_context, expr);
                 };
                 finalInitExpr = parseInitList(parseInitList, initExpression);
                 finalInitExpr = std::make_shared<ast::Expression>(fillDefaultValue(currentType, finalInitExpr));
-            }
-            else if (initExpression.starts_with('"') and initExpression.ends_with('"')) {
+            } else if (initExpression.starts_with('"') and initExpression.ends_with('"')) {
                 auto str = initExpression.substr(1, initExpression.size() - 2) | std::views::transform(
-                    [](const char c) {
-                        return std::make_shared<ast::Expression>(ast::ConstValue(std::string_view(&c, 1), true));
-                    }) | std::ranges::to<std::vector<sPtr<ast::Expression>>>();
-                finalInitExpr = std::make_shared<ast::Expression>(ast::Expression::Data(std::make_shared<ast::InitializerList>(str)));
+                               [](const char c) {
+                                   return std::make_shared<ast::Expression>(
+                                       ast::ConstValue(std::string_view(&c, 1), true));
+                               }) | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
+                finalInitExpr = std::make_shared<ast::Expression>(
+                    ast::Expression::Data(std::make_shared<ast::InitializerList>(str)));
                 finalInitExpr = std::make_shared<ast::Expression>(fillDefaultValue(currentType, finalInitExpr));
-            }
-            else {
+            } else {
                 finalInitExpr = expressionParser(_context, initExpression);
                 type::ValidateType(currentType, finalInitExpr->GetType(), realName);
             }
