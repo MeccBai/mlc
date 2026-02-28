@@ -51,6 +51,10 @@ sPtr<ast::VariableStatement> astClass::functionArgParser(const std::string_view 
         const auto type = argPack[0];
         const auto name = argPack[1];
         const auto typePtr = findType(type);
+        if (name.find('[') != std::string_view::npos || name.find(']')!= std::string_view::npos) {
+            ErrorPrintln("Error: Function Argument not allow array type '{}'\n", name);
+            std::exit(-1);
+        }
         if (typePtr == std::nullopt) {
             ErrorPrintln("Error: Unknown type '{}'\n", type);
             std::exit(-1);
@@ -113,6 +117,7 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     std::vector<sPtr<ast::VariableStatement> > args;
 
     for (const auto argsSplit = argSplit(argsList); const auto &arg: argsSplit) {
+
         args.emplace_back(functionArgParser(arg));
     }
 

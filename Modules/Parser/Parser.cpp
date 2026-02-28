@@ -56,15 +56,11 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         functionSymbolTable.emplace_back(
             std::make_shared<ast::FunctionDeclaration>(
                 ast::FunctionDeclaration(
-                    type.Name,
-                    typePtr,
-                    {},
-                    true
+                    type.Name,typePtr,{},
+                    true,true,true
                 )
             )
         );
-        const auto isTypeConvert = const_cast<bool*>(&functionSymbolTable.back().get()->IsTypeConvert);
-        *isTypeConvert = true;
     }
     for (auto &enumDef: enums) {
         auto enumParsed = enumDefParser(enumDef);

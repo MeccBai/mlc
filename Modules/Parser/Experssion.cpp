@@ -333,46 +333,65 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
                                                    const std::vector<exprTree> &fragments,
                                                    const int splitIndex) {
-    const std::vector<exprTree>& leftFrags = fragments;
+    // 1. 获取最左侧的基准表达式 (可以是复杂表达式，不仅是原子)
+    std::vector<exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
 
-    const auto pointer = std::get<std::string_view>(leftFrags[0].data);
-    const sPtr<ast::Expression> leftExpr = parseAtom(_context, pointer);
-    const auto opStr = std::get<std::string_view>(fragments[splitIndex].data);
-    const auto op = toBaseOperator(opStr);
-    auto memberName = std::get<std::string_view>(fragments[splitIndex + 1].data);
+    // [关键修改]：左侧也必须通过解析器递归解析
+    sPtr<ast::Expression> currentExpr = expressionTreeParser(_context, leftFrags.size() == 1 ? leftFrags[0] : exprTree(leftFrags));
 
-    auto currentType = leftExpr->GetType();
+    // 2. 迭代处理剩余的成员访问算符和成员名 (从 splitIndex 开始)
+    for (size_t i = splitIndex; i < fragments.size(); i += 2) {
+        const auto op = toBaseOperator(std::get<std::string_view>(fragments[i].data));
 
-    if (op == BaseOperator::Arrow) {
-        if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
-            currentType = ptr->GetBaseType().lock();
-        } else {
-            ErrorPrintln("'->' must be used with a pointer type.");
+        // [边界检查]：确保碎片列表中有对应的成员名
+        if (i + 1 >= fragments.size()) {
+            ErrorPrintln("Invalid member access expression.");
+            std::exit(-1);
+        }
+
+        const auto memberName = std::get<std::string_view>(fragments[i+1].data);
+
+        auto currentType = currentExpr->GetType();
+
+        // 3. 如果是 ->，解开一层指针 (迭代解引用)
+        if (op == BaseOperator::Arrow) {
+            if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
+                currentType = ptr->GetBaseType().lock();
+            } else {
+                ErrorPrintln("'->' must be used with a pointer type.");
+                std::exit(-1);
+            }
+        }
+
+        // 4. 结构体成员查找与类型更新
+        bool found = false;
+        if (const auto structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
+            for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
+                if (structDef->Members[idx].Name == memberName) {
+                    // 更新 currentExpr 为新的 MemberAccess 节点
+                    auto structPtr = std::make_shared<ast::Type::StructDefinition>(*structDef);
+                    auto memberAccess = std::make_shared<ast::MemberAccess>(structPtr, idx);
+
+                    // 将本次访问封装进 CompositeExpression
+                    currentExpr = std::make_shared<ast::Expression>(
+                        std::make_shared<ast::CompositeExpression>(
+                            std::vector<sPtr<ast::Expression>>{currentExpr, std::make_shared<ast::Expression>(memberAccess)},
+                            std::vector<BaseOperator>{op}
+                        )
+                    );
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            ErrorPrintln("Type '{}' has no member named '{}'", GetTypeName(*currentType), memberName);
             std::exit(-1);
         }
     }
 
-    // 4. 结构体成员查找
-    if (const auto structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
-        for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
-            if (structDef->Members[idx].Name == memberName) {
-                // 返回 MemberAccess 节点
-                auto structPtr = std::make_shared<ast::Type::StructDefinition>(*structDef);
-
-                // 重点：必须把 leftExpr 传给构造函数，否则后端不知道是从哪个变量偏移！
-                auto memberAccess = std::make_shared<ast::MemberAccess>(structPtr, idx);
-                return std::make_shared<ast::Expression>(ast::Expression(std::make_shared<ast::CompositeExpression>(
-                    std::vector
-                    {leftExpr, std::make_shared<ast::Expression>(ast::Expression(memberAccess))},
-                    std::vector{op},
-                    op == BaseOperator::AddressOf
-                )));
-            }
-        }
-    }
-
-    ErrorPrintln("Type has no member named '{}'", memberName);
-    std::exit(-1);
+    return currentExpr;
 }
 
 sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
@@ -490,7 +509,7 @@ bool isUnary(ast::BaseOperator op) {
             return false;
     }
 }
-
+#if 0
 int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
     int maxPriority = -1;
     int splitIndex = -1;
@@ -520,7 +539,7 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
 
     return splitIndex;
 }
-#if 0
+#endif
 int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
     int maxPriority = -1;
     int splitIndex = -1;
@@ -543,4 +562,3 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
     }
     return splitIndex;
 }
-#endif

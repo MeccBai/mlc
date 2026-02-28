@@ -105,15 +105,21 @@ export namespace mlc::ast {
 
         explicit FunctionDeclaration(std::string _name, const std::shared_ptr<Type::CompileType> &_returnType,
                                      Args _args, const bool _isVarList = false,
-                                     const bool _isExported = false) : IsVarList(_isVarList),
+                                     const bool _isExported = false,const bool _isTypeConvert = false) : IsVarList(_isVarList),
                                                                        Name(std::move(_name)),
                                                                        Parameters(std::move(_args)),
                                                                        ReturnType(_returnType),
-                                                                       IsExported(_isExported) {
+                                                                       IsExported(_isExported),IsTypeConvert(_isTypeConvert) {
+            if (!_isTypeConvert) {
+                Type::IsValidName(Name);
+                std::ranges::for_each(Parameters, [](const auto &param) {
+                    Type::IsValidName(param->Name);
+                });
+            }
         }
 
         const bool IsVarList;
-        const bool IsTypeConvert = false;
+        const bool IsTypeConvert;
         const std::string Name;
         const Args Parameters;
         const std::shared_ptr<Type::CompileType> ReturnType;
@@ -128,19 +134,24 @@ export namespace mlc::ast {
                       std::shared_ptr<Type::CompileType> _returnType,
                       Args _args, const bool _isVarList = false,
                       const bool _isExported = false) : IsVarList(_isVarList),
+                                                        IsExported(_isExported),
                                                         Name(std::move(_name)),
                                                         Statements(std::move(_statements)),
-                                                        Parameters(std::move(_args)),
-                                                        ReturnType(std::move(_returnType)), IsExported(_isExported) {
+                                                        Parameters(std::move(_args)), ReturnType(std::move(_returnType)) {
+            Type::IsValidName(Name);
+            std::ranges::for_each(Parameters, [](const auto &param) {
+                Type::IsValidName(param->Name);
+            });
         }
 
         FunctionScope(const FunctionDeclaration &_functionDeclaration,
                       std::vector<std::shared_ptr<Statement> > _statements, const bool _isExported = false)
             : IsVarList(_functionDeclaration.IsVarList),
+              IsExported(_isExported),
               Name(_functionDeclaration.Name),
               Statements(std::move(_statements)),
-              Parameters(_functionDeclaration.Parameters),
-              ReturnType(_functionDeclaration.ReturnType), IsExported(_isExported) {
+              Parameters(_functionDeclaration.Parameters), ReturnType(_functionDeclaration.ReturnType) {
+
         }
 
         const bool IsVarList;

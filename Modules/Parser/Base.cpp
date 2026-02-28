@@ -199,20 +199,8 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
                         if (exprType == nullptr || paramType == nullptr) {
                             throw std::runtime_error("Type inference failed for argument: " + arg->Name);
                         }
-                        auto getName = [](const ast::Type::CompileType &type) -> std::string {
-                            return std::visit([](auto &&t) -> std::string {
-                                return std::string(t.Name);
-                            }, type);
-                        };
-
-                        std::string expectedName = getName(*exprType);
-
-                        if (std::string actualName = getName(*paramType); expectedName != actualName) {
-                            ErrorPrintln(
-                                "Error: Argument type mismatch for parameter '{}'. Expected '{}', got '{}'\n",
-                                arg->Name, actualName, expectedName);
-                            std::exit(-1);
-                        }
+                        auto tip = std::format(R"(argument '{}' in function '{}')",arg->Name, functionName);
+                        ValidateType(paramType, exprType, tip);
 
                         decl = function;
                     }

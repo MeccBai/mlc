@@ -6,6 +6,7 @@ export module Token:Type;
 
 
 import std;
+import aux;
 using size_t = std::size_t;
 export namespace mlc::ast::Type {
     template <typename type>
@@ -16,6 +17,25 @@ export namespace mlc::ast::Type {
     class EnumDefinition;
     class PointerType;
     class ArrayType;
+
+    std::unordered_set<std::string_view> KeyWords = {
+        "struct", "enum", "void", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
+        "nullptr","switch","case","default","break","continue","if","else","while","return"
+    };
+
+    void IsValidName(const std::string_view _name) {
+        bool result = true;
+        if (_name.empty()) result =  false;
+        if (KeyWords.contains(_name)) result = false;
+        if (!std::isalpha(_name[0]) && _name[0] != '_') result = false;
+        for (const char ch: _name) {
+            if (!std::isalnum(ch) && ch != '_') result = false;
+        }
+        if (!result) {
+            ErrorPrintln("Error: Invalid name '{}'\n", _name);
+            std::exit(-1);
+        }
+    }
 
     using CompileType = std::variant<BaseType, StructDefinition, EnumDefinition, PointerType, ArrayType>;
 
@@ -47,6 +67,8 @@ export namespace mlc::ast::Type {
     public:
         explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
             Values(std::move(_values)) {
+            IsValidName(Name);
+            std::ranges::for_each(Values,[](std::string_view _name){IsValidName(_name);});
         }
 
         const std::string Name;
@@ -67,6 +89,10 @@ export namespace mlc::ast::Type {
         explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members,
                                   const bool _isExported = false)
             : Name(_name), Members(std::move(_members)), IsExported(_isExported) {
+            IsValidName(Name);
+            std::ranges::for_each(Members, [](const StructMember &member) {
+                IsValidName(member.Name);
+            });
         }
 
         const std::string Name;
@@ -139,6 +165,4 @@ export namespace mlc::ast::Type {
                       std::string_view contextInfo);
 
     bool IsArrayOrPointer (const sPtr<CompileType>& _type );
-
-
 } // namespace mlc::ast::Type

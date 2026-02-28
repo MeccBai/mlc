@@ -20,27 +20,40 @@ std::vector<std::string_view> initializerListSplit(const std::string_view initEx
     if (content.starts_with('{') and content.ends_with('}')) {
         content = content.substr(1, content.size() - 2);
     }
+
     size_t start = 0;
     int depth = 0;
+    int parenDepth = 0; // 【新增加】：追踪圆括号深度
+
     for (size_t i = 0; i <= content.length(); ++i) {
-        if (const char c = (i < content.length()) ? content[i] : ','; c == '{') depth++;
+        char c = (i < content.length()) ? content[i] : ',';
+
+        if (c == '{') depth++;
         else if (c == '}') depth--;
-        else if (c == ',' and depth == 0) {
+        else if (c == '(') parenDepth++; // 【新增加】：处理圆括号
+        else if (c == ')') parenDepth--; // 【新增加】：处理圆括号
+
+        // 【关键逻辑】：只有在不嵌套大括号且不嵌套圆括号时才分割
+        else if (c == ',' and depth == 0 and parenDepth == 0) {
             std::string_view element = content.substr(start, i - start);
+
+            // Trim
             while (!element.empty() and std::isspace(element.front())) element.remove_prefix(1);
             while (!element.empty() and std::isspace(element.back())) element.remove_suffix(1);
+
             if (!element.empty()) elements.push_back(element);
             start = i + 1;
         }
     }
+
+    // 原有的最后一个字符清理逻辑保持不变
     if (!elements.empty()) {
-        if (const auto elementEnd = (elements.end() - 1); elementEnd->back() == ',' || elementEnd->back() == ';') {
+        if (const auto elementEnd = (elements.end() - 1); !elementEnd->empty() && (elementEnd->back() == ',' || elementEnd->back() == ';')) {
             *elementEnd = elementEnd->substr(0, elementEnd->size() - 1);
         }
     }
     return elements;
 }
-
 std::string_view getVariableName(const std::string_view _declaration) {
     if (_declaration.empty()) return "";
     const size_t start = _declaration.find_first_not_of('$');
