@@ -21,3 +21,11 @@ namespace type = ast::Type;
 bool type::IsArrayOrPointer(const sPtr<CompileType> &_type) {
     return std::holds_alternative<ArrayType>(*_type) || std::holds_alternative<PointerType>(*_type);
 }
+size_t type::GetSize(const sPtr<CompileType> &_type) {
+
+    return std::visit([]<typename T0>(T0 &&arg) -> size_t {
+        using T = std::decay_t<T0>;
+        return arg.Size();
+    }, *_type);
+
+}

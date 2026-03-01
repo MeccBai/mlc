@@ -12,20 +12,19 @@ using exprTree = ast::exprTree;
 namespace type = ast::Type;
 
 bool isLeftExpression(const std::shared_ptr<ast::Expression> &_expression) {
-    if (const auto vPtr = std::get_if<std::shared_ptr<ast::Variable> >(_expression->Storage.get()); vPtr != nullptr) {
+    if (const auto vPtr = _expression->GetVariable(); vPtr != nullptr) {
         return true;
     }
-    if (const auto fPtr = std::get_if<std::shared_ptr<ast::FunctionCall> >(_expression->Storage.get());
+    if (const auto fPtr = _expression->GetFunctionCall();
         fPtr != nullptr) {
         return false;
     }
-    if (const auto cPtr = std::get_if<ast::ConstValue>(_expression->Storage.get()); cPtr != nullptr) {
+    if (const auto cPtr = _expression->GetConstValue(); cPtr != nullptr) {
         return false;
     }
-    if (const auto compPtr = std::get_if<std::shared_ptr<ast::CompositeExpression> >(_expression->Storage.get());
+    if (const auto compPtr = _expression->GetCompositeExpression();
         compPtr != nullptr) {
-        auto &operators = compPtr->get()->Operators;
-        if (!operators.empty() && !compPtr->get()->isOperatorFirst) {
+        if (auto &operators = (*compPtr)->Operators; !operators.empty() && !(*compPtr)->isOperatorFirst) {
             // 只有当第一个操作符是访问类操作符（. 或 ->）时，才可能是左值
             if (operators[0] == ast::BaseOperator::Dot) return true;
             if (operators[0] == ast::BaseOperator::Arrow) return true;

@@ -19,6 +19,35 @@ std::vector<type::StructDefinition> astClass::structDefParser(
     std::vector<type::StructDefinition> structs;
     std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string_view>>> lazyPointerTypes(_structContents.size());
 
+    auto trim = [](std::string_view str) {
+        while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
+        while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
+        return str;
+    };
+
+
+    const auto findStruct = [&structs, trim](const std::string_view _typeName) {
+        for (const auto &structDef: structs) {
+            const auto view = trim(std::string_view(structDef.Name));
+            if (const auto typeName = trim(_typeName); view == typeName) {
+                return std::make_shared<ast::Type::CompileType>(structDef);
+            }
+        }
+        return std::shared_ptr<ast::Type::CompileType>(nullptr);
+    };
+
+    const auto findType = [this, trim, findStruct](const std::string_view _typeName) {
+        for (const auto &type: typeSymbolTable) {
+            if (const auto basePtr = std::get_if<ast::Type::BaseType>(&*type)) {
+                const auto view = trim(std::string_view(basePtr->Name));
+                if (const auto typeName = trim(_typeName); view == typeName) {
+                    return std::make_shared<ast::Type::CompileType>(*basePtr);
+                }
+            }
+        }
+        return findStruct(_typeName);
+    };
+
     for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
         const auto structNameStart = structDef.find("struct") + 6; // 跳过 "struct "
         auto structName = structDef.substr(structNameStart+1, structDef.find('{')-7);
@@ -39,8 +68,8 @@ std::vector<type::StructDefinition> astClass::structDefParser(
             }
             const auto memberType = memberDef.substr(0, pos);
             const auto memberName = memberDef.substr(pos + 1 * (isPointer ? 0 : 1));
-            if (memberName[1] == '$') {
-                ErrorPrintln("Error: Multi-level or two level Pointer is not allowed", memberType);
+            if (memberName.find('[') != std::string_view::npos || memberName.find(']') != std::string_view::npos) {
+                ErrorPrintln("Error: Struct member not allow array type '{}'\n", memberName);
                 std::exit(-1);
             }
             auto typePtr = findType(memberType);
@@ -53,27 +82,13 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                     ErrorPrintln("Error : Invalid type '{}' for struct member '{}'\n", memberType, memberName);
                     std::exit(-1);
                 }
-                members.emplace_back(std::string(memberName), typePtr.value());
+                members.emplace_back(std::string(memberName), typePtr);
             }
         }
         structs.emplace_back(std::string(structName), members);
     }
 
-    auto trim = [](std::string_view str) {
-        while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
-        while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
-        return str;
-    };
 
-    const auto findStruct = [&structs, trim](const std::string_view _typeName) {
-      for (const auto &structDef: structs) {
-          const auto view = trim(std::string_view(structDef.Name));
-          if (const auto typeName = trim(_typeName); view == typeName) {
-              return std::make_shared<ast::Type::CompileType>(structDef);
-          }
-      }
-      return std::shared_ptr<ast::Type::CompileType>(nullptr);
-    };
 
     for (const auto& ptrs : lazyPointerTypes) {
         for (const auto &[ptr, name] : ptrs) {
@@ -86,7 +101,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 std::exit(-1);
             }
             auto* specificPtr = std::get_if<ast::Type::PointerType>(ptr.get());
-            specificPtr->Finalize(typePtr.value());
+            specificPtr->Finalize(typePtr);
         }
     }
 

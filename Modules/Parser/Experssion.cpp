@@ -23,24 +23,6 @@ bool isOpChar(const char c) {
 }
 
 
-using BaseOperator = ast::BaseOperator;
-const std::unordered_map<ast::BaseOperator, int> operatorPriority = {
-    {BaseOperator::Dot, 1}, {BaseOperator::Arrow, 1}, {BaseOperator::Subscript, 1}, // 访问最强
-    {BaseOperator::AddressOf, 2}, {BaseOperator::Dereference, 2}, // 指针紧随其后 (@, $)
-    {BaseOperator::Not, 2}, {BaseOperator::BitNot, 2}, // 单目取反
-    {BaseOperator::Mul, 3}, {BaseOperator::Div, 3}, {BaseOperator::Mod, 3}, // 乘除
-    {BaseOperator::Add, 4}, {BaseOperator::Sub, 4}, // 加减
-    {BaseOperator::ShiftLeft, 5}, {BaseOperator::ShiftRight, 5}, // 位移
-    {BaseOperator::Greater, 6}, {BaseOperator::Less, 6}, // 比较
-    {BaseOperator::GreaterEqual, 6}, {BaseOperator::LessEqual, 6},
-    {BaseOperator::Equal, 7}, {BaseOperator::NotEqual, 7}, // 相等判定
-    {BaseOperator::BitAnd, 8},
-    {BaseOperator::BitXor, 9},
-    {BaseOperator::BitOr, 10},
-    {BaseOperator::And, 11},
-    {BaseOperator::Or, 12},
-};
-
 
 ast::BaseOperator toBaseOperator(const std::string_view _token) {
     if (ast::BaseOperators.contains(_token)) {
@@ -375,7 +357,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
         auto currentType = currentExpr->GetType();
 
         // 3. 如果是 ->，解开一层指针 (迭代解引用)
-        if (op == BaseOperator::Arrow) {
+        if (op == ast::BaseOperator::Arrow) {
             if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
                 currentType = ptr->GetBaseType().lock();
             } else {
@@ -466,17 +448,17 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     // --- 3. 拦截成员访问 (最高优先级处理) ---
     // 这里顺应你的想法：一旦遇到 . 或 -> 且它是当前的分割点（或者手动拦截）
-    if (op == BaseOperator::Dot || op == BaseOperator::Arrow) {
+    if (op == ast::BaseOperator::Dot || op == ast::BaseOperator::Arrow) {
         // 注意：因为 findSplitOperator 找的是最低优先级，
         // 如果它找到了 . 说明这一层只有后缀运算。
         return handleMemberAccess(_context, fragments, splitIndex);
     }
 
-    if (op == BaseOperator::Subscript) {
+    if (op == ast::BaseOperator::Subscript) {
         return handleSubscriptAccess(_context, fragments, splitIndex);
     }
 
-    if (op == BaseOperator::AddressOf) {
+    if (op == ast::BaseOperator::AddressOf) {
         if (fragments.size() != 2) {
             ErrorPrintln("Address-of operator '@' must be followed by exactly one operand.");
             std::exit(-1);
@@ -523,11 +505,11 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
 bool isUnary(ast::BaseOperator op) {
     switch (op) {
-        case BaseOperator::Sub: // -a
-        case BaseOperator::AddressOf: // &a
-        case BaseOperator::Dereference: // *a
-        case BaseOperator::Not: // !a
-        case BaseOperator::BitNot: // ~a
+        case ast::BaseOperator::Sub: // -a
+        case ast::BaseOperator::AddressOf: // &a
+        case ast::BaseOperator::Dereference: // *a
+        case ast::BaseOperator::Not: // !a
+        case ast::BaseOperator::BitNot: // ~a
             return true;
         default:
             return false;
@@ -542,7 +524,7 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
         if (fragments[i].isOperator) {
             const auto opStr = std::get<std::string_view>(fragments[i].data);
             auto op = toBaseOperator(opStr);
-            const auto priority = operatorPriority.at(op);
+            const auto priority = OperatorPriority.at(op);
 
             // 寻找优先级最低的操作符（priority值最大的）作为树根
             if (i == 0 || fragments[i - 1].isOperator) {
@@ -572,7 +554,7 @@ int astClass::findSplitOperator(const std::vector<exprTree> &fragments) {
         if (fragments[i].isOperator) {
             const auto opStr = std::get<std::string_view>(fragments[i].data);
             auto op = toBaseOperator(opStr);
-            const auto priority = operatorPriority.at(op);
+            const auto priority = ast::OperatorPriority.at(op);
 
             // 【关键修改】：实现左结合性
             // 找到优先级最高的（数值最大）的运算符作为分割点

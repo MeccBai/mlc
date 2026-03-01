@@ -12,8 +12,8 @@ import aux;
 import std;
 import Parser;
 namespace ast = mlc::ast;
-ast::Expression::~Expression() = default;
 
+ast::Expression::~Expression() = default;
 
 
 std::string baseOperator(ast::BaseOperator _op) {
@@ -24,7 +24,6 @@ std::string baseOperator(ast::BaseOperator _op) {
 }
 
 
-
 std::string ast::Type::ArrayType::GetTypeName() const {
     std::string baseName = std::visit([](auto &&arg) -> std::string {
         // 这里调用各类型的 GetTypeName()
@@ -32,7 +31,6 @@ std::string ast::Type::ArrayType::GetTypeName() const {
     }, *BaseType);
     return std::format("{}[{}]", baseName, Length);
 }
-
 
 std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     if (Value.empty()) {
@@ -52,7 +50,7 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     }
     if (Value.front() == '"') {
         const auto strType = std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
-        const auto trueType = std::make_shared<Type::PointerType>(strType,1);
+        const auto trueType = std::make_shared<Type::PointerType>(strType, 1);
         return std::make_shared<Type::CompileType>(*trueType);
     }
     if (Value.front() == '\'') {
@@ -62,8 +60,8 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
 }
 
 void ast::Type::ValidateType(const std::shared_ptr<CompileType> &targetType,
-                            const std::shared_ptr<CompileType> &actualType,
-                            const std::string_view contextInfo) {
+                             const std::shared_ptr<CompileType> &actualType,
+                             const std::string_view contextInfo) {
     if (!targetType || !actualType) {
         ErrorPrintln("Compiler internal error.\n", contextInfo);
         std::exit(-1);
@@ -92,17 +90,22 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     const std::shared_ptr<ast::CompositeExpression> &arg) {
     if (!arg || arg->Components.empty()) return nullptr;
     if (arg->Operators[0] == ast::BaseOperator::Subscript) {
-        const auto currentType = arg->Components[0]->GetType();
-        if (!currentType) return nullptr;
-        return std::visit([]<typename T0>(T0 &&type) -> std::shared_ptr<ast::Type::CompileType> {
-            using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
-                return type.BaseType;
-            } else if constexpr (std::is_same_v<T, ast::Type::PointerType>) {
-                return type.BaseType;
+        const auto currentTypeVariant = arg->Components[0]->GetType();
+        if (!currentTypeVariant) return nullptr;
+        auto *storagePtr = &*currentTypeVariant;
+        if (auto *arrayType = std::get_if<ast::Type::ArrayType>(storagePtr)) {
+            // 确保返回的是 shared_ptr 的拷贝
+            return arrayType->BaseType;
+        }
+        if (auto *pointerType = std::get_if<ast::Type::PointerType>(storagePtr)) {
+            // 确保返回的是 shared_ptr 的拷贝
+            if (pointerType->PointerLevel == 1) {
+                return pointerType->BaseType;
             }
-            return nullptr;
-        }, *currentType);
+            return std::make_shared<ast::Type::CompileType>(
+                ast::Type::PointerType(pointerType->BaseType, pointerType->PointerLevel - 1));
+        }
+        return nullptr;
     }
 
     if (arg->Operators.size() == 1 && arg->Components.size() == 1) {
@@ -218,31 +221,41 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 std::shared_ptr<ast::Type::CompileType> ast::Expression::GetType() const {
     if (!Storage) return nullptr;
 
-    return std::visit([this]<typename T0>(T0 &&arg) -> std::shared_ptr<Type::CompileType> {
-        using T = std::decay_t<T0>;
-        // --- 调试点：在这里打断点，查看 T 的具体类型 ---
-        if constexpr (std::is_same_v<T, ConstValue>) {
-            return arg.GetType();
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<Variable> >) {
-            return arg ? arg->VarType : nullptr;
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionCall> >) {
-            return (arg && arg->FunctionDecl) ? arg->FunctionDecl->ReturnType : nullptr;
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<CompositeExpression> >) {
-            // 调试点：进入复合表达式推导
-            return handleCompositeType(arg);
-        } else if constexpr (std::is_same_v<T, EnumValue>) {
-            return std::make_shared<Type::CompileType>(*(arg.EnumDef));
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<MemberAccess> >) {
-            if (arg && arg->StructDef) {
-                const auto &members = arg->StructDef->Members;
-                if (arg->Index < members.size()) {
-                    return members[arg->Index].Type;
-                }
+    // 1. 获取 Variant 指针
+    auto *storagePtr = &*Storage;
+
+    // 2. 依次尝试获取每种类型
+    if (const auto *constVal = std::get_if<ConstValue>(storagePtr)) {
+        return constVal->GetType();
+    }
+
+    if (const auto *varPtr = std::get_if<std::shared_ptr<Variable> >(storagePtr)) {
+        return (*varPtr) ? (*varPtr)->VarType : nullptr;
+    }
+
+    if (const auto *funcCallPtr = std::get_if<std::shared_ptr<FunctionCall> >(storagePtr)) {
+        return (*funcCallPtr && (*funcCallPtr)->FunctionDecl) ? (*funcCallPtr)->FunctionDecl->ReturnType : nullptr;
+    }
+
+    if (const auto *compExprPtr = std::get_if<std::shared_ptr<CompositeExpression> >(storagePtr)) {
+        return handleCompositeType(*compExprPtr);
+    }
+
+    if (const auto *enumValPtr = std::get_if<EnumValue>(storagePtr)) {
+        return std::make_shared<Type::CompileType>(*(enumValPtr->EnumDef));
+    }
+
+    if (auto *memberAccessPtr = std::get_if<std::shared_ptr<MemberAccess> >(storagePtr)) {
+        auto &arg = *memberAccessPtr; // 为了方便书写
+        if (arg && arg->StructDef) {
+            const auto &members = arg->StructDef->Members;
+            if (arg->Index < members.size()) {
+                return members[arg->Index].Type;
             }
         }
+    }
 
-        return nullptr;
-    }, *Storage);
+    return nullptr;
 }
 
 
@@ -306,6 +319,7 @@ void ast::VariableStatement::InitListValidCheck() const {
         recursiveCheck(recursiveCheck, this->VarType, this->Initializer);
     }
 }
+
 ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
     return FunctionDeclaration(Name, ReturnType, Parameters, IsVarList);
 }

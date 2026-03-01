@@ -73,10 +73,16 @@ export namespace mlc::ast {
         MemberAccess(Type::sPtr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
                 std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
         }
-        
-        Type::sPtr<Type::StructDefinition> StructDef;
+        const Type::sPtr<Type::StructDefinition> StructDef;
         const size_t Index;
         const std::string Name;
+
+        [[nodiscard]] std::shared_ptr<Type::CompileType> GetType() const {
+            if (StructDef && Index < StructDef->Members.size()) {
+                return StructDef->Members[Index].Type;
+            }
+            return nullptr;
+        }
     };
 
     class ConstValue {
@@ -110,7 +116,44 @@ export namespace mlc::ast {
     public:
         using Data = std::variant<ConstValue, EnumValue, Type::sPtr<Variable>, Type::sPtr<FunctionCall>,
             Type::sPtr<CompositeExpression>, Type::sPtr<MemberAccess>, Type::sPtr<InitializerList> >;
+
         Type::sPtr<Data> Storage;
+
+        [[nodiscard]] ConstValue*  GetConstValue() const {
+            if (!Storage) return nullptr;
+            return std::get_if<ConstValue>(&*Storage);
+        }
+
+        [[nodiscard]] EnumValue*  GetEnumValue() const {
+            if (!Storage) return nullptr;
+            return std::get_if<EnumValue>(&*Storage);
+        }
+
+        [[nodiscard]] Type::sPtr<Variable>* GetVariable() const {
+            if (!Storage) return nullptr;
+            return std::get_if<Type::sPtr<Variable> >(&*Storage);
+        }
+
+         [[nodiscard]] Type::sPtr<FunctionCall>* GetFunctionCall() const {
+            if (!Storage) return nullptr;
+            return std::get_if<Type::sPtr<FunctionCall> >(&*Storage);
+        }
+
+         [[nodiscard]] Type::sPtr<CompositeExpression>* GetCompositeExpression() const {
+            if (!Storage) return nullptr;
+            return std::get_if<Type::sPtr<CompositeExpression> >(&*Storage);
+        }
+
+         [[nodiscard]] Type::sPtr<MemberAccess>* GetMemberAccess() const {
+            if (!Storage) return nullptr;
+            return std::get_if<Type::sPtr<MemberAccess> >(&*Storage);
+        }
+
+         [[nodiscard]] Type::sPtr<InitializerList> GetInitializerList() const {
+            if (!Storage) return nullptr;
+            return* std::get_if<Type::sPtr<InitializerList> >(&*Storage);
+        }
+
 
         template<typename T>
             requires (
@@ -178,5 +221,22 @@ export namespace mlc::ast {
             }
             return Components[0]->GetType();
         }
+    };
+
+    const std::unordered_map<BaseOperator, int> OperatorPriority = {
+        {BaseOperator::Dot, 1}, {BaseOperator::Arrow, 1}, {BaseOperator::Subscript, 1}, // 访问最强
+        {BaseOperator::AddressOf, 2}, {BaseOperator::Dereference, 2}, // 指针紧随其后 (@, $)
+        {BaseOperator::Not, 2}, {BaseOperator::BitNot, 2}, // 单目取反
+        {BaseOperator::Mul, 3}, {BaseOperator::Div, 3}, {BaseOperator::Mod, 3}, // 乘除
+        {BaseOperator::Add, 4}, {BaseOperator::Sub, 4}, // 加减
+        {BaseOperator::ShiftLeft, 5}, {BaseOperator::ShiftRight, 5}, // 位移
+        {BaseOperator::Greater, 6}, {BaseOperator::Less, 6}, // 比较
+        {BaseOperator::GreaterEqual, 6}, {BaseOperator::LessEqual, 6},
+        {BaseOperator::Equal, 7}, {BaseOperator::NotEqual, 7}, // 相等判定
+        {BaseOperator::BitAnd, 8},
+        {BaseOperator::BitXor, 9},
+        {BaseOperator::BitOr, 10},
+        {BaseOperator::And, 11},
+        {BaseOperator::Or, 12},
     };
 }

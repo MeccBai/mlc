@@ -38,7 +38,7 @@ export namespace mlc::parser {
 
         [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent);
 
-        sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
+        [[nodiscard]] sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
 
         [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader);
 
@@ -159,6 +159,15 @@ export namespace mlc::parser {
                     if (enumDefPtr->Name == _name) {
                         return std::make_shared<type::EnumDefinition>(*enumDefPtr);
                     }
+                }
+            }
+            return std::nullopt;
+        }
+
+        [[nodiscard]] static std::optional<const type::BaseType*> FindBaseType(const std::string_view _name) {
+            for (const auto &type: ast::Type::BaseTypes) {
+                if (type.Name == _name) {
+                    return &type;
                 }
             }
             return std::nullopt;

@@ -19,7 +19,7 @@ i32 main() {
         switch_case(i64(1),nullptr)
     };
     i32 i = 0;
-
+    i32 x = 10 > 20;
     Two t = {0,@o};
     o.b->a = 10;
     i32 xasd = o.b->a;

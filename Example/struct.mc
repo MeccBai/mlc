@@ -1,0 +1,32 @@
+
+
+
+struct b {
+    i32 x;
+    i32 y;
+};
+
+struct a {
+    b b;
+    i64 x;
+};
+
+struct c {
+    a a;
+    d$ d;
+};
+
+struct d {
+    c$ c;
+    i32 x;
+};
+
+i32 main() {
+    b b1 = {10,20};
+    a a1 = {b1,i64(100)};
+    c c1 = {a1,nullptr};
+    d d1 = {@c1,100};
+    d1.c->a.b.x = 30;
+    i32 x = d1.c->a.b.x + 30;
+    i32 y = (10+20) + 30;
+}

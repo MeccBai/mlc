@@ -21,72 +21,49 @@ namespace type = ast::Type;
 
 size_t GenClass::exprCnt = 0;
 
-GenClass::ExprResult GenClass::ExpressionExpand(sPtr<ast::Expression> &_expression) {
-    // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
 
+GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression) {
+    // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
     std::string type = TypeToLLVM(_expression->GetType());
-    if (const auto constPtr = std::get_if<ast::ConstValue>(&*_expression->Storage)) {
+    if (const auto constPtr = _expression->GetConstValue()) {
         return {type, constPtr->Value, ""};
     }
-    if (const auto enumPtr = std::get_if<ast::EnumValue>(&*_expression->Storage)) {
+    if (const auto enumPtr = _expression->GetEnumValue()) {
         return {type, std::to_string(enumPtr->Index), ""};
     }
-    if (const auto varPtr = std::get_if<sPtr<ast::Variable> >(&*_expression->Storage)) {
+    if (const auto varPtr = _expression->GetVariable()) {
         auto result = ExprResult{
-            type, std::format("%{}", exprCnt),
-            std::format("%{} = load {}, {} %{}", exprCnt, type, type, varPtr->get()->Name)
+            type, std::format("%{}",(*varPtr)->Name), ""
         };
         exprCnt += 1;
         return result;
     }
-    if (const auto memberPtr = std::get_if<sPtr<ast::MemberAccess>>(&*_expression->Storage)) {
-        auto structName = TypeToLLVM(std::make_shared<type::CompileType>(*memberPtr->get()->StructDef));
-        auto basePtrName =  memberPtr->get()->Name;
-        size_t gepReg = exprCnt++;
-        size_t loadReg = exprCnt++; // 💥 修正这里：确保 loadReg 是全新的编号
-        const auto gepInstr = std::format(
-            "%{} = getelementptr {}, {}* %{}, i32 0, i32 {}",
-            gepReg,
-            structName,
-            structName,
-            basePtrName,
-            memberPtr->get()->Index
-        );
-        const auto loadInstr = std::format(
-            "%{} = load {}, {} %{}",
-            loadReg,
-            type,
-            type,
-            gepReg // 使用 GEP 的结果作为地址
-        );
-        const auto code = std::format("{}\n{}\n", gepInstr, loadInstr);
-        auto result = ExprResult{
-            type,
-            std::format("%{}", loadReg), // 💡 返回 LOAD 的结果 (数值)
-            code
-        };
-        return result;
-    }
-#if 0
-    if (const auto compPtr = std::get_if<sPtr<ast::CompositeExpression> >(&*_expression->Storage)) {
+    if (const auto compPtr = _expression->GetCompositeExpression()) {
         auto &[operators,components,opFirst] = **compPtr;
+        if (components.empty()) {
+            ErrorPrintln("Error: Composite expression has no components.\n");
+            std::exit(-1);
+        }
+        if (components.size() >= 2 && components[1]->GetMemberAccess()) {
+            return MemberAccessExpression(_expression);
+        }
         if (opFirst) {
-            if (auto var = std::get_if<ast::Variable>(components[0]->Storage.get())) {
+            if (const auto var = components[0]->GetVariable()) {
                 return ExprResult{
                     std::format("*{}", TypeToLLVM(components[0]->GetType())),
-                    std::format("%{}", var->Name), ""
+                    std::format("%{}", (*var)->Name), ""
                 };
             }
         }
-        auto expandExpr = components | std::views::transform([this](const sPtr<ast::Expression> &expr) {
+        auto expandExpr = components | std::views::transform([](const sPtr<ast::Expression> &expr) {
             return ExpressionExpand(expr);
         }) | std::ranges::to<std::vector<ExprResult> >();
     }
-#endif
-    if (const auto functionCallPtr = std::get_if<sPtr<ast::FunctionCall> >(&*_expression->Storage)) {
-    }
 
+    if (const auto functionCallPtr = _expression->GetFunctionCall()) {
+    }
 }
+
 
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
                                             const sPtr<ast::Expression> &_expression) {
@@ -145,143 +122,36 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
     std::exit(-1);
 }
 
-std::string GenClass::OperatorToIR(const type::BaseType *_type, const ast::BaseOperator _value) {
-    switch (_value) {
-        // --- 算术运算 (整数) ---
-        case ast::BaseOperator::Add:
-            if (_type->Name.starts_with('f')) {
-                return "fadd"; // 浮点数加法
-            }
-            return "add";
-        case ast::BaseOperator::Sub:
-            if (_type->Name.starts_with('f')) {
-                return "fsub"; // 浮点数减法
-            }
-            return "sub";
-        case ast::BaseOperator::Mul:
-            if (_type->Name.starts_with('f')) {
-                return "fmul"; // 浮点数乘法
-            }
-            if (_type->Name.starts_with('i')) {
-                return "mul"; // 整数乘法
-            }
-            return "mul";
-        case ast::BaseOperator::Div:
-            if (_type->Name.starts_with('i')) {
-                return "sdiv"; // 假设有符号
-            }
-            if (_type->Name.starts_with('f')) {
-                return "fdiv"; // 浮点数除法
-            }
-            return "udiv"; // 无符号
-        case ast::BaseOperator::Mod:
-            if (_type->Name.starts_with('i')) {
-                return "srem"; // 假设有符号
-            }
-            if (_type->Name.starts_with('f')) {
-                return "frem"; // 浮点数模运算
-            }
-            return "urem"; // 无符号
-        // --- 关系运算 (整数比较) ---
-        // ⚠️ LLVM 的 icmp 需要具体的条件代码 (eq, ne, sgt, etc.)
-        case ast::BaseOperator::Equal:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp oeq"; // 浮点数相等
-            }
-            return "icmp eq";
-        case ast::BaseOperator::NotEqual:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp one"; // 浮点数不相等
-            }
-            return "icmp ne";
-        case ast::BaseOperator::Greater:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp ogt"; // 浮点数大于
-            }
-            if (_type->Name.starts_with('i')) {
-                return "icmp sgt"; // 有符号大于
-            }
-            return "icmp ugt"; // 无符号大于
-        case ast::BaseOperator::Less:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp olt"; // 浮点数小于
-            }
-            if (_type->Name.starts_with('i')) {
-                return "icmp slt"; // 有符号小于
-            }
-            return "icmp ult"; // 无符号小于
-        case ast::BaseOperator::GreaterEqual:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp oge"; // 浮点数大于等于
-            }
-            if (_type->Name.starts_with('i')) {
-                return "icmp sge"; // 有符号大于等于
-            }
-            return "icmp uge"; // 无符号大于等于
-        case ast::BaseOperator::LessEqual:
-            if (_type->Name.starts_with('f')) {
-                return "fcmp ole"; // 浮点数小于等于
-            }
-            if (_type->Name.starts_with('i')) {
-                return "icmp sle"; // 有符号小于等于
-            }
-            return "icmp ule"; // 无符号小于等于
 
-        // --- 逻辑运算 (通常使用位运算指令) ---
-        case ast::BaseOperator::And: return "and";
-        case ast::BaseOperator::Or: return "or";
-        case ast::BaseOperator::Not: return "xor";
-        // Not 通常使用 xor 1 实现
-
-        // --- 位运算 ---
-        case ast::BaseOperator::BitAnd: return "and";
-        case ast::BaseOperator::BitOr: return "or";
-        case ast::BaseOperator::BitXor: return "xor";
-        case ast::BaseOperator::ShiftLeft: return "shl";
-        // ⚠️ 右移需要区分算术右移和逻辑右移
-        case ast::BaseOperator::ShiftRight: return "ashr"; // 算术右移
-
-        // --- 指针操作 ---
-        case ast::BaseOperator::AddressOf: return "ptrtoint"; // 视具体需求而定
-        case ast::BaseOperator::Dereference: return "load"; // 需要额外处理类型
-
-        default: return "";
-    }
-}
-
-std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
-    if (const auto baseType = std::get_if<type::BaseType>(&*_type)) {
-        if (baseType->Name.starts_with('i')) {
-            return std::format("i{}", baseType->Size() * 8);
-        }
-        if (baseType->Name.starts_with('f')) {
-            return std::format("f{}", baseType->Size() * 8);
-        }
-    }
-    if (const auto structDef = std::get_if<type::StructDefinition>(&*_type)) {
-        return std::format("%struct.{}", structDef->Name);
-    }
-    if (const auto arrayType = std::get_if<type::ArrayType>(&*_type)) {
-        return std::format("[{} x {}]", arrayType->Length, TypeToLLVM(arrayType->BaseType));
-    }
-    if (std::get_if<type::PointerType>(&*_type)) {
-        return "ptr";
-    }
-    if (std::get_if<type::EnumDefinition>(&*_type)) {
-        return "i32";
-    }
-    ErrorPrintln("Error: Unsupported type for LLVM IR generation.");
-    std::exit(-1);
-}
-#if 0
-std::string GenClass::TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op) {
+GenClass::ExprResult GenClass::TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op) {
     const auto leftResult = ExpressionExpand(_left);
     const auto rightResult = ExpressionExpand(_right);
     auto code = std::format("{}\n{}\n", leftResult.code, rightResult.code);
 
     std::string llvmOp = OperatorToIR(std::get_if<type::BaseType>(&*_left->GetType()), _op);
 
-    return std::format("{} {} {}, {}", llvmOp, leftResult.llvmType, leftResult.resultVar, rightResult.resultVar);
+    auto result = ExprResult{
+        leftResult.llvmType, std::format("%{}", exprCnt),
+        code + std::format("{} = {} {} {}, {}\n", std::format("%{}", exprCnt),
+                           llvmOp, leftResult.llvmType, leftResult.resultVar, rightResult.resultVar)
+    };
+
+    return result;
+}
+
+GenClass::ExprResult GenClass::TripleExpression(const ExprResult &_left, const ExprResult &_right,
+                                                ast::BaseOperator _op) {
+    std::string targetReg = std::format("%{}", exprCnt++);
+    const std::string combinedCode = _left.code + _right.code;
+    std::string llvmOp = OperatorToIR(_left.llvmType, _op);
+    const std::string currentInstr = std::format("  {} = {} {} {}, {}\n",
+                                                 targetReg, llvmOp, _left.llvmType,
+                                                 _left.resultVar, _right.resultVar);
+    return ExprResult{
+        _left.llvmType,
+        targetReg,
+        combinedCode + currentInstr
+    };
 }
 
 GenClass::ExprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOperator _op) {
@@ -334,4 +204,28 @@ GenClass::ExprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOper
             std::exit(-1);
     }
 }
-#endif
+
+GenClass::ExprResult GenClass::GradientExpression(const std::vector<ExprResult> &_expr,
+                                                  const std::vector<ast::BaseOperator> &_ops) {
+    std::vector<ExprResult> workingExpr = _expr;
+    std::vector<ast::BaseOperator> workingOps = _ops;
+
+    for (size_t priority = 1; priority <= 12; ++priority) {
+        for (size_t i = 0; i < workingOps.size();) {
+            if (ast::OperatorPriority.at(workingOps[i]) == priority) {
+                const ExprResult &left = workingExpr[i];
+                const ExprResult &right = workingExpr[i + 1];
+                const ast::BaseOperator op = workingOps[i];
+                ExprResult combined = TripleExpression(left, right, op);
+                workingExpr[i] = std::move(combined); // 更新左侧位置
+                workingExpr.erase(workingExpr.begin() + i + 1); // 移除右侧操作数
+                workingOps.erase(workingOps.begin() + i); // 移除已处理的运算符
+            } else {
+                ++i;
+            }
+        }
+    }
+
+    return workingExpr[0];
+}
+

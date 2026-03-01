@@ -11,8 +11,7 @@ import std;
 using size_t = std::size_t;
 
 export namespace mlc::ast {
-
-    const std::unordered_map<std::string_view,BaseOperator> BaseOperators = {
+    const std::unordered_map<std::string_view, BaseOperator> BaseOperators = {
         {"+", BaseOperator::Add}, {"-", BaseOperator::Sub}, {"*", BaseOperator::Mul},
         {"/", BaseOperator::Div}, {"%", BaseOperator::Mod}, {"==", BaseOperator::Equal},
         {"!=", BaseOperator::NotEqual}, {">", BaseOperator::Greater}, {"<", BaseOperator::Less},
@@ -28,12 +27,30 @@ export namespace mlc::ast {
         {BaseOperator::Add, "add"}, {BaseOperator::Sub, "sub"}, {BaseOperator::Mul, "mul"},
         {BaseOperator::Div, "div"}, {BaseOperator::Mod, "mod"},
         {BaseOperator::Equal, "eq"}, {BaseOperator::NotEqual, "ne"}, {BaseOperator::Greater, "gt"},
-        {BaseOperator::Less, "lt"},{BaseOperator::GreaterEqual, "ge"}, {BaseOperator::LessEqual, "le"},
+        {BaseOperator::Less, "lt"}, {BaseOperator::GreaterEqual, "ge"}, {BaseOperator::LessEqual, "le"},
         {BaseOperator::And, "and"}, {BaseOperator::Or, "or"},
         {BaseOperator::BitAnd, "bitand"}, {BaseOperator::BitOr, "bitor"}, {BaseOperator::BitXor, "bitxor"},
         {BaseOperator::ShiftLeft, "shl"}, {BaseOperator::ShiftRight, "shr"},
     };
+
+
+    Type::sPtr<VariableStatement> MakeVariable(VariableStatement &&_variable) {
+        return std::make_shared<VariableStatement>(std::move(_variable));
+    }
+
+    Type::sPtr<VariableStatement> MakeVariable(VariableStatement &_variable) {
+        return std::make_shared<VariableStatement>(_variable);
+    }
+
+    Type::sPtr<FunctionDeclaration> MakeFuncDecl(FunctionDeclaration &&_functionDecl) {
+        return std::make_shared<FunctionDeclaration>(std::move(_functionDecl));
+    }
+
+    Type::sPtr<FunctionDeclaration> MakeFuncDecl(FunctionDeclaration &_functionDecl) {
+        return std::make_shared<FunctionDeclaration>(_functionDecl);
+    }
 }
+
 
 export namespace mlc::ast::Type {
     const std::vector BaseTypes = {
@@ -56,7 +73,7 @@ export namespace mlc::ast::Type {
         return std::visit([](auto &&t) -> std::string {
             return std::string(t.Name);
         }, type);
-     }
+    }
 
     bool IsIntegerType(const CompileType &type) {
         return std::visit([]<typename T0>(T0 &&t) -> bool {
@@ -67,6 +84,4 @@ export namespace mlc::ast::Type {
             return false;
         }, type);
     }
-
-
 }

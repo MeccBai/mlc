@@ -175,4 +175,8 @@ export namespace mlc::ast::Type {
                       std::string_view contextInfo);
 
     bool IsArrayOrPointer (const sPtr<CompileType>& _type );
+
+    size_t GetSize (const sPtr<CompileType>& _type );
+
+
 } // namespace mlc::ast::Type
