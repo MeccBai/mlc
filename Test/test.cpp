@@ -25,9 +25,15 @@ int main() {
         "One", members
     );
 
-    mlc::ir::gen::IRGenerator generator;
-    auto ptr = std::make_shared<Type::StructDefinition>(one);
-    std::print("{}",generator.Struct(ptr));
+    using generator = mlc::ir::gen::IRGenerator;
+    const auto ptr = std::make_shared<Type::StructDefinition>(one);
+    std::println("{}",generator::Struct(ptr));
+
+    auto memberAccess = std::make_shared<ast::MemberAccess>(ast::MemberAccess(ptr, 0));
+
+    auto expr = std::make_shared<ast::Expression>(memberAccess);
+
+    std::println("{}",generator::ExpressionExpand(expr).code);
 
      return 0;
 }

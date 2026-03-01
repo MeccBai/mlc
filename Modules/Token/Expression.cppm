@@ -70,11 +70,11 @@ export namespace mlc::ast {
 
     class MemberAccess {
     public:
-        MemberAccess(std::shared_ptr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
+        MemberAccess(Type::sPtr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
                 std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
         }
-
-        std::shared_ptr<Type::StructDefinition> StructDef;
+        
+        Type::sPtr<Type::StructDefinition> StructDef;
         const size_t Index;
         const std::string Name;
     };

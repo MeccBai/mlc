@@ -17,22 +17,22 @@ std::vector<std::string_view> splitCaseBlocks(std::string_view str) {
     constexpr std::string_view p_case = "case ";
     constexpr std::string_view p_default = "default";
 
-    size_t first0 = str.find(p_case);
-    size_t first1 = str.find(p_default);
+    const size_t first0 = str.find(p_case);
+    const size_t first1 = str.find(p_default);
     size_t start = std::min(first0, first1);
 
     while (start != std::string_view::npos) {
         // 判定当前匹配类型
-        bool isDefault = str.substr(start).starts_with(p_default);
-        size_t keywordLen = isDefault ? p_default.length() : p_case.length();
+        const bool isDefault = str.substr(start).starts_with(p_default);
+        const size_t keywordLen = isDefault ? p_default.length() : p_case.length();
 
         // --- 核心修改：如果是 default，存入起点设为 start；如果是 case，设为 start + 5 ---
-        size_t pushStart = isDefault ? start : (start + keywordLen);
+        const size_t pushStart = isDefault ? start : (start + keywordLen);
 
         // 寻找下一个块
-        size_t nextP0 = str.find(p_case, start + keywordLen);
-        size_t nextP1 = str.find(p_default, start + keywordLen);
-        size_t next = std::min(nextP0, nextP1);
+        const size_t nextP0 = str.find(p_case, start + keywordLen);
+        const size_t nextP1 = str.find(p_default, start + keywordLen);
+        const size_t next = std::min(nextP0, nextP1);
 
         if (next == std::string_view::npos) {
             // 最后一个块
@@ -53,8 +53,8 @@ size_t caseConditionParser(const std::string_view caseBlockStr) {
 
     for (size_t i = 0; i < caseBlockStr.length(); ++i) {
         if (caseBlockStr[i] == ':') {
-            bool prevIsColon = (i > 0 && caseBlockStr[i - 1] == ':');
-            bool nextIsColon = (i + 1 < caseBlockStr.length() && caseBlockStr[i + 1] == ':');
+            const bool prevIsColon = (i > 0 && caseBlockStr[i - 1] == ':');
+            const bool nextIsColon = (i + 1 < caseBlockStr.length() && caseBlockStr[i + 1] == ':');
             if (!prevIsColon && !nextIsColon) {
                 return i;
             }

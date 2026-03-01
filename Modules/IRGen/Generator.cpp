@@ -52,8 +52,7 @@ std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variab
     std::exit(-1);
 }
 
-std::string GenClass::LocalVariable(
-                                    const sPtr<ast::VariableStatement> &_variable) {
+std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement> &_variable) {
 
     auto registerName = std::format("%{}",_variable->Name);
     auto alignSize = std::visit([](auto &&t) -> size_t {
@@ -66,7 +65,7 @@ std::string GenClass::LocalVariable(
     return std::format("{}{}{}", alloca, code, store);
 }
 
-std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType) {
+std::string gen::determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType) {
     const auto sourceSize = _sourceType->Size();
     const auto targetSize = _targetType->Size();
     auto isTypeSigned = [](const type::BaseType *type) -> bool {

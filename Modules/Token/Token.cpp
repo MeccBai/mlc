@@ -232,6 +232,13 @@ std::shared_ptr<ast::Type::CompileType> ast::Expression::GetType() const {
             return handleCompositeType(arg);
         } else if constexpr (std::is_same_v<T, EnumValue>) {
             return std::make_shared<Type::CompileType>(*(arg.EnumDef));
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<MemberAccess> >) {
+            if (arg && arg->StructDef) {
+                const auto &members = arg->StructDef->Members;
+                if (arg->Index < members.size()) {
+                    return members[arg->Index].Type;
+                }
+            }
         }
 
         return nullptr;

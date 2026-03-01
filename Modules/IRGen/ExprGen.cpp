@@ -19,9 +19,11 @@ template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
-GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression) {
+size_t GenClass::exprCnt = 0;
+
+GenClass::ExprResult GenClass::ExpressionExpand(sPtr<ast::Expression> &_expression) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
-    static size_t exprCnt = 0;
+
     std::string type = TypeToLLVM(_expression->GetType());
     if (const auto constPtr = std::get_if<ast::ConstValue>(&*_expression->Storage)) {
         return {type, constPtr->Value, ""};
@@ -32,14 +34,14 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     if (const auto varPtr = std::get_if<sPtr<ast::Variable> >(&*_expression->Storage)) {
         auto result = ExprResult{
             type, std::format("%{}", exprCnt),
-            std::format("%{} = load {}, {}* %{}", exprCnt, type, type, varPtr->get()->Name)
+            std::format("%{} = load {}, {} %{}", exprCnt, type, type, varPtr->get()->Name)
         };
         exprCnt += 1;
         return result;
     }
-    if (const auto memberPtr = std::get_if<sPtr<ast::MemberAccess> >(&*_expression->Storage)) {
+    if (const auto memberPtr = std::get_if<sPtr<ast::MemberAccess>>(&*_expression->Storage)) {
         auto structName = TypeToLLVM(std::make_shared<type::CompileType>(*memberPtr->get()->StructDef));
-        auto basePtrName = memberPtr->get()->Name;
+        auto basePtrName =  memberPtr->get()->Name;
         size_t gepReg = exprCnt++;
         size_t loadReg = exprCnt++; // 💥 修正这里：确保 loadReg 是全新的编号
         const auto gepInstr = std::format(
@@ -51,7 +53,7 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             memberPtr->get()->Index
         );
         const auto loadInstr = std::format(
-            "%{} = load {}, {}* %{}",
+            "%{} = load {}, {} %{}",
             loadReg,
             type,
             type,
@@ -65,58 +67,26 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         };
         return result;
     }
+#if 0
     if (const auto compPtr = std::get_if<sPtr<ast::CompositeExpression> >(&*_expression->Storage)) {
         auto &[operators,components,opFirst] = **compPtr;
-        if (opFirst && operators[0] == ast::BaseOperator::AddressOf) {
+        if (opFirst) {
             if (auto var = std::get_if<ast::Variable>(components[0]->Storage.get())) {
                 return ExprResult{
                     std::format("*{}", TypeToLLVM(components[0]->GetType())),
-                    std::format("%{}",var->Name), ""
+                    std::format("%{}", var->Name), ""
                 };
             }
         }
         auto expandExpr = components | std::views::transform([this](const sPtr<ast::Expression> &expr) {
             return ExpressionExpand(expr);
         }) | std::ranges::to<std::vector<ExprResult> >();
-
-
-
     }
+#endif
     if (const auto functionCallPtr = std::get_if<sPtr<ast::FunctionCall> >(&*_expression->Storage)) {
     }
+
 }
-
-std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType) {
-    const auto sourceSize = _sourceType->Size();
-    const auto targetSize = _targetType->Size();
-    auto isTypeSigned = [](const type::BaseType *type) -> bool {
-        return type->Name.starts_with('i') || type->Name.starts_with('f');
-    };
-    auto isTypeFloat = [](const type::BaseType *type) -> bool {
-        return type->Name.starts_with('f');
-    };
-    if (_sourceType->Name == _targetType->Name) return "bitcast";
-
-    const bool sourceIsFloat = isTypeFloat(_sourceType);
-    const bool targetIsFloat = isTypeFloat(_targetType);
-    if (sourceIsFloat) {
-        if (targetIsFloat) {
-            return (sourceSize < targetSize) ? "fpext" : "fptrunc";
-        }
-        return "fptosi";
-    }
-    if (targetIsFloat) {
-        return isTypeSigned(_sourceType) ? "sitofp" : "uitofp";
-    }
-    if (sourceSize < targetSize) {
-        return isTypeSigned(_sourceType) ? "sext" : "zext";
-    }
-    if (sourceSize > targetSize) {
-        return "trunc";
-    }
-    return "bitcast";
-}
-
 
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
                                             const sPtr<ast::Expression> &_expression) {
@@ -175,7 +145,7 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
     std::exit(-1);
 }
 
-std::string gen::IRGenerator::OperatorToIR(const type::BaseType *_type, const ast::BaseOperator _value) {
+std::string GenClass::OperatorToIR(const type::BaseType *_type, const ast::BaseOperator _value) {
     switch (_value) {
         // --- 算术运算 (整数) ---
         case ast::BaseOperator::Add:
@@ -279,7 +249,7 @@ std::string gen::IRGenerator::OperatorToIR(const type::BaseType *_type, const as
     }
 }
 
-std::string gen::IRGenerator::TypeToLLVM(const sPtr<type::CompileType> &_type) {
+std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
     if (const auto baseType = std::get_if<type::BaseType>(&*_type)) {
         if (baseType->Name.starts_with('i')) {
             return std::format("i{}", baseType->Size() * 8);
@@ -303,3 +273,65 @@ std::string gen::IRGenerator::TypeToLLVM(const sPtr<type::CompileType> &_type) {
     ErrorPrintln("Error: Unsupported type for LLVM IR generation.");
     std::exit(-1);
 }
+#if 0
+std::string GenClass::TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op) {
+    const auto leftResult = ExpressionExpand(_left);
+    const auto rightResult = ExpressionExpand(_right);
+    auto code = std::format("{}\n{}\n", leftResult.code, rightResult.code);
+
+    std::string llvmOp = OperatorToIR(std::get_if<type::BaseType>(&*_left->GetType()), _op);
+
+    return std::format("{} {} {}, {}", llvmOp, leftResult.llvmType, leftResult.resultVar, rightResult.resultVar);
+}
+
+GenClass::ExprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOperator _op) {
+    using op = ast::BaseOperator;
+    auto [llvmType, resultVar, code] = ExpressionExpand(_expr);
+    size_t newReg = exprCnt++;
+    switch (_op) {
+        case op::BitNot:
+        case op::Not: {
+            const auto instr = std::format(
+                "{} = xor {} {}, -1\n",
+                std::format("%{}", newReg),
+                llvmType,
+                resultVar
+            );
+            return ExprResult{
+                llvmType,
+                std::format("%{}", newReg),
+                code + instr // 包含操作数的代码 + 自己的取反指令
+            };
+        }
+        case op::AddressOf: {
+            const auto instr = std::format(
+                "{} = ptrtoint {} {} to ptr\n",
+                std::format("%{}", newReg),
+                llvmType,
+                resultVar
+            );
+            return ExprResult{
+                "ptr",
+                std::format("%{}", newReg),
+                code + instr
+            };
+        }
+        case op::Dereference: {
+            const auto instr = std::format(
+                "{} = load {}, ptr {}\n",
+                std::format("%{}", newReg),
+                llvmType,
+                resultVar
+            );
+            return ExprResult{
+                llvmType + "*",
+                std::format("%{}", newReg),
+                code + instr
+            };
+        }
+        default:
+            ErrorPrintln("Compiler Internal Error");
+            std::exit(-1);
+    }
+}
+#endif

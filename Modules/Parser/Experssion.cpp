@@ -396,10 +396,10 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
                     // 将本次访问封装进 CompositeExpression
                     currentExpr = std::make_shared<ast::Expression>(
                         std::make_shared<ast::CompositeExpression>(
-                            std::vector<sPtr<ast::Expression> >{
+                            std::vector{
                                 currentExpr, std::make_shared<ast::Expression>(memberAccess)
                             },
-                            std::vector<BaseOperator>{op}
+                            std::vector{op}
                         )
                     );
                     found = true;
