@@ -320,8 +320,8 @@ void ast::VariableStatement::InitListValidCheck() const {
     }
 }
 
-ast::FunctionDeclaration ast::FunctionScope::ToDeclaration() const {
-    return FunctionDeclaration(Name, ReturnType, Parameters, IsVarList);
+ast::Type::sPtr<ast::FunctionDeclaration> ast::FunctionScope::ToDeclaration() const {
+    return MakeFuncDecl(FunctionDeclaration(Name, ReturnType, Parameters, IsVarList));
 }
 
 size_t ast::Type::StructDefinition::Size() const {

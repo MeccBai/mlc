@@ -33,16 +33,20 @@ namespace mlc::ir::gen {
             std::string functionDecl; // 函数声明（如果需要）
             bool isVarList = false;
         };
-        struct FunctionArgs {
+
+        struct FuncArg {
             bool isCasting; //是否被转为了i64
+            bool isMemoryArg; //是否是内存参数（需要传递指针）
+            size_t size; //参数大小
             std::string llvmType;
-            std::string code;
             std::string resultVar;
         };
-        struct FunctionHeader {
+
+        struct FuncHeader {
             FuncResult funcResult;
-            std::vector<FunctionArgs> args;
+            std::vector<FuncArg> args;
         };
+
         static size_t exprCnt;
 
         static std::string Struct(const sPtr<ast::Type::StructDefinition> &_structDef);
@@ -78,8 +82,20 @@ namespace mlc::ir::gen {
 
         static FuncResult FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl);
 
-        static FunctionHeader FunctionHeader(const sPtr<ast::FunctionDeclaration> &_funcDecl);
+        static FuncHeader FunctionCall(const sPtr<ast::FunctionCall> &_funcCall,std::string_view _varName);
+
+        static ExprResult FunctionArg(FuncArg & _funcArg,size_t _index);
+
+        static void FunctionGenerate(const sPtr<ast::FunctionScope> &_func);
+
+        static FuncArg FunctionArgAnalyze(const ast::VariableStatement &_param);
     };
+
+    export
+    {
+        constexpr std::string_view llvmCopy = "@llvm.memcpy.p0.p0.i64";
+        constexpr std::string_view llvmSet = "@llvm.memset.p0.i64";
+    }
 
     std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType);
 }

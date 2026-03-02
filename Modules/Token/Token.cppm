@@ -49,6 +49,7 @@ export namespace mlc::ast {
     Type::sPtr<FunctionDeclaration> MakeFuncDecl(FunctionDeclaration &_functionDecl) {
         return std::make_shared<FunctionDeclaration>(_functionDecl);
     }
+
 }
 
 

@@ -94,5 +94,14 @@ int main() {
     std::println("{}", generator::FunctionUnit(std::make_shared<ast::FunctionDeclaration>(func2)).functionDecl);
     std::println("{}", generator::FunctionUnit(std::make_shared<ast::FunctionDeclaration>(func3)).functionDecl);
 
+    mlc::ir::gen::IRGenerator::FuncArg a {
+        true,false,8,"%struct.c","%1"
+    };
+
+    auto result = mlc::ir::gen::IRGenerator::FunctionArg(a,0);
+
+    std::println("{}", result.code);
+    std::println("{}", result.resultVar);
+
     return 0;
 }

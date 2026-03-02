@@ -162,7 +162,7 @@ export namespace mlc::ast {
         const Args Parameters;
         const std::shared_ptr<Type::CompileType> ReturnType;
 
-        [[nodiscard]] FunctionDeclaration ToDeclaration() const;
+        [[nodiscard]] Type::sPtr<FunctionDeclaration> ToDeclaration() const;
     };
 
     using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>;

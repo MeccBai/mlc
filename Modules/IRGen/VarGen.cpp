@@ -52,5 +52,5 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement> &_variabl
             store += std::format("store {}, {}* {}, align {}\n", value, TypeToLLVM(_variable->VarType), registerName,alignSize);
         }
     }
-    return std::format("{}{}{}", alloca, varCode, store);
+    return std::format("{}{}{}\n", alloca, varCode, store);
 }
