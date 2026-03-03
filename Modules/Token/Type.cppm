@@ -176,6 +176,29 @@ export namespace mlc::ast::Type {
     PointerType * GetPointerType(const std::shared_ptr<CompileType> &_type);
 
 
+    template<typename _type>
+    concept IsCompileType =requires
+    {
+        requires (
+          std::is_same_v<std::remove_cvref_t<_type>, BaseType> ||
+          std::is_same_v<std::remove_cvref_t<_type>, StructDefinition> ||
+          std::is_same_v<std::remove_cvref_t<_type>, EnumDefinition> ||
+          std::is_same_v<std::remove_cvref_t<_type>, PointerType> ||
+            std::is_same_v<std::remove_cvref_t<_type>, ArrayType>
+        );
+    };
+
+    template<IsCompileType _compileType>
+    sPtr<CompileType> MakeCompileType(_compileType && _type) {
+        return std::make_shared<CompileType>(std::forward<_compileType>(_type));
+    }
+
+
+    template<IsCompileType _compileType>
+    sPtr<CompileType> MakeCompileType(_compileType & _type) {
+        return std::make_shared<CompileType>(_type);
+    }
+
     void ValidateType(const std::shared_ptr<CompileType> &targetType,
                       const std::shared_ptr<CompileType> &actualType,
                       std::string_view contextInfo);

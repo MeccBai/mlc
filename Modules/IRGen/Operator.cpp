@@ -149,6 +149,5 @@ std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
     if (std::get_if<type::EnumDefinition>(&*_type)) {
         return "i32";
     }
-    ErrorPrintln("Error: Unsupported type for LLVM IR generation.");
-    std::exit(-1);
+    return "";
 }

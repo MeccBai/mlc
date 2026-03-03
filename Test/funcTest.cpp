@@ -11,6 +11,7 @@ import Generator;
 
 namespace ast = mlc::ast;
 namespace Type = ast::Type;
+using gen = mlc::ir::gen::IRGenerator;
 
 int main() {
     DisableOutputBuffering();
@@ -48,18 +49,18 @@ int main() {
 
         }
     );
-    ast::FunctionScope func = ast::FunctionScope(
+    auto func = ast::FunctionScope(
         *decl, {}, false
     );
 
 
-    mlc::ir::gen::IRGenerator generator;
+
     auto funcPtr = std::make_shared<ast::FunctionScope>(func);
-    auto funcStr = generator.FunctionGenerate(funcPtr);
+    auto funcStr = gen::FunctionGenerate(funcPtr);
 
     std::println("{}", funcStr);
 
-    std::println("{}",generator.FunctionDeclarationGenerate(funcPtr->ToDeclaration()));
+    std::println("{}",gen::FunctionDeclarationGenerate(funcPtr->ToDeclaration()));
 
     auto decl2 = std::make_shared<ast::FunctionDeclaration>(
         "func2",
@@ -71,12 +72,12 @@ int main() {
         decl2, argsExpr
     ));
 
-    auto result = generator.FunctionCall(
+    auto result = gen::FunctionCall(
         functionCall
     );
 
     std::println("{}", result.callCode);
     auto callCode = result.callCode;
     auto varName = std::string("var");
-    std::println("{}",std::vformat(callCode,std::make_format_args(varName)));
+    std::println("{}",result.GetCallCode(varName));
 }

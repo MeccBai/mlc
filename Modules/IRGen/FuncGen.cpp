@@ -19,7 +19,7 @@ template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
-GenClass::FuncResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl) {
+GenClass::funcResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl) {
     bool isCopyResult = false;
     auto funcName = std::format("@{}", _funcDecl->Name);
     auto llvmRetType = TypeToLLVM(_funcDecl->ReturnType);
@@ -63,7 +63,7 @@ std::string GenClass::FunctionDeclarationGenerate(const sPtr<ast::FunctionDeclar
     return std::format("declare {}\n", funcResult.functionDecl);
 }
 
-GenClass::FuncCall GenClass::FunctionCall(
+GenClass::funcCall GenClass::FunctionCall(
     const sPtr<ast::FunctionCall> &_funcCall) { // 不再传入 _varName
     auto args = _funcCall->Arguments | std::views::transform([](const auto &arg) {
         return ExpressionExpand(arg);
@@ -95,7 +95,7 @@ GenClass::FuncCall GenClass::FunctionCall(
     return {isCopyResult, llvmRetType,"",preCode + callLine};
 }
 
-GenClass::ExprResult GenClass::FunctionArg(FuncArg &_funcArg, size_t _index) {
+GenClass::exprResult GenClass::FunctionArg(funcArg &_funcArg, size_t _index) {
     auto argName = "%" + std::to_string(_index); // %0, %1...
     auto currentType = _funcArg.llvmType;
     auto originalType = _funcArg.originalType;
@@ -110,7 +110,7 @@ GenClass::ExprResult GenClass::FunctionArg(FuncArg &_funcArg, size_t _index) {
         auto localStackVar = std::string(resultVar);
         code += std::format("%{} = alloca {}, align {}\n", localStackVar, originalType, _funcArg.size);
         size_t typeSize = _funcArg.size;
-        code += std::format("call void @llvm.memcpy.p0.i64(ptr align 8 %{}, ptr align 8 {}, i64 {}, i1 false)\n",
+        code += std::format("call void @{}(ptr align 8 %{}, ptr align 8 {}, i64 {}, i1 false)\n",llvmCopy,
                             localStackVar, argName, typeSize);
         resultType = "ptr";
     } else {
@@ -124,11 +124,11 @@ GenClass::ExprResult GenClass::FunctionArg(FuncArg &_funcArg, size_t _index) {
 
 std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
     const auto decl = _func->ToDeclaration();
-    std::vector<FuncArg> args;
+    std::vector<funcArg> args;
     auto funcResult = FunctionUnit(decl);
     const size_t bit = funcResult.isCopyResult ? 1 : 0;
     if (bit) {
-        args.emplace_back(FuncArg{false, true, type::GetSize(decl->ReturnType), "ptr", "0"});
+        args.emplace_back(funcArg{false, true, type::GetSize(decl->ReturnType), "ptr", "0"});
     }
     args.reserve(decl->Parameters.size());
     for (auto &i: decl->Parameters) {
@@ -139,7 +139,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
              std::views::iota(0ul, args.size()),
              args);
          auto [index,arg]: span | std::views::drop(bit)) {
-        auto [resultType, resultVar, argCode,_] = FunctionArg(arg, index);
+        auto [type, resultVar, argCode,_] = FunctionArg(arg, index);
         code += argCode;
     }
     for (auto &stmt : _func->Statements) {
@@ -148,7 +148,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
     return std::format("define {} {{ \n{} \n}}",funcResult.functionDecl,code);
 }
 
-GenClass::FuncArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {
+GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {
     const auto paramType = _param.VarType;
     auto llvmType = TypeToLLVM(paramType);
     auto originalType = llvmType;

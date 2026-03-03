@@ -70,8 +70,9 @@ export namespace mlc::ast {
     class MemberAccess {
     public:
         MemberAccess(Type::sPtr<Type::StructDefinition> _structDef, const size_t _index) : StructDef(
-                std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
+            std::move(_structDef)), Index(_index), Name(StructDef->Members[Index].Name) {
         }
+
         const Type::sPtr<Type::StructDefinition> StructDef;
         const size_t Index;
         const std::string Name;
@@ -118,39 +119,39 @@ export namespace mlc::ast {
 
         Type::sPtr<Data> Storage;
 
-        [[nodiscard]] ConstValue*  GetConstValue() const {
+        [[nodiscard]] ConstValue *GetConstValue() const {
             if (!Storage) return nullptr;
             return std::get_if<ConstValue>(&*Storage);
         }
 
-        [[nodiscard]] EnumValue*  GetEnumValue() const {
+        [[nodiscard]] EnumValue *GetEnumValue() const {
             if (!Storage) return nullptr;
             return std::get_if<EnumValue>(&*Storage);
         }
 
-        [[nodiscard]] Type::sPtr<Variable>* GetVariable() const {
+        [[nodiscard]] Type::sPtr<Variable> *GetVariable() const {
             if (!Storage) return nullptr;
             return std::get_if<Type::sPtr<Variable> >(&*Storage);
         }
 
-         [[nodiscard]] Type::sPtr<FunctionCall>* GetFunctionCall() const {
+        [[nodiscard]] Type::sPtr<FunctionCall> *GetFunctionCall() const {
             if (!Storage) return nullptr;
             return std::get_if<Type::sPtr<FunctionCall> >(&*Storage);
         }
 
-         [[nodiscard]] Type::sPtr<CompositeExpression>* GetCompositeExpression() const {
+        [[nodiscard]] Type::sPtr<CompositeExpression> *GetCompositeExpression() const {
             if (!Storage) return nullptr;
             return std::get_if<Type::sPtr<CompositeExpression> >(&*Storage);
         }
 
-         [[nodiscard]] Type::sPtr<MemberAccess>* GetMemberAccess() const {
+        [[nodiscard]] Type::sPtr<MemberAccess> *GetMemberAccess() const {
             if (!Storage) return nullptr;
             return std::get_if<Type::sPtr<MemberAccess> >(&*Storage);
         }
 
-         [[nodiscard]] Type::sPtr<InitializerList> GetInitializerList() const {
+        [[nodiscard]] Type::sPtr<InitializerList> GetInitializerList() const {
             if (!Storage) return nullptr;
-            return* std::get_if<Type::sPtr<InitializerList> >(&*Storage);
+            return *std::get_if<Type::sPtr<InitializerList> >(&*Storage);
         }
 
 
@@ -239,34 +240,44 @@ export namespace mlc::ast {
         {BaseOperator::Or, 12},
     };
 
-    template <typename _type>
-    concept isExpression = requires {
+    template<typename _type>
+    concept isExpression = requires
+    {
         requires (
             std::is_same_v<std::remove_cvref_t<_type>, ConstValue> ||
             std::is_same_v<std::remove_cvref_t<_type>, EnumValue> ||
-            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<Variable>> ||
-            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<FunctionCall>> ||
-            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<CompositeExpression>> ||
-            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<MemberAccess>> ||
-            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<InitializerList>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<Variable> > ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<FunctionCall> > ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<CompositeExpression> > ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<MemberAccess> > ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<InitializerList> > ||
             std::is_same_v<std::remove_cvref_t<_type>, Expression> // 允许 Expression 对象的拷贝/移动
         );
     };
+
     template<isExpression _type>
     [[nodiscard]] Type::sPtr<Expression> MakeExpression(_type &&_val) {
         return std::make_shared<Expression>(std::forward<_type>(_val));
     }
 
     Type::sPtr<CompositeExpression> MakeCompExpr(std::vector<Type::sPtr<Expression> > &&_components,
-                                                  std::vector<BaseOperator> &&_operators,
-                                                  const bool _isOperatorFirst = false) {
+                                                 std::vector<BaseOperator> &&_operators,
+                                                 const bool _isOperatorFirst = false) {
         return std::make_shared<CompositeExpression>(std::move(_components), std::move(_operators),
                                                      _isOperatorFirst);
     }
 
     Type::sPtr<CompositeExpression> MakeCompExpr(std::vector<Type::sPtr<Expression> > &_components,
-                                                  std::vector<BaseOperator> &_operators,
-                                                  const bool _isOperatorFirst = false) {
+                                                 std::vector<BaseOperator> &_operators,
+                                                 const bool _isOperatorFirst = false) {
         return std::make_shared<CompositeExpression>(_components, _operators, _isOperatorFirst);
+    }
+
+    Type::sPtr<InitializerList> MakeInitializerList(std::vector<Type::sPtr<Expression> > &&_values) {
+        return std::make_shared<InitializerList>(std::move(_values));
+    }
+
+    Type::sPtr<InitializerList> MakeInitializerList(std::vector<Type::sPtr<Expression> > &_values) {
+        return std::make_shared<InitializerList>(_values);
     }
 }

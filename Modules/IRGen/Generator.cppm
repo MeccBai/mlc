@@ -18,14 +18,14 @@ namespace mlc::ir::gen {
 
         using expr = sPtr<ast::Expression>;
 
-        struct ExprResult {
+        struct exprResult {
             std::string llvmType; // 比如 "i32", "ptr", "float"
             std::string resultVar; // 比如 "%1", "10", "@global_var"
             std::string code; // 比如 "  %1 = add i32 2, 3\n"
             bool isCopyResult = false; // 是否需要通过内存访问来获取结果（比如结构体成员访问）
         };
 
-        struct FuncResult {
+        struct funcResult {
             bool isCopyResult; // 是否需要调用 llvm.memcpy 来复制返回值
             std::string llvmType; // 返回值的 LLVM 类型
             std::string resultVar; // 返回值所在的变量（可能是寄存器或者全局变量）
@@ -35,7 +35,7 @@ namespace mlc::ir::gen {
             bool isVarList = false;
         };
 
-        struct FuncArg {
+        struct funcArg {
             bool isCasting; //是否被转为了i64
             bool isMemoryArg; //是否是内存参数（需要传递指针）
             size_t size; //参数大小
@@ -44,21 +44,27 @@ namespace mlc::ir::gen {
             std::string resultVar;
         };
 
-        struct FuncHeader {
-            FuncResult funcResult;
-            std::vector<FuncArg> args;
+        struct funcHeader {
+            funcResult funcResult;
+            std::vector<funcArg> args;
         };
 
-        struct FuncCall {
+        struct funcCall {
             bool isCopyResult; // 是否需要调用 llvm.memcpy 来复制返回值
             std::string llvmType; // 返回值的 LLVM 类型
             std::string resultVar; // 返回值所在的变量（可能是寄存器或者全局变量）
             std::string callCode; // 返回值的 LLVM 类型
+            [[nodiscard]] std::string GetCallCode(const std::string &resultVarName) const {
+                if (isCopyResult) {
+                    return std::vformat(callCode, std::make_format_args(resultVarName));
+                }
+                return callCode;
+            }
         };
 
         static size_t exprCnt;
-
         static std::string globalCode;
+        static size_t listCnt;
 
         static std::string Struct(const sPtr<ast::Type::StructDefinition> &_structDef);
 
@@ -66,7 +72,8 @@ namespace mlc::ir::gen {
 
         static std::string LocalVariable(const sPtr<ast::VariableStatement> &_variable);
 
-        static ExprResult ExpressionExpand(const sPtr<ast::Expression> &_expression);
+        static exprResult ExpressionExpand(const sPtr<ast::Expression> &_expression,
+                                           const sPtr<type::CompileType> &_type = nullptr);
 
         static std::string ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
                                                  const sPtr<ast::Expression> &_expression);
@@ -77,35 +84,39 @@ namespace mlc::ir::gen {
 
         static std::string TypeToLLVM(const sPtr<type::CompileType> &_type);
 
-        static ExprResult TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op);
+        static exprResult TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op);
 
-        static ExprResult TripleExpression(const ExprResult &_left, const ExprResult &_right, ast::BaseOperator _op);
+        static exprResult TripleExpression(const exprResult &_left, const exprResult &_right, ast::BaseOperator _op);
 
-        static ExprResult BinaryExpression(const expr &_expr, ast::BaseOperator _op);
+        static exprResult BinaryExpression(const expr &_expr, ast::BaseOperator _op);
 
-        static ExprResult GradientExpression(const std::vector<ExprResult> &_expr,
+        static exprResult GradientExpression(const std::vector<exprResult> &_expr,
                                              const std::vector<ast::BaseOperator> &_ops);
 
-        static ExprResult MemberAccessExpression(const expr &_base);
+        static exprResult MemberAccessExpression(const expr &_base);
 
-        static ExprResult MemberAccessBinary(const type::CompileType *_type, const ExprResult &_parent,
+        static exprResult MemberAccessBinary(const type::CompileType *_type, const exprResult &_parent,
                                              const expr &_child, ast::BaseOperator _op);
 
-        static FuncResult FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl);
+        static funcResult FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl);
 
         static std::string FunctionDeclarationGenerate(const sPtr<ast::FunctionDeclaration> &_funcDecl);
 
-        static FuncCall FunctionCall(const sPtr<ast::FunctionCall> &_funcCall);
+        static funcCall FunctionCall(const sPtr<ast::FunctionCall> &_funcCall);
 
-        static ExprResult FunctionArg(FuncArg & _funcArg,size_t _index);
+        static exprResult FunctionArg(funcArg &_funcArg, size_t _index);
 
         static std::string FunctionGenerate(const sPtr<ast::FunctionScope> &_func);
 
-        static FuncArg FunctionArgAnalyze(const ast::VariableStatement &_param);
+        static funcArg FunctionArgAnalyze(const ast::VariableStatement &_param);
 
-        static std::string StatementGenerate(const sPtr<ast::Statement> &_stmt,const sPtr<ast::FunctionDeclaration>& _decl);
+        static std::string StatementGenerate(const sPtr<ast::Statement> &_stmt,
+                                             const sPtr<ast::FunctionDeclaration> &_decl);
 
-        ExprResult InitializerListExpression(const sPtr<ast::InitializerList> &_initList);
+        static exprResult InitializerListExpression(const sPtr<ast::InitializerList> &_initList,
+                                                    const sPtr<type::CompileType> &_type);
+
+        static std::string ConstInitializerListExpression(const sPtr<ast::InitializerList> &_initList,const sPtr<type::CompileType> &_type);
     };
 
     export

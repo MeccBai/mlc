@@ -94,7 +94,7 @@ int main() {
     std::println("{}", generator::FunctionUnit(std::make_shared<ast::FunctionDeclaration>(func2)).functionDecl);
     std::println("{}", generator::FunctionUnit(std::make_shared<ast::FunctionDeclaration>(func3)).functionDecl);
 
-    mlc::ir::gen::IRGenerator::FuncArg a {
+    mlc::ir::gen::IRGenerator::funcArg a {
         true,false,8,"%struct.c","%1"
     };
 

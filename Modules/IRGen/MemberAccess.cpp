@@ -19,7 +19,7 @@ template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
-GenClass::ExprResult GenClass::MemberAccessExpression(const expr &_base) {
+GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base) {
     const auto composite = _base->GetCompositeExpression();
     if (!composite) {
         ErrorPrintln("Error: Invalid member access expression.\n");
@@ -27,7 +27,7 @@ GenClass::ExprResult GenClass::MemberAccessExpression(const expr &_base) {
     }
 
     // 1. 📢 解析第一个元素
-    ExprResult currentResult = ExpressionExpand((*composite)->Components[0]);
+    exprResult currentResult = ExpressionExpand((*composite)->Components[0]);
     // 💡 获取第一个元素的类型作为初始化类型
     const type::CompileType* currentType = (*composite)->Components[0]->GetType().get();
 
@@ -42,7 +42,7 @@ GenClass::ExprResult GenClass::MemberAccessExpression(const expr &_base) {
     return currentResult;
 }
 
-GenClass::ExprResult GenClass::MemberAccessBinary(const type::CompileType * _type, const ExprResult &_parent, const expr &_child, ast::BaseOperator _op) {
+GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType * _type, const exprResult &_parent, const expr &_child, ast::BaseOperator _op) {
 
     // 💡 处理数组索引的情况：a[i]
     if (const auto arrayType = std::get_if<type::ArrayType>(_type)) {
@@ -59,7 +59,7 @@ GenClass::ExprResult GenClass::MemberAccessBinary(const type::CompileType * _typ
             indexResult.resultVar  // 动态索引
         );
 
-        return ExprResult{
+        return exprResult{
             TypeToLLVM(arrayType->BaseType), // 💡 返回的是元素类型！
             gepReg,
             _parent.code + indexResult.code + gepInstr
@@ -84,7 +84,7 @@ GenClass::ExprResult GenClass::MemberAccessBinary(const type::CompileType * _typ
             _parent.resultVar, // 结构体地址
             memberAccess->Index      // 编译期常量索引
         );
-        return ExprResult{
+        return exprResult{
             TypeToLLVM(memberAccess->GetType()), // 💡 返回的是成员类型！
             gepReg,
             _parent.code + gepInstr
