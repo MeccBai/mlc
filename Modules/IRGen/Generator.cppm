@@ -22,6 +22,7 @@ namespace mlc::ir::gen {
             std::string llvmType; // 比如 "i32", "ptr", "float"
             std::string resultVar; // 比如 "%1", "10", "@global_var"
             std::string code; // 比如 "  %1 = add i32 2, 3\n"
+            bool isCopyResult = false; // 是否需要通过内存访问来获取结果（比如结构体成员访问）
         };
 
         struct FuncResult {
@@ -39,12 +40,20 @@ namespace mlc::ir::gen {
             bool isMemoryArg; //是否是内存参数（需要传递指针）
             size_t size; //参数大小
             std::string llvmType;
+            std::string originalType; //原始类型（用于生成 memcpy 代码）
             std::string resultVar;
         };
 
         struct FuncHeader {
             FuncResult funcResult;
             std::vector<FuncArg> args;
+        };
+
+        struct FuncCall {
+            bool isCopyResult; // 是否需要调用 llvm.memcpy 来复制返回值
+            std::string llvmType; // 返回值的 LLVM 类型
+            std::string resultVar; // 返回值所在的变量（可能是寄存器或者全局变量）
+            std::string callCode; // 返回值的 LLVM 类型
         };
 
         static size_t exprCnt;
@@ -82,13 +91,17 @@ namespace mlc::ir::gen {
 
         static FuncResult FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl);
 
-        static FuncHeader FunctionCall(const sPtr<ast::FunctionCall> &_funcCall,std::string_view _varName);
+        static std::string FunctionDeclarationGenerate(const sPtr<ast::FunctionDeclaration> &_funcDecl);
+
+        static FuncCall FunctionCall(const sPtr<ast::FunctionCall> &_funcCall);
 
         static ExprResult FunctionArg(FuncArg & _funcArg,size_t _index);
 
-        static void FunctionGenerate(const sPtr<ast::FunctionScope> &_func);
+        static std::string FunctionGenerate(const sPtr<ast::FunctionScope> &_func);
 
         static FuncArg FunctionArgAnalyze(const ast::VariableStatement &_param);
+
+        static std::string StatementGenerate(const sPtr<ast::Statement> &_stmt,const sPtr<ast::FunctionDeclaration>& _decl);
     };
 
     export

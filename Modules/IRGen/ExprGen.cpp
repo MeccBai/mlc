@@ -24,7 +24,7 @@ size_t GenClass::exprCnt = 0;
 
 GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
-    std::string type = TypeToLLVM(_expression->GetType());
+    const auto type = TypeToLLVM(_expression->GetType());
     if (const auto constPtr = _expression->GetConstValue()) {
         return {type, constPtr->Value, ""};
     }
@@ -33,7 +33,7 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     }
     if (const auto varPtr = _expression->GetVariable()) {
         auto result = ExprResult{
-            type, std::format("%{}",(*varPtr)->Name), ""
+            type, std::format("%{}", (*varPtr)->Name), ""
         };
         exprCnt += 1;
         return result;
@@ -61,6 +61,24 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     }
 
     if (const auto functionCallPtr = _expression->GetFunctionCall()) {
+        const auto funcCall = FunctionCall(*functionCallPtr);
+        if (funcCall.isCopyResult) {
+            return ExprResult {
+                funcCall.llvmType,
+                funcCall.resultVar,
+                funcCall.callCode,
+                funcCall.isCopyResult
+            };
+        }
+        auto resultVar = std::format("%{}", exprCnt++);
+        return ExprResult{
+            funcCall.llvmType,
+            funcCall.resultVar,
+            std::format("%{} = {}",resultVar, funcCall.callCode)
+        };
+    }
+    if (const auto initListPtr = _expression->GetInitializerList()) {
+
     }
 }
 
@@ -156,7 +174,7 @@ GenClass::ExprResult GenClass::TripleExpression(const ExprResult &_left, const E
 
 GenClass::ExprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOperator _op) {
     using op = ast::BaseOperator;
-    auto [llvmType, resultVar, code] = ExpressionExpand(_expr);
+    auto [llvmType, resultVar, code,_] = ExpressionExpand(_expr);
     size_t newReg = exprCnt++;
     switch (_op) {
         case op::BitNot:
@@ -228,4 +246,3 @@ GenClass::ExprResult GenClass::GradientExpression(const std::vector<ExprResult> 
 
     return workingExpr[0];
 }
-

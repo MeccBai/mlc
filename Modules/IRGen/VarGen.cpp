@@ -40,7 +40,7 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement> &_variabl
     std::string varCode;
     if (_variable->Initializer) {
         if (_variable->Initializer->GetVariable()) {
-            const auto [llvmType, resultVar, code] = ExpressionExpand(_variable->Initializer);
+            const auto [llvmType, resultVar, code,isCopyResult] = ExpressionExpand(_variable->Initializer);
             varCode = code;
             auto tempRegister = std::format("%{}", exprCnt++);
             auto load = std::format("{} = load {}, {}* {}, align {}\n", tempRegister,llvmType, TypeToLLVM(_variable->VarType),resultVar ,alignSize);
