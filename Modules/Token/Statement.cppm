@@ -38,7 +38,6 @@ export namespace mlc::ast {
         DefaultBlock,
         AnonymousBlock,
     };
-
 } // namespace mlc::ast
 
 export namespace mlc::ast {
@@ -65,7 +64,6 @@ export namespace mlc::ast {
                                    std::shared_ptr<Expression> _initializer = nullptr)
             : Name(_name), VarType(_varType), Initializer(std::move(_initializer)) {
             InitListValidCheck();
-
         }
 
         const std::string Name;
@@ -106,11 +104,13 @@ export namespace mlc::ast {
 
         explicit FunctionDeclaration(std::string _name, const std::shared_ptr<Type::CompileType> &_returnType,
                                      Args _args, const bool _isVarList = false,
-                                     const bool _isExported = false,const bool _isTypeConvert = false) : IsVarList(_isVarList),
-                                                                       Name(std::move(_name)),
-                                                                       Parameters(std::move(_args)),
-                                                                       ReturnType(_returnType),
-                                                                       IsExported(_isExported),IsTypeConvert(_isTypeConvert) {
+                                     const bool _isExported = false,
+                                     const bool _isTypeConvert = false) : IsVarList(_isVarList),
+                                                                          Name(std::move(_name)),
+                                                                          Parameters(std::move(_args)),
+                                                                          ReturnType(_returnType),
+                                                                          IsExported(_isExported),
+                                                                          IsTypeConvert(_isTypeConvert) {
             if (!_isTypeConvert) {
                 Type::IsValidName(Name);
                 std::ranges::for_each(Parameters, [](const auto &param) {
@@ -138,7 +138,8 @@ export namespace mlc::ast {
                                                         IsExported(_isExported),
                                                         Name(std::move(_name)),
                                                         Statements(std::move(_statements)),
-                                                        Parameters(std::move(_args)), ReturnType(std::move(_returnType)) {
+                                                        Parameters(std::move(_args)),
+                                                        ReturnType(std::move(_returnType)) {
             Type::IsValidName(Name);
             std::ranges::for_each(Parameters, [](const auto &param) {
                 Type::IsValidName(param->Name);
@@ -152,7 +153,6 @@ export namespace mlc::ast {
               Name(_functionDeclaration.Name),
               Statements(std::move(_statements)),
               Parameters(_functionDeclaration.Parameters), ReturnType(_functionDeclaration.ReturnType) {
-
         }
 
         const bool IsVarList;
@@ -164,6 +164,14 @@ export namespace mlc::ast {
 
         [[nodiscard]] Type::sPtr<FunctionDeclaration> ToDeclaration() const;
     };
+
+    SubScope *GeSubScope(Statement *_stmt);
+    AssignStatement *GetAssignStatement(Statement *_stmt);
+    VariableStatement *GetVariableStatement(Statement *_stmt);
+    ReturnStatement *GetReturnStatement(Statement *_stmt);
+    FunctionCallStatement *GetFunctionCallStatement(Statement *_stmt);
+    ContinueStatement *GetContinueStatement(Statement *_stmt);
+    BreakStatement *GetBreakStatement(Statement *_stmt);
 
     using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>;
 } // namespace mlc::ast

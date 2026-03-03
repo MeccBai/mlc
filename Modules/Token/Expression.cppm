@@ -53,7 +53,6 @@ export namespace mlc::ast {
     class AssignStatement;
     class VariableStatement;
     class ReturnStatement;
-    class SwitchCaseScope;
 
     class BreakStatement {
     };
@@ -239,4 +238,35 @@ export namespace mlc::ast {
         {BaseOperator::And, 11},
         {BaseOperator::Or, 12},
     };
+
+    template <typename _type>
+    concept isExpression = requires {
+        requires (
+            std::is_same_v<std::remove_cvref_t<_type>, ConstValue> ||
+            std::is_same_v<std::remove_cvref_t<_type>, EnumValue> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<Variable>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<FunctionCall>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<CompositeExpression>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<MemberAccess>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Type::sPtr<InitializerList>> ||
+            std::is_same_v<std::remove_cvref_t<_type>, Expression> // 允许 Expression 对象的拷贝/移动
+        );
+    };
+    template<isExpression _type>
+    [[nodiscard]] Type::sPtr<Expression> MakeExpression(_type &&_val) {
+        return std::make_shared<Expression>(std::forward<_type>(_val));
+    }
+
+    Type::sPtr<CompositeExpression> MakeCompExpr(std::vector<Type::sPtr<Expression> > &&_components,
+                                                  std::vector<BaseOperator> &&_operators,
+                                                  const bool _isOperatorFirst = false) {
+        return std::make_shared<CompositeExpression>(std::move(_components), std::move(_operators),
+                                                     _isOperatorFirst);
+    }
+
+    Type::sPtr<CompositeExpression> MakeCompExpr(std::vector<Type::sPtr<Expression> > &_components,
+                                                  std::vector<BaseOperator> &_operators,
+                                                  const bool _isOperatorFirst = false) {
+        return std::make_shared<CompositeExpression>(_components, _operators, _isOperatorFirst);
+    }
 }

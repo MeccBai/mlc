@@ -20,7 +20,6 @@ using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
 
-
 std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variable) {
     if (const auto initExpr = _variable->Initializer; initExpr != nullptr && ConstExpressionCheck(initExpr)) {
         auto value = ConstExpressionExpand(_variable->VarType, initExpr);

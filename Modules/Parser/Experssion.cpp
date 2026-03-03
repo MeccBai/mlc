@@ -23,7 +23,6 @@ bool isOpChar(const char c) {
 }
 
 
-
 ast::BaseOperator toBaseOperator(const std::string_view _token) {
     if (ast::BaseOperators.contains(_token)) {
         return ast::BaseOperators.at(_token);
@@ -372,15 +371,11 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
             for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
                 if (structDef->Members[idx].Name == memberName) {
                     // 更新 currentExpr 为新的 MemberAccess 节点
-                    auto structPtr = std::make_shared<ast::Type::StructDefinition>(*structDef);
-                    auto memberAccess = std::make_shared<ast::MemberAccess>(structPtr, idx);
-
+                    auto structPtr = ast::MakeStructDef(*structDef);
+                    auto memberAccess = ast::MakeMemberAccess(ast::MemberAccess(structPtr, idx));
                     // 将本次访问封装进 CompositeExpression
-                    currentExpr = std::make_shared<ast::Expression>(
-                        std::make_shared<ast::CompositeExpression>(
-                            std::vector{
-                                currentExpr, std::make_shared<ast::Expression>(memberAccess)
-                            },
+                    currentExpr = MakeExpression(MakeCompExpr(
+                            std::vector{currentExpr, MakeExpression(memberAccess)},
                             std::vector{op}
                         )
                     );
@@ -389,7 +384,6 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
                 }
             }
         }
-
         if (!found) {
             ErrorPrintln("Type '{}' has no member named '{}'", GetTypeName(*currentType), memberName);
             std::exit(-1);
@@ -413,8 +407,8 @@ sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::Variable
         ErrorPrintln("Subscript operator '[]' requires an integer index.");
         std::exit(-1);
     }
-    return std::make_shared<ast::Expression>(
-        std::make_shared<ast::CompositeExpression>(
+    return ast::MakeExpression(
+        ast::MakeCompExpr(
             std::vector{leftExpr, indexExpr},
             std::vector{op}
         )
@@ -463,10 +457,10 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
             ErrorPrintln("Address-of operator '@' must be followed by exactly one operand.");
             std::exit(-1);
         }
-        return std::make_shared<ast::Expression>(ast::Expression(std::make_shared<ast::CompositeExpression>(
+        return ast::MakeExpression(ast::MakeCompExpr(
             std::vector{expressionTreeParser(_context, fragments[1])},
             std::vector{op}
-        )));
+        ));
     }
 
     // --- 4. 递归构建 CompositeExpression ---
@@ -480,8 +474,7 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
     if (leftPart.empty()) {
         // 关键：不能直接返回右边，得给它套个“单目”的壳子！
-        return std::make_shared<ast::Expression>(
-            std::make_shared<ast::CompositeExpression>(
+        return ast::MakeExpression(ast::MakeCompExpr(
                 std::vector{expressionTreeParser(_context, rightTree)},
                 std::vector{op}
             )
@@ -492,11 +485,8 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
     const auto rightExpr = expressionTreeParser(_context, rightTree);
     type::ValidateType(leftExpr->GetType(), rightExpr->GetType(), "Binary operator type mismatch");
 
-    return std::make_shared<ast::Expression>(
-        std::make_shared<ast::CompositeExpression>(
-            std::vector{
-                leftExpr, rightExpr
-            },
+    return ast::MakeExpression(ast::MakeCompExpr(
+            std::vector{leftExpr, rightExpr},
             std::vector{op}
         )
     );

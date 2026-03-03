@@ -25,7 +25,7 @@ std::string GenClass::OperatorToIR(const type::BaseType *_type, const ast::BaseO
     return OperatorToIR(llvmType, _value);
 }
 
-std::string GenClass::OperatorToIR(const std::string_view _llvmType, ast::BaseOperator _value) {
+std::string GenClass::OperatorToIR(const std::string_view _llvmType, const ast::BaseOperator _value) {
     switch (_value) {
         case ast::BaseOperator::Add:
             if (_llvmType.starts_with('f')) {

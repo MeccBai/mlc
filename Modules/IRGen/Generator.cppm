@@ -58,6 +58,8 @@ namespace mlc::ir::gen {
 
         static size_t exprCnt;
 
+        static std::string globalCode;
+
         static std::string Struct(const sPtr<ast::Type::StructDefinition> &_structDef);
 
         static std::string GlobalVariable(const sPtr<ast::VariableStatement> &_variable);
@@ -102,6 +104,8 @@ namespace mlc::ir::gen {
         static FuncArg FunctionArgAnalyze(const ast::VariableStatement &_param);
 
         static std::string StatementGenerate(const sPtr<ast::Statement> &_stmt,const sPtr<ast::FunctionDeclaration>& _decl);
+
+        ExprResult InitializerListExpression(const sPtr<ast::InitializerList> &_initList);
     };
 
     export

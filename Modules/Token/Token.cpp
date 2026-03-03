@@ -15,7 +15,6 @@ namespace ast = mlc::ast;
 
 ast::Expression::~Expression() = default;
 
-
 std::string baseOperator(ast::BaseOperator _op) {
     for (const auto &[token, op]: ast::BaseOperators) {
         if (op == _op) return std::string(token);
@@ -23,14 +22,6 @@ std::string baseOperator(ast::BaseOperator _op) {
     return "UnknownOperator";
 }
 
-
-std::string ast::Type::ArrayType::GetTypeName() const {
-    std::string baseName = std::visit([](auto &&arg) -> std::string {
-        // 这里调用各类型的 GetTypeName()
-        return arg.Name;
-    }, *BaseType);
-    return std::format("{}[{}]", baseName, Length);
-}
 
 std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     if (Value.empty()) {
@@ -320,10 +311,6 @@ void ast::VariableStatement::InitListValidCheck() const {
     }
 }
 
-ast::Type::sPtr<ast::FunctionDeclaration> ast::FunctionScope::ToDeclaration() const {
-    return MakeFuncDecl(FunctionDeclaration(Name, ReturnType, Parameters, IsVarList));
-}
-
 size_t ast::Type::StructDefinition::Size() const {
     size_t currentOffset = 0;
     size_t maxAlign = 1;
@@ -342,3 +329,4 @@ size_t ast::Type::ArrayType::Size() const {
     const size_t baseSize = std::visit([](auto &&t) { return t.Size(); }, *BaseType);
     return baseSize * Length;
 }
+

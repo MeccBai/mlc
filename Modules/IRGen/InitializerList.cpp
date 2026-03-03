@@ -19,8 +19,9 @@ template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
 
-std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
-                                        const sPtr<ast::FunctionDeclaration> &_decl) {
-    return "\n";
-}
 
+std::string GenClass::globalCode = "";
+
+GenClass::ExprResult GenClass::InitializerListExpression(const sPtr<ast::InitializerList> &_initList) {
+
+}

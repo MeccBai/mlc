@@ -88,8 +88,6 @@ std::vector<type::StructDefinition> astClass::structDefParser(
         structs.emplace_back(std::string(structName), members);
     }
 
-
-
     for (const auto& ptrs : lazyPointerTypes) {
         for (const auto &[ptr, name] : ptrs) {
             auto typePtr = findType(name);

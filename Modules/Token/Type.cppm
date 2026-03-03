@@ -169,6 +169,12 @@ export namespace mlc::ast::Type {
         }
     };
 
+    ArrayType * GetArrayType(const std::shared_ptr<CompileType> &_type);
+    BaseType * GetBaseType(const std::shared_ptr<CompileType> &_type);
+    StructDefinition * GetStructDef(const std::shared_ptr<CompileType> &_type);
+    EnumDefinition * GetEnumDef(const std::shared_ptr<CompileType> &_type);
+    PointerType * GetPointerType(const std::shared_ptr<CompileType> &_type);
+
 
     void ValidateType(const std::shared_ptr<CompileType> &targetType,
                       const std::shared_ptr<CompileType> &actualType,

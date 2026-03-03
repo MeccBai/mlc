@@ -35,7 +35,6 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         auto result = ExprResult{
             type, std::format("%{}", (*varPtr)->Name), ""
         };
-        exprCnt += 1;
         return result;
     }
     if (const auto compPtr = _expression->GetCompositeExpression()) {
@@ -55,31 +54,57 @@ GenClass::ExprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
                 };
             }
         }
-        auto expandExpr = components | std::views::transform([](const sPtr<ast::Expression> &expr) {
-            return ExpressionExpand(expr);
+        std::string currentCode;
+        auto workingExpr = components | std::views::transform([&](const sPtr<ast::Expression> &expr) {
+            auto res = ExpressionExpand(expr);
+            currentCode += res.code;
+            return res;
         }) | std::ranges::to<std::vector<ExprResult> >();
+        std::vector<ast::BaseOperator> workingOps = operators;
+        for (size_t priority = 1; priority <= 12; ++priority) {
+            for (size_t i = 0; i < workingOps.size(); ) {
+                if (ast::OperatorPriority.at(workingOps[i]) == priority) {
+                    const auto& left = workingExpr[i];
+                    const auto& right = workingExpr[i + 1];
+                    const auto op = workingOps[i];
+                    std::string targetReg = std::format("%{}", exprCnt++);
+                    std::string opName = ast::BaseIROperators.at(op); // 比如 "add", "mul"
+                    currentCode += std::format("{} = {} {} {}, {}\n",
+                                              targetReg, opName, left.llvmType,
+                                              left.resultVar, right.resultVar);
+                    ExprResult combined = { left.llvmType, targetReg, "" }; // code 已记录在 currentCode
+                    workingExpr[i] = combined;
+                    workingExpr.erase(workingExpr.begin() + i + 1);
+                    workingOps.erase(workingOps.begin() + i);
+                } else {
+                    ++i;
+                }
+            }
+        }
+        return { workingExpr[0].llvmType, workingExpr[0].resultVar, currentCode };
     }
 
     if (const auto functionCallPtr = _expression->GetFunctionCall()) {
-        const auto funcCall = FunctionCall(*functionCallPtr);
-        if (funcCall.isCopyResult) {
+        const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
+        if (isCopyResult) {
             return ExprResult {
-                funcCall.llvmType,
-                funcCall.resultVar,
-                funcCall.callCode,
-                funcCall.isCopyResult
+                llvmType,
+                resultVar,
+                callCode,
+                isCopyResult
             };
         }
-        auto resultVar = std::format("%{}", exprCnt++);
+        auto finalVar = std::format("%{}", exprCnt++);
         return ExprResult{
-            funcCall.llvmType,
-            funcCall.resultVar,
-            std::format("%{} = {}",resultVar, funcCall.callCode)
+            llvmType,
+            finalVar,
+            std::format("%{} = {}",finalVar, callCode)
         };
     }
     if (const auto initListPtr = _expression->GetInitializerList()) {
 
     }
+    return {"","",""};
 }
 
 
@@ -109,19 +134,30 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
         }
     }
 
-    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression> >(&data)) {
+    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression>>(&data)) {
         const auto &compExpr = *compExprPtr;
         if (compExpr->Components.empty()) return "";
-
-        std::string result = ConstExpressionExpand(compExpr->Components[0]->GetType(), compExpr->Components[0]);
-        for (size_t i = 0; i < compExpr->Operators.size(); ++i) {
-            std::string opSymbol = ast::BaseIROperators.at(compExpr->Operators[i]);
-            std::string nextComponent = ConstExpressionExpand(compExpr->Components[i + 1]->GetType(),
-                                                              compExpr->Components[i + 1]);
-            result = std::format("{} ({} {}, {})", opSymbol, GetTypeName(*_expression->GetType()), result,
-                                 nextComponent);
+        std::vector<std::string> workingExpr;
+        for (const auto& comp : compExpr->Components) {
+            workingExpr.push_back(ConstExpressionExpand(comp->GetType(), comp));
         }
-        return result;
+        std::vector<ast::BaseOperator> workingOps = compExpr->Operators;
+        for (size_t priority = 1; priority <= 12; ++priority) {
+            for (size_t i = 0; i < workingOps.size(); ) {
+                if (ast::OperatorPriority.at(workingOps[i]) == priority) {
+                    std::string left = workingExpr[i];
+                    std::string right = workingExpr[i + 1];
+                    std::string opSymbol = ast::BaseIROperators.at(workingOps[i]);
+                    std::string combined = std::format("{} ({}, {})", opSymbol, left, right);
+                    workingExpr[i] = combined;
+                    workingExpr.erase(workingExpr.begin() + i + 1);
+                    workingOps.erase(workingOps.begin() + i);
+                } else {
+                    ++i;
+                }
+            }
+        }
+        return workingExpr[0];
     }
 
     if (const auto *funcCallPtr = std::get_if<sPtr<ast::FunctionCall> >(&data)) {
