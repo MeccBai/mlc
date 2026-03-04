@@ -175,31 +175,48 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
                                                        [this, &_context](std::string_view arg) {
                                                            return expressionParser(_context, arg);
                                                        }) | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
-
         auto decl = std::shared_ptr<ast::FunctionDeclaration>(nullptr);
 
-        for (const auto &function: functionSymbolTable) {
-            if (function->Name == functionName) {
-                if (!function->IsVarList && args.size() != function->Parameters.size()) {
-                    ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
-                                 functionName, function->Parameters.size(), args.size());
-                    std::exit(-1);
-                } else {
-                    for (auto funcArgs = function->Parameters;
-                         auto [exp, arg]: std::views::zip(args, funcArgs)) {
-                        auto exprType = exp->GetType();
-                        auto paramType = arg->VarType;
-                        if (exprType == nullptr || paramType == nullptr) {
-                            throw std::runtime_error("Type inference failed for argument: " + arg->Name);
-                        }
-                        auto tip = std::format(R"(argument '{}' in function '{}')",arg->Name, functionName);
-                        ValidateType(paramType, exprType, tip);
+        for (const auto& function : functionSymbolTable) {
+            if (function->Name != functionName) continue;
 
-                        decl = function;
-                    }
+            const size_t numParams = function->Parameters.size();
+            const size_t numArgs = args.size();
+
+            // 1. 基础数量校验
+            if (function->IsVarList) {
+                // 可变参数函数：传入参数必须 >= 固定参数数量
+                if (numArgs < numParams) {
+                    ErrorPrintln("Error: Variadic function '{}' expects at least {} arguments but {} were provided\n",
+                                 functionName, numParams, numArgs);
+                    std::exit(-1);
                 }
-                break;
+            } else {
+                // 普通函数：数量必须严格相等
+                if (numArgs != numParams) {
+                    ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
+                                 functionName, numParams, numArgs);
+                    std::exit(-1);
+                }
             }
+
+            // 2. 类型检查 (仅针对固定参数部分)
+            // 使用 zip 确保只遍历到固定参数的长度
+            for (auto [exp, param] : std::views::zip(args, function->Parameters)) {
+                auto exprType = exp->GetType();
+                auto paramType = param->VarType;
+
+                if (!exprType || !paramType) {
+                    throw std::runtime_error("Type inference failed for argument: " + param->Name);
+                }
+
+                auto tip = std::format(R"(argument '{}' in function '{}')", param->Name, functionName);
+                ValidateType(paramType, exprType, tip);
+            }
+
+            // 3. 匹配成功，保存声明并跳出
+            decl = function;
+            break;
         }
         return std::vector{std::make_shared<ast::Statement>(
                 ast::Statement(ast::FunctionCallStatement(decl, args)))};

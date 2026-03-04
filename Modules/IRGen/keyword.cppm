@@ -67,3 +67,4 @@ export namespace mlc::ir::kv {
     constexpr std::string_view Private = "private";
 }
 
+namespace kv = mlc::ir::kv ;

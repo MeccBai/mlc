@@ -38,7 +38,10 @@ GenClass::funcResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration>
         }
         functionDecl.append(std::format("{} %{},", type, paramOffset++));
     }
-    functionDecl.back() = ')'; // 替换最后一个逗号为右括号
+    if (_funcDecl->IsVarList) {
+        functionDecl += "...";
+    }
+    functionDecl+= ')'; // 替换最后一个逗号为右括号
     return {
         isCopyResult,
         llvmRetType,
@@ -76,7 +79,7 @@ GenClass::funcCall GenClass::FunctionCall(
         params.emplace_back("ptr %{}"); // sret 模式下的占位符
     }
     for (const auto &[argType, argVar, _,isCopyResult]: args) {
-        params.push_back(std::format("{} %{}", argType, argVar));
+        params.push_back(std::format("{} {}", argType, argVar));
     }
     callLine += std::ranges::views::all(params)
                 | std::views::join_with(std::string(", "))
@@ -133,8 +136,26 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
         auto [type, resultVar, argCode,_] = FunctionArg(arg, index);
         code += argCode;
     }
-    for (auto &stmt : _func->Statements) {
-        code += StatementGenerate(stmt,decl);
+    for (auto i = 0ul; i< _func->Statements.size();i+=1) {
+        const auto &stmt = _func->Statements[i];
+        if (auto currentSub = std::get_if<ast::SubScope>(&*stmt); currentSub && currentSub->ScopeType == ast::SubScopeType::IfBlock) {
+            sPtr<ast::SubScope> nextElse = nullptr;
+            if (i + 1 < _func->Statements.size()) {
+                if (auto nextSub = std::get_if<ast::SubScope>(&*_func->Statements[i + 1]);
+                    nextSub && nextSub->ScopeType == ast::SubScopeType::ElseBlock) {
+                    nextElse = std::make_shared<ast::SubScope>(*nextSub);
+                    i+=1;
+                }
+            }
+            auto ifBlock = std::get_if<ast::SubScope>(&*stmt);
+            code += ifBlockGenerate(decl, ast::Make(*ifBlock), nextElse);
+            continue;
+        }
+        if (std::get_if<ast::ReturnStatement>(&*stmt)) {
+            code += ReturnStatementGenerate(stmt, FunctionUnit(decl));
+            break;
+        }
+        code += StatementGenerate(stmt, decl);
     }
     return std::format("define {} {{ \n{} \n}}",funcResult.functionDecl,code);
 }
@@ -142,7 +163,10 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
 GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {
     const auto paramType = _param.VarType;
     auto llvmType = TypeToLLVM(paramType);
-    auto originalType = llvmType;
+    if (std::get_if<type::ArrayType>(&*paramType)) {
+        llvmType = "ptr";
+    }
+    const auto originalType = llvmType;
     bool isCasting = false;
     bool isMemoryArg = false;
     const size_t size = type::GetSize(paramType);

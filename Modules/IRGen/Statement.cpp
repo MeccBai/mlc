@@ -11,37 +11,10 @@ import Parser;
 import aux;
 
 
-
-
 std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
-    if (auto variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
-        auto initRes = variable->Initializer
-                           ? ExpressionExpand(variable->Initializer, variable->VarType)
-                           : exprResult{"", "", ""};
-
-        std::string code;
-        if (variable->Initializer) {
-            if (initRes.llvmType == "list") {
-                std::string varAddr = std::format("%{}", variable->Name);
-                code += std::vformat(initRes.resultVar, std::make_format_args(varAddr));
-                code += initRes.code;
-            } else if (initRes.isCopyResult) {
-                auto size = type::GetSize(variable->VarType);
-                code += initRes.code;
-                code += std::format(
-                    "call void @llvm.memcpy.p0.p0.i64(ptr %{}, ptr {}, i64 {}, i1 false)\n",
-                    variable->Name, initRes.resultVar, size
-                );
-            } else {
-                code += initRes.code;
-                code += std::format(
-                    "store {} {}, ptr %{}\n",
-                    initRes.llvmType, initRes.resultVar, variable->Name
-                );
-            }
-        }
-        return code;
+    if (auto _variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
+        return LocalVariable(ast::MakeVariable(*_variable));
     }
     if (auto assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
         auto leftResult = ExpressionExpand(assign->BaseValue);
@@ -68,14 +41,72 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         return SubScopeGenerate(_stmt, _decl);
     }
     if (auto funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
-        return "";
+        auto funcDecl = funcCall->FunctionDecl;
+        std::vector<std::string> argStrings;
+        for (const auto &argExpr: funcCall->Arguments) {
+            const auto type = argExpr->GetType();
+            auto [argType, argVar, argCode, _] = ExpressionExpand(argExpr);
+            if (std::get_if<type::ArrayType>(&*type)) {
+                argType = "ptr";
+            }
+            argStrings.emplace_back(std::format("{} {}", argType, argVar));
+        }
+        std::string argsList = std::views::all(argStrings)
+                               | std::views::join_with(std::string(", "))
+                               | std::ranges::to<std::string>();
+
+        // 3. 构建调用签名 (针对可变参数的关键步骤！🌟)
+        std::string retType = TypeToLLVM(funcDecl->ReturnType);
+        std::string callSignature;
+
+        if (funcDecl->IsVarList) {
+            std::vector<std::string> fixedTypes;
+            fixedTypes.reserve(funcCall->Arguments.size());
+            for (const auto &p: funcCall->Arguments) {
+                const auto type = p->GetType();
+                if (std::get_if<type::ArrayType>(&*type)) {
+                    fixedTypes.emplace_back("ptr");
+                    continue;
+                }
+                fixedTypes.push_back(TypeToLLVM(type));
+            }
+            std::string fixedStr = std::views::all(fixedTypes)
+                                   | std::views::join_with(std::string(", "))
+                                   | std::ranges::to<std::string>();
+            if (fixedStr.empty()) {
+                callSignature = std::format("{} (...)", retType);
+            } else {
+                callSignature = std::format("{} ({}, ...)", retType, fixedStr);
+            }
+        } else {
+            // 普通函数签名就是返回类型
+            callSignature = retType;
+        }
+
+        // 4. 生成指令序列
+        std::string finalCode;
+        auto llvmType = retType;
+        auto size = type::GetSize(funcDecl->ReturnType);
+
+        // 分配结果存储空间 (alloca)
+        std::string resultAddr = std::format("%{}", exprCnt++);
+        finalCode += std::format("{} = alloca {}, align {}\n", resultAddr, llvmType, size);
+
+        // 执行调用 (call)
+        std::string valReg = std::format("%{}", exprCnt++);
+        // 注意这里的签名位置！👇
+        finalCode += std::format("{} = call {} @{}({})\n",
+                                 valReg, callSignature, funcDecl->Name, argsList);
+
+        // 将结果存入 alloca 空间
+        finalCode += std::format("store {} {}, ptr {}, align {}\n", llvmType, valReg, resultAddr, size);
+
+        return finalCode;
     }
     if (std::holds_alternative<ast::ContinueStatement>(*_stmt) || std::holds_alternative<ast::BreakStatement>(*_stmt)) {
         ErrorPrintln("Loop control statements (continue/break) are not supported in general scope\n");
         std::exit(-1);
     }
-
-
     return "\n";
 }
 
@@ -90,7 +121,7 @@ std::string GenClass::ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
             ErrorPrintln("Error: Cannot return a value from a void function.\n");
             std::exit(-1);
         }
-        return "  ret void\n";
+        return "ret void\n";
     }
     if (!expr) {
         ErrorPrintln("Error: Must return a value from a non-void function.\n");
@@ -102,7 +133,7 @@ std::string GenClass::ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
         std::string finalCode = std::vformat(exprResult.code, std::make_format_args("%0"));
         return finalCode + "  ret void\n";
     }
-    return exprResult.code + std::format("  ret {} {}\n", type, exprResult.resultVar);
+    return exprResult.code + std::format("ret {} {}\n", type, exprResult.resultVar);
 }
 
 std::string GenClass::StreamControlGenerate(const sPtr<ast::Statement> &_parentScope, const sPtr<ast::Statement> &_self,
@@ -139,4 +170,3 @@ std::string GenClass::caseBlockGenerate(const sPtr<ast::Statement> &_parentScope
     }
     return code;
 }
-

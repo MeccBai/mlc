@@ -11,7 +11,9 @@ import Parser;
 import aux;
 
 GenClass::exprResult GenClass::conditionalExpression(const sPtr<ast::Expression> &_condition) {
+
 }
+
 
 std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
                                        const sPtr<ast::FunctionDeclaration> &_decl) {
@@ -19,42 +21,6 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
     const auto subScope = std::get_if<ast::SubScope>(&*_stmt);
 
     switch (subScope->ScopeType) {
-            /*
-            case ast::SubScopeType::IfBlock: {
-                auto thenLabel = getLabel();
-                auto elseLabel = getLabel();
-                auto mergeLabel = getLabel();
-                auto condRes = ExpressionExpand(subScope->Condition);
-                code += condRes.code;
-                auto i1Reg = std::format("%{}", exprCnt++);
-                code += std::format("{} = icmp ne {} {}, 0\n",
-                                    i1Reg, condRes.llvmType, condRes.resultVar);
-                code += std::format("br i1 {}, label %{}, label %{}\n",
-                                    i1Reg, thenLabel, elseLabel);
-                code += std::format("{}:\n", thenLabel);
-                bool thenTerminated = false;
-                for (const auto &stmt: subScope->Statements) {
-                    if (std::get_if<ast::ReturnStatement>(&*stmt)) {
-                        code += ReturnStatementGenerate(stmt, FunctionUnit(_decl));
-                        thenTerminated = true;
-                    } else {
-                        if (std::get_if<ast::ContinueStatement>(&*stmt) || std::get_if<ast::BreakStatement>(&*stmt)) {
-                            ErrorPrintln("Loop control statements (continue/break) are not supported in if/else block\n");
-                            std::exit(-1);
-                        }
-                        auto stmtCode = StatementGenerate(stmt, _decl);
-                        code += stmtCode;
-                    }
-                }
-                if (!thenTerminated) {
-                    code += std::format("  br label %{}\n", mergeLabel);
-                }
-                code += std::format("{}:\n", elseLabel);
-                code += std::format("br label %{}\n", mergeLabel);
-                code += std::format("{}:\n", mergeLabel);
-            }
-            */
-            break;
         case ast::SubScopeType::WhileBlock: {
             std::string condLabel = getLabel(); // 条件判定块
             std::string bodyLabel = getLabel(); // 循环体块
@@ -156,10 +122,68 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
             ErrorPrintln("Error, else block should be handled in if block generation");
             std::exit(-1);
         }
-        break;
         default:
             ErrorPrintln("Compiler Internal Error: Unknown SubScopeType.");
             std::exit(-1);
     }
+    return code;
+}
+
+std::string GenClass::ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_decl,
+                                      const sPtr<ast::SubScope> &_ifBlock,
+                                      const sPtr<ast::SubScope> &_elseBlock) {
+    std::string code;
+    auto thenLabel = getLabel();
+    auto elseLabel = getLabel();
+    auto mergeLabel = getLabel();
+    auto condRes = ExpressionExpand(_ifBlock->Condition);
+    code += condRes.code;
+    auto i1Reg = std::format("%{}", exprCnt++);
+    code += std::format("  {} = icmp ne {} {}, 0\n", i1Reg, condRes.llvmType, condRes.resultVar);
+    std::string falseLabel = _elseBlock ? elseLabel : mergeLabel;
+    code += std::format("  br i1 {}, label %{}, label %{}\n", i1Reg, thenLabel, falseLabel);
+    code += std::format("{}:\n", thenLabel);
+    bool thenTerminated = false; // 提出来！🌟
+    for (size_t i = 0; i < _ifBlock->Statements.size(); ++i) {
+        const auto &stmt = _ifBlock->Statements[i];
+        if (auto currentSub = std::get_if<ast::SubScope>(&*stmt); currentSub && currentSub->ScopeType == ast::SubScopeType::IfBlock) {
+            sPtr<ast::SubScope> nextElse = nullptr;
+            if (i + 1 < _ifBlock->Statements.size()) {
+                if (auto nextSub = std::get_if<ast::SubScope>(&*_ifBlock->Statements[i+1]);
+                    nextSub && nextSub->ScopeType == ast::SubScopeType::ElseBlock) {
+                    nextElse = std::make_shared<ast::SubScope>(*nextSub);
+                    i++;
+                }
+            }
+            auto ifBlock = std::get_if<ast::SubScope>(&*stmt);
+            code += ifBlockGenerate(_decl, ast::Make(*ifBlock), nextElse);
+            continue;
+        }
+        if (std::get_if<ast::ReturnStatement>(&*stmt)) {
+            code += ReturnStatementGenerate(stmt, FunctionUnit(_decl));
+            thenTerminated = true; // 标记已终止！
+            break;
+        }
+        code += StatementGenerate(stmt, _decl);
+    }
+    if (!thenTerminated) {
+        code += std::format("  br label %{}\n", mergeLabel);
+    }
+    if (_elseBlock) {
+        code += std::format("{}:\n", elseLabel);
+        bool elseTerminated = false;
+        for (const auto &stmt : _elseBlock->Statements) {
+            if (std::get_if<ast::ReturnStatement>(&*stmt)) {
+                code += ReturnStatementGenerate(stmt, FunctionUnit(_decl));
+                elseTerminated = true;
+                break;
+            }
+            code += StatementGenerate(stmt, _decl);
+        }
+        if (!elseTerminated) {
+            code += std::format("  br label %{}\n", mergeLabel);
+        }
+    }
+    code += std::format("{}:\n", mergeLabel);
     return code;
 }

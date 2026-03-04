@@ -26,9 +26,19 @@ GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::Initial
     auto type = TypeToLLVM(_type);
     auto varName = std::format("{}", exprCnt++);
 
-    auto initCode = std::format("%{} = load ptr , ptr %{{}}\n", varName);
+    auto initCode = std::string();
+
+    if (type::IsType<type::ArrayType>(_type)) {
+        initCode = std::format("%{} = getelementptr {}, ptr {{}}, i32 0\n",
+                               varName, type);
+    } else {
+        initCode = std::format("%{} = getelementptr {}, ptr {{}}, i32 0, i32 0\n",
+                               varName, type);
+    }
+
+
     std::string resultCode;
-    for (auto [value,i] : std::views::zip(_initList->Values,std::views::iota(0u))) {
+    for (auto [value,i]: std::views::zip(_initList->Values, std::views::iota(0u))) {
         auto [llvmType, resultVar, code, isCopyResult] = ExpressionExpand(value);
         if (llvmType == "list") {
             std::string memberId = std::format("{}", exprCnt++);
@@ -43,10 +53,10 @@ GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::Initial
                                       memberId, type, varName, i);
             if (isCopyResult) {
                 resultCode += std::format("call void {}(ptr %{}, ptr {}, i64 {}, i1 false)\n",
-                                         llvmCopy, memberId, resultVar, type::GetSize(value->GetType()));
+                                          llvmCopy, memberId, resultVar, type::GetSize(value->GetType()));
             } else {
                 resultCode += std::format("store {} {}, ptr %{}\n",
-                                         llvmType, resultVar, memberId);
+                                          llvmType, resultVar, memberId);
             }
         }
     }
@@ -72,5 +82,3 @@ std::string GenClass::ConstInitializerListExpression(
     ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
     std::exit(-1);
 }
-
-

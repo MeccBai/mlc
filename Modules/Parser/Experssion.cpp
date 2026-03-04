@@ -44,9 +44,6 @@ std::string_view stripOuterBrackets(const std::string_view _expr) {
             return _expr;
         }
     }
-
-    // 3. 如果能走到这里，说明首尾是真正的“套娃”关系
-    // 递归调用，防止有多层括号如 "((a+b))"
     return stripOuterBrackets(_expr.substr(1, _expr.size() - 2));
 }
 
@@ -54,11 +51,11 @@ bool isNameChar(const char c) {
     return std::isalnum(c) || c == '_';
 }
 
-exprTree deepSplit(std::string_view expr) {
+ast::exprTree deepSplit(std::string_view expr) {
     expr = stripOuterBrackets(expr);
-    if (expr.empty()) return exprTree("", false);
+    if (expr.empty()) return ast::exprTree("", false);
 
-    std::vector<exprTree> fragments;
+    std::vector<ast::exprTree> fragments;
     int bracketLevel = 0;
     size_t start = 0;
     bool foundInfixOp = false;
@@ -106,7 +103,7 @@ exprTree deepSplit(std::string_view expr) {
 
     if (foundInfixOp) {
         if (start < expr.length()) fragments.push_back(deepSplit(expr.substr(start)));
-        return exprTree(std::move(fragments));
+        return ast::exprTree(std::move(fragments));
     }
 
     // --- 核心修复：处理后缀 [] ---
@@ -127,7 +124,7 @@ exprTree deepSplit(std::string_view expr) {
                     fragments.push_back(deepSplit(arrayName)); // 递归处理 data
                     fragments.emplace_back("[]", true); // 存入下标算子
                     fragments.push_back(deepSplit(indexExpr)); // 递归处理 i + j
-                    return exprTree(std::move(fragments));
+                    return ast::exprTree(std::move(fragments));
                 }
                 break;
             }
@@ -138,11 +135,11 @@ exprTree deepSplit(std::string_view expr) {
     if (isOpChar(expr[0])) {
         fragments.emplace_back(expr.substr(0, 1), true);
         fragments.push_back(deepSplit(expr.substr(1)));
-        return exprTree(std::move(fragments));
+        return ast::exprTree(std::move(fragments));
     }
 
     // 最终：真正的原子
-    return exprTree(expr, false);
+    return ast::exprTree(expr, false);
 }
 
 void mlc::ast::dumpFragments(const exprTree &fragment, const int indent) {

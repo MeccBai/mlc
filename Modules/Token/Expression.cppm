@@ -87,15 +87,26 @@ export namespace mlc::ast {
 
     class ConstValue {
     public:
-        explicit ConstValue(const std::string_view _value,
-                            const bool _isChar = false) : Value(_value), IsChar(_isChar) {
-        }
-
-
+        explicit ConstValue(const std::string_view _value, const bool _isChar = false);
         const std::string Value;
         const bool IsChar;
-
+        Type::sPtr<Type::CompileType> Type;
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetType() const;
+    private:
+        static std::string processLiteral(std::string_view raw, bool isChar) {
+            if (!isChar) return std::string(raw);
+            if (raw.size() >= 2 && raw[0] == '\\') {
+                switch (raw[1]) {
+                    case 'n': return "10";   // 换行
+                    case 't': return "9";    // 制表
+                    case 'r': return "13";   // 回车
+                    case '\\': return "92";  // 反斜杠
+                    case '0': return "0";    // 空字符
+                    default: return std::format("{}", (int)raw[1]);
+                }
+            }
+            return std::format("{}", (int)raw[0]);
+        }
     };
 
     class EnumValue {

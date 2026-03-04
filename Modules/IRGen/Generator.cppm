@@ -5,6 +5,7 @@
 export module Generator;
 import Token;
 import std;
+import Parser;
 
 namespace mlc::ir::gen {
     using size_t = std::size_t;
@@ -134,7 +135,12 @@ namespace mlc::ir::gen {
                                              const ast::SubScope *_caseBlock, std::string_view _endLabel,
                                              const sPtr<ast::FunctionDeclaration> &_decl);
 
-        exprResult conditionalExpression(const sPtr<ast::Expression> &_condition);
+        static std::string ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_decl,const sPtr<ast::SubScope> &_ifBlock ,const sPtr<ast::SubScope> &_elseBlock = nullptr);
+
+        static exprResult conditionalExpression(const sPtr<ast::Expression> &_condition);
+
+        static std::string GenerateIR(parser::AbstractSyntaxTree &_ast);
+
     };
 
     export

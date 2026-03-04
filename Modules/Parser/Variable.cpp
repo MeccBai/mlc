@@ -6,44 +6,47 @@ module Parser;
 import std;
 import aux;
 
-std::vector<std::string_view> initializerListSplit(const std::string_view initExpr) {
-    std::vector<std::string_view> elements;
-    std::string_view content = initExpr;
-    if (content.starts_with('{') and content.ends_with('}')) {
+std::vector<std::string_view> initializerListSplit(std::string_view content) {
+    // 1. 去掉外层的 {} 括号
+    if (content.starts_with('{') && content.ends_with('}')) {
         content = content.substr(1, content.size() - 2);
     }
 
+    std::vector<std::string_view> elements;
     size_t start = 0;
-    int depth = 0;
-    int parenDepth = 0; // 【新增加】：追踪圆括号深度
+    int depth = 0;      // {} 深度
+    int parenDepth = 0; // () 深度
+    bool inString = false;
+    for (size_t i = 0; i < content.length(); ++i) {
+        const char c = content[i];
+        if (c == '\\' && i + 1 < content.length()) {
+            i++; continue;
+        }
+        if (c == '"') {
+            inString = !inString;
+        } else if (!inString) {
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            else if (c == '(') parenDepth++;
+            else if (c == ')') parenDepth--;
+        }
 
-    for (size_t i = 0; i <= content.length(); ++i) {
-        char c = (i < content.length()) ? content[i] : ',';
-
-        if (c == '{') depth++;
-        else if (c == '}') depth--;
-        else if (c == '(') parenDepth++; // 【新增加】：处理圆括号
-        else if (c == ')') parenDepth--; // 【新增加】：处理圆括号
-
-        // 【关键逻辑】：只有在不嵌套大括号且不嵌套圆括号时才分割
-        else if (c == ',' and depth == 0 and parenDepth == 0) {
-            std::string_view element = content.substr(start, i - start);
-
-            // Trim
-            while (!element.empty() and std::isspace(element.front())) element.remove_prefix(1);
-            while (!element.empty() and std::isspace(element.back())) element.remove_suffix(1);
-
+        if (c == ',' && depth == 0 && parenDepth == 0 && !inString) {
+            auto element = content.substr(start, i - start);
+            while (!element.empty() && std::isspace(element.front())) element.remove_prefix(1);
+            while (!element.empty() && std::isspace(element.back())) element.remove_suffix(1);
             if (!element.empty()) elements.push_back(element);
             start = i + 1;
         }
     }
-
-    // 原有的最后一个字符清理逻辑保持不变
-    if (!elements.empty()) {
-        if (const auto elementEnd = (elements.end() - 1); !elementEnd->empty() && (elementEnd->back() == ',' || elementEnd->back() == ';')) {
-            *elementEnd = elementEnd->substr(0, elementEnd->size() - 1);
-        }
+    if (start < content.length()) {
+        auto element = content.substr(start);
+        if (!element.empty() && element.back() == ';') element.remove_suffix(1);
+        while (!element.empty() && std::isspace(element.front())) element.remove_prefix(1);
+        while (!element.empty() && std::isspace(element.back())) element.remove_suffix(1);
+        if (!element.empty()) elements.push_back(element);
     }
+
     return elements;
 }
 std::string_view getVariableName(const std::string_view _declaration) {

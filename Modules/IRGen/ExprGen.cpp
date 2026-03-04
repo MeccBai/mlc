@@ -76,20 +76,12 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
 
     if (const auto functionCallPtr = _expression->GetFunctionCall()) {
         const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
-        if (isCopyResult) {
             return exprResult {
                 llvmType,
                 resultVar,
                 callCode,
                 isCopyResult
             };
-        }
-        auto finalVar = std::format("%{}", exprCnt++);
-        return exprResult{
-            llvmType,
-            finalVar,
-            std::format("%{} = {}",finalVar, callCode)
-        };
     }
     if (const auto initListPtr = _expression->GetInitializerList()) {
         return InitializerListExpression(initListPtr,_type);
@@ -109,7 +101,6 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
     if (const auto *initListPtr = std::get_if<sPtr<ast::InitializerList> >(&data)) {
         return ConstInitializerListExpression(*initListPtr,_type);
     }
-
     if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression>>(&data)) {
         const auto &compExpr = *compExprPtr;
         if (compExpr->Components.empty()) return "";

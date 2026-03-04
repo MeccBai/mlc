@@ -31,7 +31,8 @@ export namespace mlc::ast {
         std::is_same_v<std::remove_cvref_t<_type>, Type::EnumDefinition> ||
         std::is_same_v<std::remove_cvref_t<_type>, Type::ArrayType> ||
         std::is_same_v<std::remove_cvref_t<_type>, Type::CompileType>||
-        std::is_same_v<std::remove_cvref_t<_type>, Statement>
+        std::is_same_v<std::remove_cvref_t<_type>, Statement> ||
+        std::is_same_v<std::remove_cvref_t<_type>, SubScope>
     );
     };
 

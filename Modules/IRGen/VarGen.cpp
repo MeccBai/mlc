@@ -20,27 +20,44 @@ std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variab
     std::exit(-1);
 }
 
-std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement> &_variable) {
-    auto registerName = std::format("%{}",_variable->Name);
-    auto alignSize = std::visit([](auto &&t) -> size_t {
-        return t.Size();
-    }, *_variable->VarType);
-    auto alloca = std::format("{} = alloca {}, align {}\n", registerName, TypeToLLVM(_variable->VarType),alignSize);
-    std::string store;
-    std::string varCode;
+size_t GetAlignment(const sPtr<type::CompileType>& t) {
+    size_t s = type::GetSize(t);
+    if (s <= 1) return 1;
+    if (s <= 2) return 2;
+    if (s <= 4) return 4;
+    if (s <= 8) return 8;
+    return 16; // 结构体或大数组通常对齐到 16
+}
+std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variable) {
+    auto llvmType = TypeToLLVM(_variable->VarType);
+    auto regName = _variable->Name; // 变量名
+    exprCnt++;
+    auto align = GetAlignment(_variable->VarType);
+    std::string code = std::format("%{} = alloca {}, align {}\n", regName, llvmType, align);
     if (_variable->Initializer) {
-        if (_variable->Initializer->GetVariable()) {
-            const auto [llvmType, resultVar, code,isCopyResult] = ExpressionExpand(_variable->Initializer);
-            varCode = code;
-            auto tempRegister = std::format("%{}", exprCnt++);
-            auto load = std::format("{} = load {}, {}* {}, align {}\n", tempRegister,llvmType, TypeToLLVM(_variable->VarType),resultVar ,alignSize);
-            store += load;
-            store += std::format("store {} {}, {}* {}, align {}\n", llvmType, tempRegister, TypeToLLVM(_variable->VarType), registerName,alignSize);
+        auto initRes = ExpressionExpand(_variable->Initializer, _variable->VarType);
+        if (initRes.llvmType == "list") {
+            auto argTemp = "%" + regName;
+            code += std::vformat(initRes.resultVar, std::make_format_args(argTemp));
+            code += initRes.code;
         }
-        if (_variable->Initializer->GetConstValue()) {
-            auto value = ConstExpressionExpand(_variable->VarType, _variable->Initializer);
-            store += std::format("store {}, {}* {}, align {}\n", value, TypeToLLVM(_variable->VarType), registerName,alignSize);
+        else if (initRes.isCopyResult) {
+            // 场景 B: 结构体/大对象拷贝 (memcpy)
+            code += initRes.code;
+            code += std::format(
+                "  call void @llvm.memcpy.p0.p0.i64(ptr %{}, ptr {}, i64 {}, i1 false)\n",
+                regName, initRes.resultVar, type::GetSize(_variable->VarType)
+            );
+        }
+        else {
+            // 场景 C: 普通标量赋值 (i32 a = 1 + 2)
+            code += initRes.code;
+            code += std::format(
+                "  store {} {}, ptr %{}, align {}\n",
+                initRes.llvmType, initRes.resultVar, regName, align
+            );
         }
     }
-    return std::format("{}{}{}\n", alloca, varCode, store);
+
+    return code;
 }

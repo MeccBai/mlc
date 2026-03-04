@@ -7,6 +7,7 @@ import keyword;
 import Parser;
 import aux;
 
+namespace kv = mlc::ir::kv;
 
 
 std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> &_structDef) {
@@ -64,4 +65,52 @@ std::string gen::determineCastOperator(const type::BaseType *_sourceType, const 
         return "trunc";
     }
     return "bitcast";
+}
+
+std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
+    std::string code;
+    auto structCode = _ast.typeSymbolTable
+                      | std::views::filter([](const auto &type) {
+                          return std::holds_alternative<ast::Type::StructDefinition>(*type);
+                      })
+                      | std::views::transform([](const auto &type) {
+                          auto structDef = std::get<ast::Type::StructDefinition>(*type);
+                          return Struct(std::make_shared<ast::Type::StructDefinition>(structDef));
+                      });
+    auto globalVarCode = _ast.variableSymbolTable
+                         | std::views::transform([](const auto &var) {
+                             return GlobalVariable(var);
+                         });
+    auto funcDecl = _ast.functionSymbolTable
+                    | std::views::filter([&](const auto &func) {
+                        // 1. 物理隔离：剔除基本类型占位符 (i32, f32, etc.)
+                        if (ast::Type::BaseTypeMap.contains(func->Name)) {
+                            return false;
+                        }
+                        const bool hasDefinition = std::ranges::any_of(
+                            _ast.functionScopeTable,
+                            [&](const auto &funcScope) {
+                                return funcScope->Name == func->Name;
+                            });
+                        return !hasDefinition;
+                    })
+                    | std::views::transform([&](const auto &func) {
+                        return FunctionDeclarationGenerate(func);
+                    });
+
+
+    auto funcCode = _ast.functionScopeTable
+                    | std::views::transform([](const auto &func) {
+                        return FunctionGenerate(func);
+                    });
+    auto join_to_string = [](auto &&view) {
+        std::string res;
+        for (const auto &s: view) res += s;
+        return res;
+    };
+    code += join_to_string(structCode);
+    code += join_to_string(globalVarCode);
+    code += join_to_string(funcDecl);
+    code += join_to_string(funcCode);
+    return code;
 }

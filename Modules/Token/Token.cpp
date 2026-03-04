@@ -23,7 +23,17 @@ std::string baseOperator(ast::BaseOperator _op) {
 }
 
 
-std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
+ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar):
+    Value(processLiteral(_value, _isChar)),IsChar(_isChar)  {
+    if (_isChar) {
+        Type = ast::MakeCompileType(*Type::BaseTypeMap.at("i8"));
+    }
+    else {
+        Type = GetType();
+    }
+}
+
+ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     if (Value.empty()) {
         return {};
     }
@@ -52,7 +62,7 @@ std::shared_ptr<ast::Type::CompileType> ast::ConstValue::GetType() const {
 
 void ast::Type::ValidateType(const std::shared_ptr<CompileType> &targetType,
                              const std::shared_ptr<CompileType> &actualType,
-                             const std::string_view contextInfo) {
+                             const std::string_view contextInfo, const bool _tolerance) {
     if (!targetType || !actualType) {
         ErrorPrintln("Compiler internal error.\n", contextInfo);
         std::exit(-1);
@@ -63,13 +73,28 @@ void ast::Type::ValidateType(const std::shared_ptr<CompileType> &targetType,
         }, type);
     };
     std::string expectedName = getName(*targetType);
+    std::string actualName = getName(*actualType);
     const auto targetPtr = std::get_if<PointerType>(&*targetType);
     if (const auto actualPtr = std::get_if<BaseType>(&*actualType);
         targetPtr && actualPtr && actualPtr->Name == "null") {
         return;
     }
-
-    if (std::string actualName = getName(*actualType); expectedName != actualName) {
+    if (_tolerance) {
+        const auto actualBase = std::get_if<BaseType>(&*actualType);
+        const auto targetBase = std::get_if<BaseType>(&*targetType);
+        if (actualBase && targetBase) {
+            auto isInteger = [](const std::string &typeName) {
+                return typeName.starts_with('i') || typeName.starts_with('u');
+            };
+            if (isInteger(actualBase->Name) && isInteger(targetBase->Name)) {
+                return;
+            }
+            if (actualBase->Name.starts_with('f') && targetBase->Name.starts_with('f')) {
+                return;
+            }
+        }
+    }
+    if (expectedName != actualName) {
         ErrorPrintln("Error: Type mismatch for {}. Expected '{}', got '{}'\n",
                      contextInfo, expectedName, actualName);
         std::exit(-1);
@@ -304,7 +329,7 @@ void ast::VariableStatement::InitListValidCheck() const {
                 // 2. 触底反弹：这已经是一个具体的表达式了，执行最终校验
                 auto typeName = std::visit([](auto &&t) { return t.Name; }, *target);
                 auto tip = std::format("element of type '{}'", typeName);
-                ValidateType(target, init->GetType(), tip);
+                ValidateType(target, init->GetType(), tip, true);
             }
         };
         recursiveCheck(recursiveCheck, this->VarType, this->Initializer);
@@ -329,4 +354,3 @@ size_t ast::Type::ArrayType::Size() const {
     const size_t baseSize = std::visit([](auto &&t) { return t.Size(); }, *BaseType);
     return baseSize * Length;
 }
-

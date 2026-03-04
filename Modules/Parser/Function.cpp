@@ -26,6 +26,11 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
 
+    if (auto returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
+        ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDeclPtr.Name);
+        std::exit(-1);
+    }
+
     return {functionDecl, statementsParsed};
 }
 
@@ -101,7 +106,6 @@ ast::FunctionDeclaration astClass::functionDeclParser(
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true);
     }
 
-
     if (argsList.empty()) {
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {});
     }
@@ -109,7 +113,6 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     std::vector<sPtr<ast::VariableStatement> > args;
 
     for (const auto argsSplit = argSplit(argsList); const auto &arg: argsSplit) {
-
         args.emplace_back(functionArgParser(arg));
     }
 

@@ -97,10 +97,10 @@ ast::Expression astClass::GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_t
         std::exit(-1);
     }
     const std::string value = _type->Name.starts_with("f") ? "0.0" : "0";
-    auto args = std::vector{ast::MakeExpression(ast::ConstValue(value))};
-    return ast::Expression(
-        std::make_shared<ast::FunctionCall>(func.value(), args)
-    );
+    if (_type->Name == "i8") {
+        return ast::Expression(ast::ConstValue("\\0", true));
+    }
+    return ast::Expression(ast::ConstValue(value));
 }
 
 ast::Expression astClass::GetStructDefaultValue(const sPtr<type::StructDefinition> &_type) {
