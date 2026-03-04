@@ -7,15 +7,6 @@ import keyword;
 import Parser;
 import aux;
 
-namespace gen = mlc::ir::gen;
-
-using GenClass = gen::IRGenerator;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace type = ast::Type;
-
 
 
 std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> &_structDef) {

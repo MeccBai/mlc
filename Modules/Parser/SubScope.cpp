@@ -6,11 +6,6 @@ module Parser;
 import std;
 import aux;
 
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-using astClass = mlc::parser::AbstractSyntaxTree;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
 
 std::vector<std::string_view> splitCaseBlocks(std::string_view str) {
     std::vector<std::string_view> segments;
@@ -22,31 +17,21 @@ std::vector<std::string_view> splitCaseBlocks(std::string_view str) {
     size_t start = std::min(first0, first1);
 
     while (start != std::string_view::npos) {
-        // 判定当前匹配类型
         const bool isDefault = str.substr(start).starts_with(p_default);
         const size_t keywordLen = isDefault ? p_default.length() : p_case.length();
-
-        // --- 核心修改：如果是 default，存入起点设为 start；如果是 case，设为 start + 5 ---
         const size_t pushStart = isDefault ? start : (start + keywordLen);
-
-        // 寻找下一个块
         const size_t nextP0 = str.find(p_case, start + keywordLen);
         const size_t nextP1 = str.find(p_default, start + keywordLen);
         const size_t next = std::min(nextP0, nextP1);
-
         if (next == std::string_view::npos) {
-            // 最后一个块
             segments.push_back(str.substr(pushStart));
             break;
         }
-
-        // 截取当前块：从 pushStart 到下一个关键字起点 next
         segments.push_back(str.substr(pushStart, next - pushStart));
         start = next;
     }
     return segments;
 }
-
 
 size_t caseConditionParser(const std::string_view caseBlockStr) {
     if (caseBlockStr.empty()) return std::string_view::npos;
@@ -119,7 +104,17 @@ sPtr<ast::Statement> astClass::subScopeParser(ContextTable<ast::VariableStatemen
         const auto caseBlockParsed =
                 caseBlocks | std::views::transform(toBlock) | std::views::transform(toCaseBlock)
                 | std::ranges::to<std::vector<std::shared_ptr<ast::Statement> > >();
-
+        if (caseBlockParsed.empty()) {
+            ErrorPrintln("Error: Switch statement must contain at least one case or default block\n");
+            std::exit(-1);
+        }
+        const auto& endCaseBlock = caseBlockParsed.back();
+        if (const auto caseBlockPtr = std::get_if<ast::SubScope>(&*endCaseBlock)) {
+            if (caseBlockPtr->ScopeType != ast::SubScopeType::DefaultBlock) {
+                ErrorPrintln("Error: The last block in a switch statement must be a default block\n");
+                std::exit(-1);
+            }
+        }
         return std::make_shared<ast::Statement>(
             ast::SubScope(caseBlockParsed, ast::SubScopeType::SwitchBlock, condition));
     }

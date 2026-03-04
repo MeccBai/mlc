@@ -199,4 +199,11 @@ export namespace mlc::ast {
 }
 
 std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);
-std::vector<std::string_view> argSplit(const std::string_view str);
+std::vector<std::string_view> argSplit(std::string_view str);
+
+using astClass = mlc::parser::AbstractSyntaxTree;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
+namespace ast = mlc::ast;
+using size_t = std::size_t;
+namespace type = ast::Type;

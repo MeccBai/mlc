@@ -9,7 +9,7 @@ import aux;
 int main() {
     DisableOutputBuffering();
 
-    std::ifstream file("example/struct.mc");
+    std::ifstream file("example/cond.mc");
     const auto code = std::string((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
     std::println("{}",code);
 

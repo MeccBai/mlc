@@ -11,7 +11,7 @@ import :Expression;
 import aux;
 import std;
 import Parser;
-namespace ast = mlc::ast;
+
 
 ast::Expression::~Expression() = default;
 

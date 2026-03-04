@@ -16,10 +16,10 @@ using gen = mlc::ir::gen::IRGenerator;
 int main() {
     DisableOutputBuffering();
     auto members = std::vector<Type::StructMember>{
-        {"x", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
-        {"y", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
-        {"z", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
-        {"m", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
+        {"x", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
+        {"y", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
+        {"z", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
+        {"m", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
     };
 
     auto structOne = Type::StructDefinition(
@@ -27,9 +27,9 @@ int main() {
     );
 
     auto memebers2 = std::vector<Type::StructMember>{
-        {"a", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
-        {"b", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
-        {"c", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64"))},
+        {"a", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
+        {"b", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
+        {"c", ast::MakeCompileType(*Type::BaseTypeMap.at("i64"))},
     };
 
     auto structTwo = Type::StructDefinition(
@@ -38,13 +38,13 @@ int main() {
 
     auto decl = std::make_shared<ast::FunctionDeclaration>(
         "func",
-        std::make_shared<Type::CompileType>(structOne),
+        ast::MakeCompileType(structOne),
         std::vector{
             ast::MakeVariable(
-                ast::VariableStatement("one", std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i64")),
+                ast::VariableStatement("one", ast::MakeCompileType(*Type::BaseTypeMap.at("i64")),
                                        nullptr)),
             ast::MakeVariable(
-                ast::VariableStatement("two", std::make_shared<Type::CompileType>(structTwo),
+                ast::VariableStatement("two", ast::MakeCompileType(structTwo),
                                        nullptr))
 
         }

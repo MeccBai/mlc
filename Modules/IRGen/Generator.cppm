@@ -64,7 +64,7 @@ namespace mlc::ir::gen {
 
         static size_t exprCnt;
         static std::string globalCode;
-        static size_t listCnt;
+        static size_t labelCnt;
 
         static std::string Struct(const sPtr<ast::Type::StructDefinition> &_structDef);
 
@@ -110,13 +110,31 @@ namespace mlc::ir::gen {
 
         static funcArg FunctionArgAnalyze(const ast::VariableStatement &_param);
 
+        static std::string SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
+                                            const sPtr<ast::FunctionDeclaration> &_decl);
+
+        static std::string ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
+                                                   const funcResult &_func);
+
         static std::string StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                              const sPtr<ast::FunctionDeclaration> &_decl);
+
 
         static exprResult InitializerListExpression(const sPtr<ast::InitializerList> &_initList,
                                                     const sPtr<type::CompileType> &_type);
 
-        static std::string ConstInitializerListExpression(const sPtr<ast::InitializerList> &_initList,const sPtr<type::CompileType> &_type);
+        static std::string ConstInitializerListExpression(const sPtr<ast::InitializerList> &_initList,
+                                                          const sPtr<type::CompileType> &_type);
+
+        static std::string StreamControlGenerate(const sPtr<ast::Statement> &_parentScope,
+                                                 const sPtr<ast::Statement> &_self, std::string_view _startLabel,
+                                                 std::string_view _endLabel);
+
+        static std::string caseBlockGenerate(const sPtr<ast::Statement> &_parentScope,
+                                             const ast::SubScope *_caseBlock, std::string_view _endLabel,
+                                             const sPtr<ast::FunctionDeclaration> &_decl);
+
+        exprResult conditionalExpression(const sPtr<ast::Expression> &_condition);
     };
 
     export
@@ -125,5 +143,18 @@ namespace mlc::ir::gen {
         constexpr std::string_view llvmSet = "@llvm.memset.p0.i64";
     }
 
+    constexpr auto getLabel = [] {
+        return std::format(".L{}", IRGenerator::labelCnt++);
+    };
+
     std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType);
+
 }
+
+namespace gen = mlc::ir::gen;
+using GenClass = gen::IRGenerator;
+namespace ast = mlc::ast;
+using size_t = std::size_t;
+template<typename type>
+using sPtr = std::shared_ptr<type>;
+namespace type = ast::Type;

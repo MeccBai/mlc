@@ -6,13 +6,6 @@ module Parser;
 import std;
 import aux;
 
-using astClass = mlc::parser::AbstractSyntaxTree;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-namespace type = ast::Type;
-
 
 std::vector<type::StructDefinition> astClass::structDefParser(
     const std::vector<std::string_view> &_structContents) const {

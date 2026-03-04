@@ -10,14 +10,6 @@ import keyword;
 import Parser;
 import aux;
 
-namespace gen = mlc::ir::gen;
-
-using GenClass = gen::IRGenerator;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace type = ast::Type;
 
 //@__const.main.axx = private unnamed_addr constant
 //<{ [23 x i32], [77 x i32] }>
@@ -27,7 +19,7 @@ namespace type = ast::Type;
 
 
 std::string GenClass::globalCode;
-size_t GenClass::listCnt = 0;
+size_t GenClass::labelCnt = 0;
 
 GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::InitializerList> &_initList,
                                                          const sPtr<type::CompileType> &_type) {
@@ -80,3 +72,5 @@ std::string GenClass::ConstInitializerListExpression(
     ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
     std::exit(-1);
 }
+
+

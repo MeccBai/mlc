@@ -126,7 +126,7 @@ export namespace mlc::ast::Type {
         }
 
         const std::shared_ptr<CompileType> BaseType;
-        const std::size_t Length; // 0 for incomplete array
+        const std::size_t Length;
         const std::string Name;
 
         [[nodiscard]] size_t Size() const;
@@ -174,7 +174,6 @@ export namespace mlc::ast::Type {
     StructDefinition * GetStructDef(const std::shared_ptr<CompileType> &_type);
     EnumDefinition * GetEnumDef(const std::shared_ptr<CompileType> &_type);
     PointerType * GetPointerType(const std::shared_ptr<CompileType> &_type);
-
 
     template<typename _type>
     concept IsCompileType =requires

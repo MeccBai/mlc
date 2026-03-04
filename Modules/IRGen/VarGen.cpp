@@ -10,15 +10,6 @@ import keyword;
 import Parser;
 import aux;
 
-namespace gen = mlc::ir::gen;
-
-using GenClass = gen::IRGenerator;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace type = ast::Type;
-
 
 std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variable) {
     if (const auto initExpr = _variable->Initializer; initExpr != nullptr && ConstExpressionCheck(initExpr)) {

@@ -10,17 +10,7 @@ import keyword;
 import Parser;
 import aux;
 
-namespace gen = mlc::ir::gen;
-
-using GenClass = gen::IRGenerator;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace type = ast::Type;
-
 size_t GenClass::exprCnt = 0;
-
 
 GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,const sPtr<type::CompileType> &_type) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)

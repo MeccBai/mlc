@@ -5,12 +5,6 @@ module Parser;
 import Token;
 import aux;
 
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-using astClass = mlc::parser::AbstractSyntaxTree;
-using exprTree = ast::exprTree;
-namespace type = ast::Type;
-
 bool isLeftExpression(const std::shared_ptr<ast::Expression> &_expression) {
     if (const auto vPtr = _expression->GetVariable(); vPtr != nullptr) {
         return true;

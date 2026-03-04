@@ -6,14 +6,6 @@ module Parser;
 import std;
 import aux;
 
-using astClass = mlc::parser::AbstractSyntaxTree;
-
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace ast = mlc::ast;
-namespace type = ast::Type;
-using size_t = std::size_t;
-
 std::vector<std::string_view> initializerListSplit(const std::string_view initExpr) {
     std::vector<std::string_view> elements;
     std::string_view content = initExpr;

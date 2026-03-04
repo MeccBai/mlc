@@ -10,7 +10,6 @@ import :Expression;
 import aux;
 import std;
 import Parser;
-namespace ast = mlc::ast;
 
 
 std::string ast::Type::ArrayType::GetTypeName() const {

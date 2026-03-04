@@ -7,18 +7,7 @@ import std;
 import aux;
 
 
-using astClass = mlc::parser::AbstractSyntaxTree;
-
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-namespace type = ast::Type;
 //[if(p==0){a.x=10;}else{a.y=10;}]
-
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-
 
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent) {
     const auto pos = _enumContent.find(' ');
@@ -54,31 +43,31 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
 
     functionSymbolTable.reserve(ast::Type::BaseTypes.size() + functions.size() + funcDecls.size());
     for (auto type: ast::Type::BaseTypes) {
-        auto typePtr = std::make_shared<ast::Type::CompileType>(type);
+        auto typePtr = ast::MakeCompileType(type);
 
         typeSymbolTable.emplace_back(typePtr);
         functionSymbolTable.emplace_back(
-            std::make_shared<ast::FunctionDeclaration>(
+            ast::MakeFuncDecl(
                 ast::FunctionDeclaration(
-                    type.Name,typePtr,{},
-                    true,true,true
+                    type.Name, typePtr, {},
+                    true, true, true
                 )
             )
         );
     }
     for (auto &enumDef: enums) {
         auto enumParsed = enumDefParser(enumDef);
-        auto enumPtr = std::make_shared<ast::Type::CompileType>(enumParsed);
+        auto enumPtr = ast::MakeCompileType(enumParsed);
         typeSymbolTable.emplace_back(enumPtr);
     }
     for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
-        auto structPtr = std::make_shared<ast::Type::CompileType>(structDef);
+        auto structPtr = ast::MakeCompileType(structDef);
         typeSymbolTable.emplace_back(structPtr);
     }
 
     for (auto &decl: funcDecls) {
         auto declParsed = functionDeclParser(decl);
-        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(declParsed));
+        functionSymbolTable.emplace_back(ast::MakeFuncDecl(declParsed));
     }
 
     for (auto &varDecl: varDecls) {
@@ -91,13 +80,13 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 
     for (auto &func: functions) {
-        const auto [decl, body] = functionDeclSpliter(func);
-        functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(decl));
+        auto [decl, body] = functionDeclSpliter(func);
+        functionSymbolTable.emplace_back(ast::MakeFuncDecl(decl));
     }
 
     for (auto &func: functions) {
-        auto decl = functionDefParser(func);
-        functionScopeTable.emplace_back(std::make_shared<ast::FunctionScope>(decl));
+        auto def = functionDefParser(func);
+        functionScopeTable.emplace_back(ast::Make<ast::FunctionScope>(def));
     }
 }
 
@@ -108,7 +97,7 @@ ast::Expression astClass::GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_t
         std::exit(-1);
     }
     const std::string value = _type->Name.starts_with("f") ? "0.0" : "0";
-    auto args = std::vector{std::make_shared<ast::Expression>(ast::ConstValue(value))};
+    auto args = std::vector{ast::MakeExpression(ast::ConstValue(value))};
     return ast::Expression(
         std::make_shared<ast::FunctionCall>(func.value(), args)
     );
@@ -117,9 +106,9 @@ ast::Expression astClass::GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_t
 ast::Expression astClass::GetStructDefaultValue(const sPtr<type::StructDefinition> &_type) {
     std::vector<std::shared_ptr<ast::Expression> > memberInits;
     for (const auto &[name, type]: _type->Members) {
-        memberInits.emplace_back(std::make_shared<ast::Expression>(GetDefaultValue(type)));
+        memberInits.emplace_back(ast::MakeExpression(GetDefaultValue(type)));
     }
-    return ast::Expression(std::make_shared<ast::InitializerList>(memberInits));
+    return ast::Expression(ast::MakeInitializerList(memberInits));
 }
 
 ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) {
@@ -130,11 +119,11 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
         return ast::Expression(ast::ConstValue("0"));
     }
     if (const auto structDefPtr = std::get_if<type::StructDefinition>(&*_type)) {
-        return GetStructDefaultValue(std::make_shared<type::StructDefinition>(*structDefPtr));
+        return GetStructDefaultValue(ast::MakeStructDef(*structDefPtr));
     }
     if (const auto arrayTypePtr = std::get_if<type::ArrayType>(&*_type)) {
-        return ast::Expression(std::make_shared<ast::InitializerList>(std::vector(
-            arrayTypePtr->Length, std::make_shared<ast::Expression>(GetDefaultValue(arrayTypePtr->BaseType)))));
+        return ast::Expression(ast::MakeInitializerList(std::vector(
+            arrayTypePtr->Length, ast::MakeExpression(GetDefaultValue(arrayTypePtr->BaseType)))));
     }
     if (std::get_if<type::PointerType>(&*_type)) {
         return ast::Expression(ast::ConstValue("nullptr"));

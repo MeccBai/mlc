@@ -10,15 +10,6 @@ import keyword;
 import Parser;
 import aux;
 
-namespace gen = mlc::ir::gen;
-
-using GenClass = gen::IRGenerator;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace type = ast::Type;
-
 GenClass::funcResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration> &_funcDecl) {
     bool isCopyResult = false;
     auto funcName = std::format("@{}", _funcDecl->Name);
@@ -166,4 +157,5 @@ GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_pa
     }
     return {isCasting, isMemoryArg, size, llvmType, originalType,_param.Name};
 }
+
 

@@ -6,12 +6,6 @@ module Parser;
 import std;
 import aux;
 
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-using astClass = mlc::parser::AbstractSyntaxTree;
-using exprTree = ast::exprTree;
-namespace type = ast::Type;
-
 std::set operators = {
     '+', '-', '*', '/', '%',
     '=', '!', '<', '>',

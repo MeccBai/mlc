@@ -6,6 +6,7 @@ export module Token;
 export import :Type;
 export import :Expression;
 export import :Statement;
+export import :Factory;
 import std;
 
 using size_t = std::size_t;
@@ -32,59 +33,7 @@ export namespace mlc::ast {
         {BaseOperator::BitAnd, "bitand"}, {BaseOperator::BitOr, "bitor"}, {BaseOperator::BitXor, "bitxor"},
         {BaseOperator::ShiftLeft, "shl"}, {BaseOperator::ShiftRight, "shr"},
     };
-
-
-    Type::sPtr<VariableStatement> MakeVariable(VariableStatement &&_variable) {
-        return std::make_shared<VariableStatement>(std::move(_variable));
-    }
-
-    Type::sPtr<VariableStatement> MakeVariable(VariableStatement &_variable) {
-        return std::make_shared<VariableStatement>(_variable);
-    }
-
-    Type::sPtr<MemberAccess> MakeMemberAccess(MemberAccess &&_memberAccess) {
-        return std::make_shared<MemberAccess>(std::move(_memberAccess));
-    }
-
-    Type::sPtr<MemberAccess> MakeMemberAccess(MemberAccess &_memberAccess) {
-        return std::make_shared<MemberAccess>(_memberAccess);
-    }
-
-    Type::sPtr<FunctionDeclaration> MakeFuncDecl(FunctionDeclaration &&_functionDecl) {
-        return std::make_shared<FunctionDeclaration>(std::move(_functionDecl));
-    }
-
-    Type::sPtr<FunctionDeclaration> MakeFuncDecl(FunctionDeclaration &_functionDecl) {
-        return std::make_shared<FunctionDeclaration>(_functionDecl);
-    }
-
-    Type::sPtr<Type::StructDefinition> MakeStructDef(Type::StructDefinition &&_structDef) {
-        return std::make_shared<Type::StructDefinition>(std::move(_structDef));
-    }
-
-    Type::sPtr<Type::StructDefinition> MakeStructDef(Type::StructDefinition &_structDef) {
-        return std::make_shared<Type::StructDefinition>(_structDef);
-    }
-
-    Type::sPtr<Type::CompileType> MakeCompileType(Type::CompileType &&_compileType) {
-        return std::make_shared<Type::CompileType>(std::move(_compileType));
-    }
-
-    Type::sPtr<Type::CompileType> MakeCompileType(Type::CompileType &_compileType) {
-        return std::make_shared<Type::CompileType>(_compileType);
-    }
-
-    Type::sPtr<Type::EnumDefinition> MakeEnumDef(Type::EnumDefinition &&_enumDef) {
-        return std::make_shared<Type::EnumDefinition>(std::move(_enumDef));
-    }
-
-    Type::sPtr<Type::EnumDefinition> MakeEnumDef(Type::EnumDefinition &_enumDef) {
-        return std::make_shared<Type::EnumDefinition>(_enumDef);
-    }
-
-
 }
-
 
 export namespace mlc::ast::Type {
     const std::vector BaseTypes = {
@@ -119,3 +68,4 @@ export namespace mlc::ast::Type {
         }, type);
     }
 }
+namespace ast = mlc::ast;

@@ -5,14 +5,6 @@
 module Parser;
 import aux;
 
-using astClass = mlc::parser::AbstractSyntaxTree;
-
-template<typename type>
-using sPtr = std::shared_ptr<type>;
-namespace ast = mlc::ast;
-using size_t = std::size_t;
-
-
 ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
     ContextTable<ast::VariableStatement> context;
     const auto bracketEndPos = _functionContent.find("){");
