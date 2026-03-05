@@ -20,7 +20,7 @@ export namespace mlc::ast::Type {
 
     std::unordered_set<std::string_view> KeyWords = {
         "struct", "enum", "void", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
-        "nullptr","switch","case","default","break","continue","if","else","while","return"
+        "null","switch","case","default","break","continue","if","else","while","return"
     };
 
     void IsValidName(const std::string_view _name) {

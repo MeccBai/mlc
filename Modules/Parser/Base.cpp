@@ -199,24 +199,21 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
                     std::exit(-1);
                 }
             }
-
-            // 2. 类型检查 (仅针对固定参数部分)
-            // 使用 zip 确保只遍历到固定参数的长度
             for (auto [exp, param] : std::views::zip(args, function->Parameters)) {
                 auto exprType = exp->GetType();
                 auto paramType = param->VarType;
-
                 if (!exprType || !paramType) {
                     throw std::runtime_error("Type inference failed for argument: " + param->Name);
                 }
-
                 auto tip = std::format(R"(argument '{}' in function '{}')", param->Name, functionName);
                 ValidateType(paramType, exprType, tip);
             }
-
-            // 3. 匹配成功，保存声明并跳出
             decl = function;
             break;
+        }
+        if (!decl) {
+            ErrorPrintln("Error: Undefined function '{}'\n", functionName);
+            std::exit(-1);
         }
         return std::vector{std::make_shared<ast::Statement>(
                 ast::Statement(ast::FunctionCallStatement(decl, args)))};

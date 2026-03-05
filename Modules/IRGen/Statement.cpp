@@ -23,7 +23,7 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         if (rightResult.isCopyResult) {
             auto size = type::GetSize(assign->Value->GetType());
             code += std::format(
-                "call void @llvm.memcpy.p0.p0.i64(ptr {}, ptr {}, i64 {}, i1 false)\n",
+                "call void @{}(ptr {}, ptr {}, i64 {}, i1 false)\n", llvmCopy,
                 leftResult.resultVar, rightResult.resultVar, size
             );
         } else {
@@ -79,7 +79,6 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                 callSignature = std::format("{} ({}, ...)", retType, fixedStr);
             }
         } else {
-            // 普通函数签名就是返回类型
             callSignature = retType;
         }
 
@@ -87,18 +86,11 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         std::string finalCode;
         auto llvmType = retType;
         auto size = type::GetSize(funcDecl->ReturnType);
-
-        // 分配结果存储空间 (alloca)
         std::string resultAddr = std::format("%{}", exprCnt++);
         finalCode += std::format("{} = alloca {}, align {}\n", resultAddr, llvmType, size);
-
-        // 执行调用 (call)
         std::string valReg = std::format("%{}", exprCnt++);
-        // 注意这里的签名位置！👇
         finalCode += std::format("{} = call {} @{}({})\n",
                                  valReg, callSignature, funcDecl->Name, argsList);
-
-        // 将结果存入 alloca 空间
         finalCode += std::format("store {} {}, ptr {}, align {}\n", llvmType, valReg, resultAddr, size);
 
         return finalCode;
@@ -131,7 +123,7 @@ std::string GenClass::ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
     std::string code = exprResult.code;
     if (exprResult.isCopyResult) {
         std::string finalCode = std::vformat(exprResult.code, std::make_format_args("%0"));
-        return finalCode + "  ret void\n";
+        return finalCode + "ret void\n";
     }
     return exprResult.code + std::format("ret {} {}\n", type, exprResult.resultVar);
 }

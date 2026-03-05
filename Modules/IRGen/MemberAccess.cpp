@@ -83,6 +83,26 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType * _typ
         };
     }
 
+    if (const auto pointerType = std::get_if<type::PointerType>(_type)) {
+        if (_op == ast::BaseOperator::Arrow) {
+            // 处理 a->b 的情况：先解引用父指针，再访问成员
+            std::string loadReg = std::format("%{}", exprCnt++);
+            std::string loadInstr = std::format(
+                "{} = load {}, ptr {}, align 4\n",
+                loadReg,
+                TypeToLLVM(pointerType->BaseType), // 解引用后的类型
+                _parent.resultVar // 父指针地址
+            );
+            // 递归调用 MemberAccessBinary 来访问成员
+            auto derefResult = exprResult{
+                TypeToLLVM(pointerType->BaseType),
+                loadReg,
+                _parent.code + loadInstr
+            };
+            return MemberAccessBinary(&*pointerType->BaseType, derefResult, _child, ast::BaseOperator::Dot);
+        }
+    }
+
     ErrorPrintln("Error: Invalid parent type for member access.\n");
     std::exit(-1);
 }

@@ -126,7 +126,7 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
             arrayTypePtr->Length, ast::MakeExpression(GetDefaultValue(arrayTypePtr->BaseType)))));
     }
     if (std::get_if<type::PointerType>(&*_type)) {
-        return ast::Expression(ast::ConstValue("nullptr"));
+        return ast::Expression(ast::ConstValue("null"));
     }
     return ast::Expression(ast::ConstValue("0"));
 }

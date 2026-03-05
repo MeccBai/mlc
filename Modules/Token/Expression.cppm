@@ -220,6 +220,11 @@ export namespace mlc::ast {
                                      const bool _isOperatorFirst = false) : Operators(std::move(_operators)),
                                                                             Components(std::move(_components)),
                                                                             isOperatorFirst(_isOperatorFirst) {
+
+            if (Components.size() == 1&& Operators[0] == BaseOperator::AddressOf || Operators[0] == BaseOperator::Dereference) {
+                auto bool * isOpFirst = const_cast<bool*>(&isOperatorFirst);
+                *isOpFirst = true;
+            }
         }
 
         const std::vector<BaseOperator> Operators;

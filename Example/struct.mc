@@ -1,6 +1,4 @@
 
-
-
 struct b {
     i32 x;
     i32 y;
@@ -24,9 +22,10 @@ struct d {
 i32 main() {
     b b1 = {10,20};
     a a1 = {b1,i64(100)};
-    c c1 = {a1,nullptr};
+    c c1 = {a1,null};
     d d1 = {@c1,100};
     d1.c->a.b.x = 30;
     i32 x = d1.c->a.b.x + 30;
     i32 y = (10+20) + 30;
+    return 0;
 }

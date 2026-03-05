@@ -70,28 +70,63 @@ namespace mlc::prepare {
 
     export std::string Prepare(const std::string &_input) {
         const std::string context = removeComments(_input);
-        auto isSpace = [](const unsigned char c) { return std::isspace(c); };
-        const auto normalized = context
-                          | std::views::transform([&](const char c) {
-                              return isSpace(static_cast<unsigned char>(c)) ? ' ' : c;
-                          })
-                          | std::views::chunk_by([](const char a, const char b) {
-                              return a == ' ' && b == ' ';
-                          })
-                          | std::views::transform([](auto &&_chunk) {
-                              return *std::ranges::begin(_chunk);
-                          })
-                          | std::ranges::to<std::string>(); // 先转成 string 方便后续窗口扫描
-        std::string finalResult;
-        for (std::size_t i = 0; i < normalized.length(); ++i) {
-            const char current = normalized[i];
-            if (current == ' ') {
-                const bool prevIsSym = (i > 0 && isSymbol(normalized[i - 1]));
-                if (const bool nextIsSym = (i + 1 < normalized.length() && isSymbol(normalized[i + 1])); prevIsSym || nextIsSym) continue;
+
+        // 1. 归一化空格（保留所有空格，只把换行符等转为空格）
+        std::string normalized;
+        bool lastWasSpace = false;
+        bool inString = false;
+
+        for (std::size_t i = 0; i < context.length(); ++i) {
+            char c = context[i];
+
+            // 处理字符串边界，防止处理字符串内部的空格
+            if (c == '"' && (i == 0 || context[i - 1] != '\\')) {
+                inString = !inString;
             }
-            finalResult += current;
+
+            if (!inString && std::isspace(static_cast<unsigned char>(c))) {
+                if (!lastWasSpace) {
+                    normalized += ' ';
+                    lastWasSpace = true;
+                }
+            } else {
+                normalized += c;
+                lastWasSpace = false;
+            }
         }
 
+        // 2. 精准脱水：只删除符号前后的空格，但严禁触碰字符串内部 🛡️
+        std::string finalResult;
+        inString = false;
+
+        for (std::size_t i = 0; i < normalized.length(); ++i) {
+            const char current = normalized[i];
+
+            // 维护字符串状态
+            if (current == '"' && (i == 0 || normalized[i - 1] != '\\')) {
+                inString = !inString;
+                finalResult += current;
+                continue;
+            }
+
+            if (inString) {
+                // 字符串内部：原封不动保留
+                finalResult += current;
+            } else {
+                // 代码区：如果是空格，检查前后是否是符号
+                if (current == ' ') {
+                    bool prevIsSym = (i > 0 && isSymbol(normalized[i - 1]));
+                    bool nextIsSym = (i + 1 < normalized.length() && isSymbol(normalized[i + 1]));
+
+                    // 如果前后有符号，这个空格就是多余的，跳过它
+                    if (prevIsSym || nextIsSym) continue;
+                }
+                finalResult += current;
+            }
+        }
+
+        // 3. Trim 两端
+        auto isSpace = [](const unsigned char c) { return std::isspace(c); };
         auto trimmed = finalResult
                        | std::views::drop_while(isSpace)
                        | std::views::reverse

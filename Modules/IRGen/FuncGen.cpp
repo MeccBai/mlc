@@ -41,7 +41,10 @@ GenClass::funcResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration>
     if (_funcDecl->IsVarList) {
         functionDecl += "...";
     }
-    functionDecl+= ')'; // 替换最后一个逗号为右括号
+    if (functionDecl.ends_with(',')) {
+        functionDecl.pop_back(); // 移除最后一个逗号
+    }
+    functionDecl += ")";
     return {
         isCopyResult,
         llvmRetType,
@@ -67,11 +70,12 @@ GenClass::funcCall GenClass::FunctionCall(
     const std::string llvmRetType = isCopyResult ? "void" : TypeToLLVM(retType);
     std::string preCode;
     for (const auto &arg: args) preCode += arg.code;
+    auto resultVar = std::format("%{}",exprCnt++);
     std::string callLine;
-    if (!isCopyResult && llvmRetType != "void") {
+    if (isCopyResult && llvmRetType != "void") {
         callLine = "%{} = "; // 留给上级填入变量名
     } else {
-        callLine = "";
+        callLine = std::format("{} = ",resultVar);
     }
     callLine += std::format("call {} @{}(", llvmRetType, _funcCall->FunctionDecl->Name);
     std::vector<std::string> params;
@@ -86,7 +90,7 @@ GenClass::funcCall GenClass::FunctionCall(
                 | std::ranges::to<std::string>();
     callLine += ")\n";
 
-    return {isCopyResult, llvmRetType,"",preCode + callLine};
+    return {isCopyResult, llvmRetType,resultVar,preCode + callLine};
 }
 
 GenClass::exprResult GenClass::FunctionArg(funcArg &_funcArg, size_t _index) {
@@ -113,6 +117,7 @@ GenClass::exprResult GenClass::FunctionArg(funcArg &_funcArg, size_t _index) {
         code += std::format("store {} {}, ptr %{}, align {}\n", currentType, argName, stackVar, _funcArg.size);
         resultType = "ptr";
     }
+    exprCnt++;
     return {resultType, resultVar, code};
 }
 
@@ -157,7 +162,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
         }
         code += StatementGenerate(stmt, decl);
     }
-    return std::format("define {} {{ \n{} \n}}",funcResult.functionDecl,code);
+    return std::format("define {} {{ \n{}}}\n",funcResult.functionDecl,code);
 }
 
 GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {

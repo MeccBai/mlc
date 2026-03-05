@@ -54,6 +54,8 @@ int main(int argc, char* argv[]) {
     out << ir;
     out.close();
 
+    std::println("{}",ir);
+
     auto compileCmd = std::format("clang \"{}\" -o \"{}\" -Wno-override-module -mconsole",
                                          llPath.string(), exePath.string());
 

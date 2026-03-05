@@ -30,8 +30,8 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
             auto condRes = ExpressionExpand(subScope->Condition);
             code += condRes.code;
             std::string i1Reg = std::format("%{}", exprCnt++);
-            code += std::format("  {} = icmp ne {} {}, 0\n", i1Reg, condRes.llvmType, condRes.resultVar);
-            code += std::format("  br i1 {}, label %{}, label %{}\n", i1Reg, bodyLabel, endLabel);
+            code += std::format("{} = icmp ne {} {}, 0\n", i1Reg, condRes.llvmType, condRes.resultVar);
+            code += std::format("br i1 {}, label %{}, label %{}\n", i1Reg, bodyLabel, endLabel);
             code += std::format("{}:\n", bodyLabel);
             bool bodyTerminated = false;
             for (const auto &stmt: subScope->Statements) {
@@ -139,9 +139,9 @@ std::string GenClass::ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_dec
     auto condRes = ExpressionExpand(_ifBlock->Condition);
     code += condRes.code;
     auto i1Reg = std::format("%{}", exprCnt++);
-    code += std::format("  {} = icmp ne {} {}, 0\n", i1Reg, condRes.llvmType, condRes.resultVar);
+    code += std::format("{} = icmp ne {} {}, 0\n", i1Reg, condRes.llvmType, condRes.resultVar);
     std::string falseLabel = _elseBlock ? elseLabel : mergeLabel;
-    code += std::format("  br i1 {}, label %{}, label %{}\n", i1Reg, thenLabel, falseLabel);
+    code += std::format("br i1 {}, label %{}, label %{}\n", i1Reg, thenLabel, falseLabel);
     code += std::format("{}:\n", thenLabel);
     bool thenTerminated = false; // 提出来！🌟
     for (size_t i = 0; i < _ifBlock->Statements.size(); ++i) {

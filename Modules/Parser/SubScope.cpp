@@ -161,5 +161,8 @@ sPtr<ast::Statement> astClass::subScopeParser(ContextTable<ast::VariableStatemen
     auto condition = expressionParser(newContext, _subScopeContent.substr(offest, pos - offest));
     auto body = _subScopeContent.substr(pos + 2, _subScopeContent.length() - pos - 3);
     const auto statements = bodyToStatements(body);
+    if (offest == 3) {
+        return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::IfBlock, condition));
+    }
     return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::WhileBlock, condition));
 }

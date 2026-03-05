@@ -40,7 +40,7 @@ ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     if (IsChar) {
         return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
     }
-    if (Value == "nullptr") {
+    if (Value == "null") {
         return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("null"));
     }
     if (std::isdigit(Value[0]) || (Value[0] == '-' && Value.size() > 1)) {

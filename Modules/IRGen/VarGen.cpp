@@ -53,7 +53,7 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variabl
             // 场景 C: 普通标量赋值 (i32 a = 1 + 2)
             code += initRes.code;
             code += std::format(
-                "  store {} {}, ptr %{}, align {}\n",
+                "store {} {}, ptr %{}, align {}\n",
                 initRes.llvmType, initRes.resultVar, regName, align
             );
         }

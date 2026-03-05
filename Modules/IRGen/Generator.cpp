@@ -30,7 +30,7 @@ std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> 
         }, *Type);
     }
     body.pop_back(); // 去掉最后一个逗号
-    body += "}";
+    body += "}\n";
 
     return title + body;
 }

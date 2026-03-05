@@ -10,7 +10,7 @@ import keyword;
 import Parser;
 import aux;
 
-size_t GenClass::exprCnt = 0;
+size_t GenClass::exprCnt = 1;
 
 GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,const sPtr<type::CompileType> &_type) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
@@ -21,11 +21,18 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     if (const auto enumPtr = _expression->GetEnumValue()) {
         return {type, std::to_string(enumPtr->Index), ""};
     }
-    if (const auto varPtr = _expression->GetVariable()) {
-        auto result = exprResult{
-            type, std::format("%{}", (*varPtr)->Name), ""
+    if (const auto varPtrT = _expression->GetVariable()) {
+        auto varPtr = *varPtrT;
+        std::string tempReg = std::format("%{}",exprCnt++);
+        std::string llvmType = TypeToLLVM(varPtr->VarType);
+        std::string varAddr = std::format("%{}", varPtr->Name);
+        std::string loadCode = std::format("{} = load {}, ptr {}, align 4\n",
+                                           tempReg, llvmType, varAddr);
+        return exprResult{
+            type,
+            tempReg,
+            loadCode
         };
-        return result;
     }
     if (const auto compPtr = _expression->GetCompositeExpression()) {
         auto &[operators,components,opFirst] = **compPtr;
@@ -39,7 +46,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         if (opFirst) {
             if (const auto var = components[0]->GetVariable()) {
                 return exprResult{
-                    std::format("*{}", TypeToLLVM(components[0]->GetType())),
+                    std::format("{}", TypeToLLVM(components[0]->GetType())),
                     std::format("%{}", (*var)->Name), ""
                 };
             }
@@ -58,7 +65,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
                     const auto& right = workingExpr[i + 1];
                     const auto op = workingOps[i];
                     std::string targetReg = std::format("%{}", exprCnt++);
-                    std::string opName = ast::BaseIROperators.at(op); // 比如 "add", "mul"
+                    std::string opName = OperatorToIR(left.llvmType, op);
                     currentCode += std::format("{} = {} {} {}, {}\n",
                                               targetReg, opName, left.llvmType,
                                               left.resultVar, right.resultVar);
@@ -89,7 +96,6 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     return {"","",""};
 }
 
-
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
                                             const sPtr<ast::Expression> &_expression) {
     if (!_expression || !_expression->Storage) return "";
@@ -114,7 +120,9 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
                 if (ast::OperatorPriority.at(workingOps[i]) == priority) {
                     std::string left = workingExpr[i];
                     std::string right = workingExpr[i + 1];
-                    std::string opSymbol = ast::BaseIROperators.at(workingOps[i]);
+                    auto compileType = compExpr->Components[i]->GetType();
+                    auto type = std::get_if<type::BaseType>(&*compileType);
+                    std::string opSymbol = OperatorToIR(type,workingOps[i]);
                     std::string combined = std::format("{} ({}, {})", opSymbol, left, right);
                     workingExpr[i] = combined;
                     workingExpr.erase(workingExpr.begin() + i + 1);
@@ -165,7 +173,7 @@ GenClass::exprResult GenClass::TripleExpression(const exprResult &_left, const e
     std::string targetReg = std::format("%{}", exprCnt++);
     const std::string combinedCode = _left.code + _right.code;
     std::string llvmOp = OperatorToIR(_left.llvmType, _op);
-    const std::string currentInstr = std::format("  {} = {} {} {}, {}\n",
+    const std::string currentInstr = std::format("{} = {} {} {}, {}\n",
                                                  targetReg, llvmOp, _left.llvmType,
                                                  _left.resultVar, _right.resultVar);
     return exprResult{
@@ -215,7 +223,7 @@ GenClass::exprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOper
                 resultVar
             );
             return exprResult{
-                llvmType + "*",
+                llvmType,
                 std::format("%{}", newReg),
                 code + instr
             };
@@ -249,3 +257,5 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
 
     return workingExpr[0];
 }
+
+

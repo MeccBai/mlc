@@ -128,6 +128,9 @@ std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
         if (baseType->Name.starts_with('f')) {
             return std::format("f{}", baseType->Size() * 8);
         }
+        if (baseType->Name == "null") {
+            return "ptr";
+        }
     }
     if (const auto structDef = std::get_if<type::StructDefinition>(&*_type)) {
         return std::format("%struct.{}", structDef->Name);
