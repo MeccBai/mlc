@@ -85,15 +85,6 @@ namespace mlc::ir::gen {
 
         static std::string TypeToLLVM(const sPtr<type::CompileType> &_type);
 
-        static exprResult TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op);
-
-        static exprResult TripleExpression(const exprResult &_left, const exprResult &_right, ast::BaseOperator _op);
-
-        static exprResult BinaryExpression(const expr &_expr, ast::BaseOperator _op);
-
-        static exprResult GradientExpression(const std::vector<exprResult> &_expr,
-                                             const std::vector<ast::BaseOperator> &_ops);
-
         static exprResult MemberAccessExpression(const expr &_base);
 
         static exprResult MemberAccessBinary(const type::CompileType *_type, const exprResult &_parent,
@@ -137,10 +128,20 @@ namespace mlc::ir::gen {
 
         static std::string ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_decl,const sPtr<ast::SubScope> &_ifBlock ,const sPtr<ast::SubScope> &_elseBlock = nullptr);
 
-        static exprResult conditionalExpression(const sPtr<ast::Expression> &_condition);
+        static exprResult GradientExpression(const std::vector<exprResult> &_expr,
+                                                  const std::vector<ast::BaseOperator> &_ops);
 
         static std::string GenerateIR(parser::AbstractSyntaxTree &_ast);
 
+        static exprResult TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op);
+        static exprResult TripleExpression(const exprResult &_left, const exprResult &_right,
+                                                ast::BaseOperator _op);
+
+        static exprResult BinaryExpression(const expr &_expr, ast::BaseOperator _op);
+
+        static std::string ConditionExpression(const expr &_condition,std::string_view _true,std::string_view _false = "");
+
+        static exprResult LeftExpressionExpand(const expr &_expr);
     };
 
     export

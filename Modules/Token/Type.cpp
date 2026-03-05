@@ -27,39 +27,5 @@ size_t type::GetSize(const sPtr<CompileType> &_type) {
 }
 
 
-type::ArrayType *type::GetArrayType(const std::shared_ptr<CompileType> &_type) {
-    if (_type == nullptr) {
-        return nullptr;
-    }
-    return std::get_if<ArrayType>(&*_type);
-}
-
-type::PointerType *type::GetPointerType(const std::shared_ptr<CompileType> &_type) {
-    if (_type == nullptr) {
-        return nullptr;
-    }
-    return std::get_if<PointerType>(&*_type);
-}
-
-type::BaseType *type::GetBaseType(const std::shared_ptr<CompileType> &_type) {
-    if (_type == nullptr) {
-        return nullptr;
-    }
-    return std::get_if<BaseType>(&*_type);
-}
-
-type::StructDefinition *type::GetStructDef(const std::shared_ptr<CompileType> &_type) {
-    if (_type == nullptr) {
-        return nullptr;
-    }
-    return std::get_if<StructDefinition>(&*_type);
-}
-
-
-type::EnumDefinition *type::GetEnumDef(const std::shared_ptr<CompileType> &_type) {
-    if (_type == nullptr) {
-        return nullptr;
-    }
-    return std::get_if<EnumDefinition>(&*_type);
-}
+// Get*Type 函数已移至 Type.cppm 中作为内联模板实现
 

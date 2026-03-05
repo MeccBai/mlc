@@ -5,7 +5,6 @@ module Generator;
 
 import std;
 import Token;
-import std;
 import keyword;
 import Parser;
 import aux;
@@ -45,7 +44,7 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variabl
             // 场景 B: 结构体/大对象拷贝 (memcpy)
             code += initRes.code;
             code += std::format(
-                "  call void @llvm.memcpy.p0.p0.i64(ptr %{}, ptr {}, i64 {}, i1 false)\n",
+                "call void @llvm.memcpy.p0.p0.i64(ptr %{}, ptr {}, i64 {}, i1 false)\n",
                 regName, initRes.resultVar, type::GetSize(_variable->VarType)
             );
         }

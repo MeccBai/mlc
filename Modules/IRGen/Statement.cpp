@@ -5,7 +5,6 @@ module Generator;
 
 import std;
 import Token;
-import std;
 import keyword;
 import Parser;
 import aux;
@@ -14,7 +13,7 @@ import aux;
 std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
     if (auto _variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
-        return LocalVariable(ast::MakeVariable(*_variable));
+        return LocalVariable(ast::Make<ast::Variable>(*_variable));
     }
     if (auto assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
         auto leftResult = ExpressionExpand(assign->BaseValue);
@@ -42,14 +41,16 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
     }
     if (auto funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
         auto funcDecl = funcCall->FunctionDecl;
+        std::string finalCode;
         std::vector<std::string> argStrings;
-        for (const auto &argExpr: funcCall->Arguments) {
-            const auto type = argExpr->GetType();
+
+        for (const auto &argExpr : funcCall->Arguments) {
             auto [argType, argVar, argCode, _] = ExpressionExpand(argExpr);
-            if (std::get_if<type::ArrayType>(&*type)) {
-                argType = "ptr";
-            }
-            argStrings.emplace_back(std::format("{} {}", argType, argVar));
+            finalCode += argCode; // 🌟 关键：把参数计算的 IR 捡回来！
+
+            std::string finalType = argType;
+            if (std::get_if<type::ArrayType>(&*argExpr->GetType())) finalType = "ptr";
+            argStrings.emplace_back(std::format("{} {}", finalType, argVar));
         }
         std::string argsList = std::views::all(argStrings)
                                | std::views::join_with(std::string(", "))
@@ -82,17 +83,17 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
             callSignature = retType;
         }
 
-        // 4. 生成指令序列
-        std::string finalCode;
-        auto llvmType = retType;
-        auto size = type::GetSize(funcDecl->ReturnType);
-        std::string resultAddr = std::format("%{}", exprCnt++);
-        finalCode += std::format("{} = alloca {}, align {}\n", resultAddr, llvmType, size);
-        std::string valReg = std::format("%{}", exprCnt++);
-        finalCode += std::format("{} = call {} @{}({})\n",
-                                 valReg, callSignature, funcDecl->Name, argsList);
-        finalCode += std::format("store {} {}, ptr {}, align {}\n", llvmType, valReg, resultAddr, size);
+        if (retType != "void") {
+            auto valReg = std::format("%{}", exprCnt++);
+            finalCode += std::format("{} = call {} @{}({})\n",
+                                     valReg, callSignature, funcDecl->Name, argsList);
 
+            auto resultAddr = std::format("%{}", exprCnt++);
+            finalCode += std::format("{} = alloca {}\n", resultAddr, retType);
+            finalCode += std::format("store {} {}, ptr {}\n", retType, valReg, resultAddr);
+        } else {
+            finalCode += std::format("call void @{}({})\n", funcDecl->Name, argsList);
+        }
         return finalCode;
     }
     if (std::holds_alternative<ast::ContinueStatement>(*_stmt) || std::holds_alternative<ast::BreakStatement>(*_stmt)) {

@@ -5,14 +5,14 @@ module Generator;
 
 import std;
 import Token;
-import std;
 import keyword;
 import Parser;
 import aux;
 
 size_t GenClass::exprCnt = 1;
 
-GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,const sPtr<type::CompileType> &_type) {
+GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,
+                                                const sPtr<type::CompileType> &_type) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
     const auto type = TypeToLLVM(_expression->GetType());
     if (const auto constPtr = _expression->GetConstValue()) {
@@ -23,18 +23,36 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
     }
     if (const auto varPtrT = _expression->GetVariable()) {
         auto varPtr = *varPtrT;
-        std::string tempReg = std::format("%{}",exprCnt++);
-        std::string llvmType = TypeToLLVM(varPtr->VarType);
         std::string varAddr = std::format("%{}", varPtr->Name);
+        std::string llvmType = TypeToLLVM(varPtr->VarType);
+
+        // 💡 物理分流：判断是否为“复合类型”（数组、指针、结构体等）
+        bool isComplexType = std::holds_alternative<type::ArrayType>(*varPtr->VarType) ||
+                             std::holds_alternative<type::PointerType>(*varPtr->VarType) || std::holds_alternative<
+                                 type::StructDefinition>(*varPtr->VarType);
+        if (isComplexType) {
+            return exprResult{
+                TypeToLLVM(varPtr->VarType),
+                varAddr, // 直接返回 %str 这样的地址
+                "" // 没有额外的 IR 代码
+            };
+        }
+        std::string tempReg = std::format("%{}", exprCnt++);
         std::string loadCode = std::format("{} = load {}, ptr {}, align 4\n",
                                            tempReg, llvmType, varAddr);
         return exprResult{
-            type,
+            TypeToLLVM(varPtr->VarType),
             tempReg,
             loadCode
         };
     }
     if (const auto compPtr = _expression->GetCompositeExpression()) {
+        auto isLogic = [](ast::BaseOperator op) {
+            return op == ast::BaseOperator::And || op == ast::BaseOperator::Or || op == ast::BaseOperator::Not || op ==
+                   ast::BaseOperator::Equal || op == ast::BaseOperator::NotEqual || op == ast::BaseOperator::Greater ||
+                   op == ast::BaseOperator::Less || op == ast::BaseOperator::GreaterEqual || op ==
+                   ast::BaseOperator::LessEqual;
+        };
         auto &[operators,components,opFirst] = **compPtr;
         if (components.empty()) {
             ErrorPrintln("Error: Composite expression has no components.\n");
@@ -51,49 +69,30 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
                 };
             }
         }
-        std::string currentCode;
-        auto workingExpr = components | std::views::transform([&](const sPtr<ast::Expression> &expr) {
-            auto res = ExpressionExpand(expr);
-            currentCode += res.code;
-            return res;
+        auto workingExpr = components | std::views::transform([](const sPtr<ast::Expression> &expr) {
+            return ExpressionExpand(expr);
         }) | std::ranges::to<std::vector<exprResult> >();
-        std::vector<ast::BaseOperator> workingOps = operators;
-        for (size_t priority = 1; priority <= 12; ++priority) {
-            for (size_t i = 0; i < workingOps.size(); ) {
-                if (ast::OperatorPriority.at(workingOps[i]) == priority) {
-                    const auto& left = workingExpr[i];
-                    const auto& right = workingExpr[i + 1];
-                    const auto op = workingOps[i];
-                    std::string targetReg = std::format("%{}", exprCnt++);
-                    std::string opName = OperatorToIR(left.llvmType, op);
-                    currentCode += std::format("{} = {} {} {}, {}\n",
-                                              targetReg, opName, left.llvmType,
-                                              left.resultVar, right.resultVar);
-                    exprResult combined = { left.llvmType, targetReg, "" }; // code 已记录在 currentCode
-                    workingExpr[i] = combined;
-                    workingExpr.erase(workingExpr.begin() + i + 1);
-                    workingOps.erase(workingOps.begin() + i);
-                } else {
-                    ++i;
-                }
-            }
+        auto isLogicResult = std::ranges::all_of(operators, isLogic);
+        auto result = GradientExpression(workingExpr, operators);
+        if (isLogicResult) {
+            result.llvmType = "i1"; // 逻辑表达式结果类型为 i1
         }
-        return { workingExpr[0].llvmType, workingExpr[0].resultVar, currentCode };
+        return result;
     }
 
     if (const auto functionCallPtr = _expression->GetFunctionCall()) {
         const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
-            return exprResult {
-                llvmType,
-                resultVar,
-                callCode,
-                isCopyResult
-            };
+        return exprResult{
+            llvmType,
+            resultVar,
+            callCode,
+            isCopyResult
+        };
     }
     if (const auto initListPtr = _expression->GetInitializerList()) {
-        return InitializerListExpression(initListPtr,_type);
+        return InitializerListExpression(initListPtr, _type);
     }
-    return {"","",""};
+    return {"", "", ""};
 }
 
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
@@ -105,24 +104,24 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
         return std::format("{} {}", typeStr, constVal->Value);
     }
     if (const auto *initListPtr = std::get_if<sPtr<ast::InitializerList> >(&data)) {
-        return ConstInitializerListExpression(*initListPtr,_type);
+        return ConstInitializerListExpression(*initListPtr, _type);
     }
-    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression>>(&data)) {
+    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression> >(&data)) {
         const auto &compExpr = *compExprPtr;
         if (compExpr->Components.empty()) return "";
         std::vector<std::string> workingExpr;
-        for (const auto& comp : compExpr->Components) {
+        for (const auto &comp: compExpr->Components) {
             workingExpr.push_back(ConstExpressionExpand(comp->GetType(), comp));
         }
         std::vector<ast::BaseOperator> workingOps = compExpr->Operators;
         for (size_t priority = 1; priority <= 12; ++priority) {
-            for (size_t i = 0; i < workingOps.size(); ) {
+            for (size_t i = 0; i < workingOps.size();) {
                 if (ast::OperatorPriority.at(workingOps[i]) == priority) {
                     std::string left = workingExpr[i];
                     std::string right = workingExpr[i + 1];
                     auto compileType = compExpr->Components[i]->GetType();
                     auto type = std::get_if<type::BaseType>(&*compileType);
-                    std::string opSymbol = OperatorToIR(type,workingOps[i]);
+                    std::string opSymbol = OperatorToIR(type, workingOps[i]);
                     std::string combined = std::format("{} ({}, {})", opSymbol, left, right);
                     workingExpr[i] = combined;
                     workingExpr.erase(workingExpr.begin() + i + 1);
@@ -160,7 +159,7 @@ GenClass::exprResult GenClass::TripleExpression(const expr &_left, const expr &_
     std::string llvmOp = OperatorToIR(std::get_if<type::BaseType>(&*_left->GetType()), _op);
 
     auto result = exprResult{
-        leftResult.llvmType, std::format("%{}", exprCnt),
+        leftResult.llvmType, std::format("%{}", exprCnt++),
         code + std::format("{} = {} {} {}, {}\n", std::format("%{}", exprCnt),
                            llvmOp, leftResult.llvmType, leftResult.resultVar, rightResult.resultVar)
     };
@@ -234,6 +233,7 @@ GenClass::exprResult GenClass::BinaryExpression(const expr &_expr, ast::BaseOper
     }
 }
 
+
 GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> &_expr,
                                                   const std::vector<ast::BaseOperator> &_ops) {
     std::vector<exprResult> workingExpr = _expr;
@@ -258,4 +258,6 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
     return workingExpr[0];
 }
 
+GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
+}
 

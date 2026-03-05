@@ -165,13 +165,20 @@ export namespace mlc::ast {
         [[nodiscard]] Type::sPtr<FunctionDeclaration> ToDeclaration() const;
     };
 
-    SubScope *GeSubScope(Statement *_stmt);
-    AssignStatement *GetAssignStatement(Statement *_stmt);
-    VariableStatement *GetVariableStatement(Statement *_stmt);
-    ReturnStatement *GetReturnStatement(Statement *_stmt);
-    FunctionCallStatement *GetFunctionCallStatement(Statement *_stmt);
-    ContinueStatement *GetContinueStatement(Statement *_stmt);
-    BreakStatement *GetBreakStatement(Statement *_stmt);
+    // 通用 Statement 萃取模板
+    template<typename T>
+    T* GetStatement(Statement *_stmt) {
+        return _stmt ? std::get_if<T>(_stmt) : nullptr;
+    }
+
+    // 向后兼容别名
+    inline SubScope* GeSubScope(Statement *_stmt) { return GetStatement<SubScope>(_stmt); }
+    inline AssignStatement* GetAssignStatement(Statement *_stmt) { return GetStatement<AssignStatement>(_stmt); }
+    inline VariableStatement* GetVariableStatement(Statement *_stmt) { return GetStatement<VariableStatement>(_stmt); }
+    inline ReturnStatement* GetReturnStatement(Statement *_stmt) { return GetStatement<ReturnStatement>(_stmt); }
+    inline FunctionCallStatement* GetFunctionCallStatement(Statement *_stmt) { return GetStatement<FunctionCallStatement>(_stmt); }
+    inline ContinueStatement* GetContinueStatement(Statement *_stmt) { return GetStatement<ContinueStatement>(_stmt); }
+    inline BreakStatement* GetBreakStatement(Statement *_stmt) { return GetStatement<BreakStatement>(_stmt); }
 
     using GlobalStatement = std::variant<Type::StructDefinition, Type::EnumDefinition, FunctionScope, VariableStatement>;
 } // namespace mlc::ast

@@ -5,7 +5,6 @@ module Generator;
 
 import std;
 import Token;
-import std;
 import keyword;
 import Parser;
 import aux;
@@ -44,7 +43,7 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType * _typ
 
         // GEP 数组寻址：父类型是数组，索引是 childResult 的值
         std::string gepInstr = std::format(
-            "  {} = getelementptr {}, ptr {}, i32 0, i32 {}\n",
+            "{} = getelementptr {}, ptr {}, i32 0, i32 {}\n",
             gepReg,
             _parent.llvmType, // 父数组类型
             _parent.resultVar, // 数组地址

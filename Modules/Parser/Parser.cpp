@@ -43,11 +43,11 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
 
     functionSymbolTable.reserve(ast::Type::BaseTypes.size() + functions.size() + funcDecls.size());
     for (auto type: ast::Type::BaseTypes) {
-        auto typePtr = ast::MakeCompileType(type);
+        auto typePtr = ast::Make<ast::Type::CompileType>(type);
 
         typeSymbolTable.emplace_back(typePtr);
         functionSymbolTable.emplace_back(
-            ast::MakeFuncDecl(
+            ast::Make<ast::FunctionDeclaration>(
                 ast::FunctionDeclaration(
                     type.Name, typePtr, {},
                     true, true, true
@@ -57,17 +57,17 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
     for (auto &enumDef: enums) {
         auto enumParsed = enumDefParser(enumDef);
-        auto enumPtr = ast::MakeCompileType(enumParsed);
+        auto enumPtr = ast::Make<ast::Type::CompileType>(enumParsed);
         typeSymbolTable.emplace_back(enumPtr);
     }
     for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
-        auto structPtr = ast::MakeCompileType(structDef);
+        auto structPtr = ast::Make<ast::Type::CompileType>(structDef);
         typeSymbolTable.emplace_back(structPtr);
     }
 
     for (auto &decl: funcDecls) {
         auto declParsed = functionDeclParser(decl);
-        functionSymbolTable.emplace_back(ast::MakeFuncDecl(declParsed));
+        functionSymbolTable.emplace_back(ast::Make<ast::FunctionDeclaration>(declParsed));
     }
 
     for (auto &varDecl: varDecls) {
@@ -81,7 +81,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
 
     for (auto &func: functions) {
         auto [decl, body] = functionDeclSpliter(func);
-        functionSymbolTable.emplace_back(ast::MakeFuncDecl(decl));
+        functionSymbolTable.emplace_back(ast::Make<ast::FunctionDeclaration>(decl));
     }
 
     for (auto &func: functions) {
@@ -119,7 +119,7 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
         return ast::Expression(ast::ConstValue("0"));
     }
     if (const auto structDefPtr = std::get_if<type::StructDefinition>(&*_type)) {
-        return GetStructDefaultValue(ast::MakeStructDef(*structDefPtr));
+        return GetStructDefaultValue(ast::Make<ast::Type::StructDefinition>(std::move(*structDefPtr)));
     }
     if (const auto arrayTypePtr = std::get_if<type::ArrayType>(&*_type)) {
         return ast::Expression(ast::MakeInitializerList(std::vector(

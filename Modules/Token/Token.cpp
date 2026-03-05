@@ -26,7 +26,7 @@ std::string baseOperator(ast::BaseOperator _op) {
 ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar):
     Value(processLiteral(_value, _isChar)),IsChar(_isChar)  {
     if (_isChar) {
-        Type = ast::MakeCompileType(*Type::BaseTypeMap.at("i8"));
+        Type = ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
     }
     else {
         Type = GetType();

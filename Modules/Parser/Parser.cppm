@@ -184,7 +184,6 @@ export namespace mlc::parser {
 
         ast::Expression fillDefaultValue(const sPtr<type::CompileType> &_type, const std::shared_ptr<ast::Expression> &_initExpr = nullptr);
 
-    private:
         [[nodiscard]] sOptional<type::CompileType> findType(std::string_view _typeName) const;
     };
 } // namespace mlc::parser
@@ -196,6 +195,8 @@ export namespace mlc::ast {
     void dumpFragments(const exprTree &fragment, int indent = 0);
 
     bool ConstExpressionCheck(const std::shared_ptr<Expression> &_expr);
+
+    BaseOperator toBaseOperator(std::string_view _token);
 }
 
 std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);

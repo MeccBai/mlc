@@ -69,155 +69,159 @@ std::vector<std::string_view> split(std::string_view str, std::string_view delim
     }
     return result;
 }
+
+// ========== Statement 辅助解析函数 ==========
+
+auto trim = [](std::string_view str) {
+    while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
+    while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
+    return str;
+};
+
+// 解析 return 语句
+astClass::StatementTable<ast::Statement> parseReturnStatement(
+    astClass &self,
+    astClass::ContextTable<ast::VariableStatement> &_context,
+    std::string_view _content) {
+
+    auto returnBody = _content.substr(6);
+    auto trimmedBody = trim(returnBody);
+    if (!trimmedBody.empty() && trimmedBody.back() == ';') {
+        trimmedBody.remove_suffix(1);
+        trimmedBody = trim(trimmedBody);
+    }
+    if (trimmedBody.empty()) {
+        return {std::make_shared<ast::Statement>(ast::ReturnStatement(nullptr))};
+    }
+    return {std::make_shared<ast::Statement>(
+        ast::ReturnStatement(self.expressionParser(_context, trimmedBody)))};
+}
+
+// 解析赋值语句
+astClass::StatementTable<ast::Statement> parseAssignmentStatement(
+    astClass &self,
+    astClass::ContextTable<ast::VariableStatement> &_context,
+    std::string_view _content) {
+
+    const auto pos = _content.find('=');
+    const auto left = _content.substr(0, pos);
+    auto right = _content.substr(pos + 1, _content.length() - pos - 2);
+    auto leftExpr = self.expressionParser(_context, left);
+    auto rightExpr = self.expressionParser(_context, right);
+    type::ValidateType(leftExpr->GetType(), rightExpr->GetType(), left);
+    if (!isLeftExpression(leftExpr)) {
+        ErrorPrintln("{} is not a valid left-hand expression in assignment\n", left);
+        std::exit(-1);
+    }
+    return {std::make_shared<ast::Statement>(ast::AssignStatement(leftExpr, rightExpr))};
+}
+
+// 解析函数调用语句
+astClass::StatementTable<ast::Statement> parseFunctionCallStatement(
+    astClass &self,
+    astClass::ContextTable<ast::VariableStatement> &_context,
+    std::string_view _content) {
+
+    const auto functionName = _content.substr(0, _content.find('('));
+    const auto argsStr = _content.substr(_content.find('(') + 1,
+                                         _content.length() - functionName.length() - 1);
+
+    std::vector<sPtr<ast::Expression>> args = argSplit(argsStr)
+        | std::views::transform([&self, &_context](std::string_view arg) {
+            return self.expressionParser(_context, arg);
+        })
+        | std::ranges::to<std::vector<sPtr<ast::Expression>>>();
+
+    sPtr<ast::FunctionDeclaration> decl = nullptr;
+
+    for (const auto& function : self.functionSymbolTable) {
+        if (function->Name != functionName) continue;
+
+        const size_t numParams = function->Parameters.size();
+        const size_t numArgs = args.size();
+
+        if (function->IsVarList) {
+            if (numArgs < numParams) {
+                ErrorPrintln("Error: Variadic function '{}' expects at least {} arguments but {} were provided\n",
+                             functionName, numParams, numArgs);
+                std::exit(-1);
+            }
+        } else {
+            if (numArgs != numParams) {
+                ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
+                             functionName, numParams, numArgs);
+                std::exit(-1);
+            }
+        }
+
+        for (auto [exp, param] : std::views::zip(args, function->Parameters)) {
+            auto tip = std::format(R"(argument '{}' in function '{}')", param->Name, functionName);
+            type::ValidateType(param->VarType, exp->GetType(), tip);
+        }
+        decl = function;
+        break;
+    }
+
+    if (!decl) {
+        ErrorPrintln("Error: Undefined function '{}'\n", functionName);
+        std::exit(-1);
+    }
+    return {std::make_shared<ast::Statement>(ast::FunctionCallStatement(decl, args))};
+}
+
+// ========== 主 statementParser ==========
+
 astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
                                                                    const std::string_view _statementContent) {
+    // 控制流语句
     if (_statementContent.starts_with("if(") ||
         _statementContent.starts_with("while(") ||
         _statementContent.starts_with("switch(") ||
         _statementContent.starts_with("do{") ||
         _statementContent.starts_with("else{") ||
         _statementContent.starts_with("{")) {
-        const auto sub = subScopeParser(_context, _statementContent);
-        return std::vector{std::static_pointer_cast<ast::Statement>(sub)};
+        return {std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))};
     }
 
+    // return 语句
     if (_statementContent.starts_with("return")) {
-        // 检查 return 之后是否紧跟合法边界
-        // 比如：return;  return (x);  return x;
-        auto trim = [](std::string_view str) {
-            while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
-            while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
-            return str;
-        };
-
         bool isStandalone = (_statementContent.length() == 6 ||
                              std::isspace(_statementContent[6]) ||
                              _statementContent[6] == '(' ||
                              _statementContent[6] == ';');
-
         if (isStandalone) {
-            auto returnBody = _statementContent.substr(6);
-
-            // 移除首尾空格和末尾分号（如果有的话）
-            // 你应该有一个统一的 Trim 函数
-            auto trimmedBody = trim(returnBody);
-            if (!trimmedBody.empty() && trimmedBody.back() == ';') {
-                trimmedBody.remove_suffix(1);
-                trimmedBody = trim(trimmedBody);
-            }
-
-            if (trimmedBody.empty()) {
-                return std::vector{std::make_shared<ast::Statement>(ast::ReturnStatement(nullptr))};
-            }
-
-            return std::vector{
-                std::make_shared<ast::Statement>(
-                    ast::ReturnStatement(
-                        expressionParser(_context, trimmedBody)
-                    ))
-            };
-        };
+            return parseReturnStatement(*this, _context, _statementContent);
+        }
     }
+
+    // break/continue
     if (_statementContent.starts_with("break;")) {
-        return std::vector{std::make_shared<ast::Statement>(ast::BreakStatement())};
+        return {std::make_shared<ast::Statement>(ast::BreakStatement())};
     }
     if (_statementContent.starts_with("continue;")) {
-        return std::vector{std::make_shared<ast::Statement>(ast::ContinueStatement())};
+        return {std::make_shared<ast::Statement>(ast::ContinueStatement())};
     }
+
+    // 变量声明 (含空格或指针类型)
     if (_statementContent.find(' ') != std::string_view::npos) {
         return variableParser(_context, _statementContent);
     }
     if (auto pos = _statementContent.find('$'); pos != std::string_view::npos && !_statementContent.starts_with('$')) {
         if (auto pos2 = _statementContent.find('='); pos2 > pos) {
-            return variableParser(_context, _statementContent) ;
+            return variableParser(_context, _statementContent);
         }
     }
+
+    // 赋值语句
     if (const auto pos = _statementContent.find('='); pos != std::string_view::npos) {
-        const auto left = _statementContent.substr(0, pos);
-        auto right = _statementContent.substr(pos + 1, _statementContent.length() - pos - 2);
-        auto leftExpr = expressionParser(_context, left);
-        auto rightExpr = expressionParser(_context, right);
-        auto leftType = leftExpr->GetType();
-        auto rightType = rightExpr->GetType();
-        type::ValidateType(leftType, rightType, left);
-        if (!isLeftExpression(leftExpr)) {
-            ErrorPrintln("{} is not a valid left-hand expression in assignment\n", left);
-            std::exit(-1);
-        }
-        return std::vector{std::make_shared<ast::Statement>(ast::AssignStatement(leftExpr, rightExpr))};
+        return parseAssignmentStatement(*this, _context, _statementContent);
     }
+
+    // 函数调用语句
     if (_statementContent.find('(') != std::string_view::npos) {
-        if (const auto pos = _statementContent.find("if("); pos == 0) {
-            return std::vector{
-                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
-            };
-        }
-        if (const auto pos = _statementContent.find("while("); pos == 0) {
-
-            auto sub = subScopeParser(_context, _statementContent);
-            return std::vector{std::make_shared<ast::Statement>(*sub)};
-        }
-        if (const auto pos = _statementContent.find("switch("); pos == 0) {
-            return std::vector{
-                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
-            };
-        }
-        if (const auto pos = _statementContent.find("do{"); pos == 0) {
-            return std::vector{
-                std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))
-            };
-        }
-        const auto functionName = _statementContent.substr(0, _statementContent.find('('));
-        const auto argsStr = _statementContent.substr(_statementContent.find('(') + 1,
-                                                      _statementContent.length() -
-                                                      functionName.length() - 1);
-        std::vector<sPtr<ast::Expression> > args = argSplit(argsStr) | std::views::transform(
-                                                       [this, &_context](std::string_view arg) {
-                                                           return expressionParser(_context, arg);
-                                                       }) | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
-        auto decl = std::shared_ptr<ast::FunctionDeclaration>(nullptr);
-
-        for (const auto& function : functionSymbolTable) {
-            if (function->Name != functionName) continue;
-
-            const size_t numParams = function->Parameters.size();
-            const size_t numArgs = args.size();
-
-            // 1. 基础数量校验
-            if (function->IsVarList) {
-                // 可变参数函数：传入参数必须 >= 固定参数数量
-                if (numArgs < numParams) {
-                    ErrorPrintln("Error: Variadic function '{}' expects at least {} arguments but {} were provided\n",
-                                 functionName, numParams, numArgs);
-                    std::exit(-1);
-                }
-            } else {
-                // 普通函数：数量必须严格相等
-                if (numArgs != numParams) {
-                    ErrorPrintln("Error: Function '{}' expects {} arguments but {} were provided\n",
-                                 functionName, numParams, numArgs);
-                    std::exit(-1);
-                }
-            }
-            for (auto [exp, param] : std::views::zip(args, function->Parameters)) {
-                auto exprType = exp->GetType();
-                auto paramType = param->VarType;
-                if (!exprType || !paramType) {
-                    throw std::runtime_error("Type inference failed for argument: " + param->Name);
-                }
-                auto tip = std::format(R"(argument '{}' in function '{}')", param->Name, functionName);
-                ValidateType(paramType, exprType, tip);
-            }
-            decl = function;
-            break;
-        }
-        if (!decl) {
-            ErrorPrintln("Error: Undefined function '{}'\n", functionName);
-            std::exit(-1);
-        }
-        return std::vector{std::make_shared<ast::Statement>(
-                ast::Statement(ast::FunctionCallStatement(decl, args)))};
+        return parseFunctionCallStatement(*this, _context, _statementContent);
     }
+
     ErrorPrintln("Invalid statement '{}'\n", _statementContent);
     std::exit(-1);
 }

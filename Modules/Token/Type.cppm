@@ -169,12 +169,6 @@ export namespace mlc::ast::Type {
         }
     };
 
-    ArrayType * GetArrayType(const std::shared_ptr<CompileType> &_type);
-    BaseType * GetBaseType(const std::shared_ptr<CompileType> &_type);
-    StructDefinition * GetStructDef(const std::shared_ptr<CompileType> &_type);
-    EnumDefinition * GetEnumDef(const std::shared_ptr<CompileType> &_type);
-    PointerType * GetPointerType(const std::shared_ptr<CompileType> &_type);
-
     template<typename _type>
     concept IsCompileType =requires
     {
@@ -187,20 +181,15 @@ export namespace mlc::ast::Type {
         );
     };
 
-    template<IsCompileType _compileType>
-    sPtr<CompileType> MakeCompileType(_compileType && _type) {
-        return std::make_shared<CompileType>(std::forward<_compileType>(_type));
-    }
-
-
-    template<IsCompileType _compileType>
-    sPtr<CompileType> MakeCompileType(_compileType & _type) {
-        return std::make_shared<CompileType>(_type);
-    }
-
     template<IsCompileType _type>
     bool IsType(const sPtr<CompileType>& _compileType) {
         return std::holds_alternative<_type>(*_compileType);
+    }
+
+
+    template<IsCompileType T>
+    T* GetType(const std::shared_ptr<CompileType> &_type) {
+        return _type ? std::get_if<T>(&*_type) : nullptr;
     }
 
     void ValidateType(const std::shared_ptr<CompileType> &targetType,

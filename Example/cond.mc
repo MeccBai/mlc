@@ -2,7 +2,7 @@
 i32 printf(...);
 
 i32 fab(i32 i) {
-    if (i < 1) {
+    if (i == 1 || i == 2) {
         return 1;
     }
     else {
@@ -13,7 +13,7 @@ i32 fab(i32 i) {
 
 i32 main() {
     i32 result = fab(10);
-    i8 str[20] = "The result is: %d\n";
+    i8 str[20] = "The result is: %d";
     printf(str, result);
     return 0;
 }

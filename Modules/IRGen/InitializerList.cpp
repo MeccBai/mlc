@@ -5,7 +5,6 @@ module Generator;
 
 import std;
 import Token;
-import std;
 import keyword;
 import Parser;
 import aux;
@@ -24,7 +23,7 @@ size_t GenClass::labelCnt = 0;
 GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::InitializerList> &_initList,
                                                          const sPtr<type::CompileType> &_type) {
     auto type = TypeToLLVM(_type);
-    auto varName = std::format("{}", exprCnt++);
+    auto varName = std::format("il{}", exprCnt++);
 
     auto initCode = std::string();
 
@@ -36,26 +35,26 @@ GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::Initial
                                varName, type);
     }
 
-
     std::string resultCode;
     for (auto [value,i]: std::views::zip(_initList->Values, std::views::iota(0u))) {
-        auto [llvmType, resultVar, code, isCopyResult] = ExpressionExpand(value);
+        auto [llvmType, resultVar, code, isCopyResult] = ExpressionExpand(value,_type);
         if (llvmType == "list") {
             std::string memberId = std::format("{}", exprCnt++);
-            resultCode += std::format("%{} = getelementptr inbounds {}, ptr %{}, i32 0, i32 {}\n",
+            resultCode += std::format("%il{} = getelementptr {}, ptr %{}, i32 0, i32 {}\n",
                                       memberId, type, varName, i);
-            resultCode += std::vformat(resultVar, std::make_format_args(memberId));
+            auto memberReg = std::format("%il{}",memberId);
+            resultCode += std::vformat(resultVar, std::make_format_args(memberReg));
             resultCode += code;
         } else {
             resultCode += code;
             std::string memberId = std::format("{}", exprCnt++);
-            resultCode += std::format("%{} = getelementptr inbounds {}, ptr %{}, i32 0, i32 {}\n",
+            resultCode += std::format("%il{} = getelementptr {}, ptr %{}, i32 0, i32 {}\n",
                                       memberId, type, varName, i);
             if (isCopyResult) {
                 resultCode += std::format("call void {}(ptr %{}, ptr {}, i64 {}, i1 false)\n",
                                           llvmCopy, memberId, resultVar, type::GetSize(value->GetType()));
             } else {
-                resultCode += std::format("store {} {}, ptr %{}\n",
+                resultCode += std::format("store {} {}, ptr %il{}\n",
                                           llvmType, resultVar, memberId);
             }
         }
