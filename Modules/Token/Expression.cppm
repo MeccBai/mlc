@@ -60,6 +60,17 @@ export namespace mlc::ast {
     class ContinueStatement {
     };
 
+    const std::unordered_map<std::string_view, BaseOperator> BaseOperators = {
+        {"+", BaseOperator::Add}, {"-", BaseOperator::Sub}, {"*", BaseOperator::Mul},
+        {"/", BaseOperator::Div}, {"%", BaseOperator::Mod}, {"==", BaseOperator::Equal},
+        {"!=", BaseOperator::NotEqual}, {">", BaseOperator::Greater}, {"<", BaseOperator::Less},
+        {">=", BaseOperator::GreaterEqual}, {"<=", BaseOperator::LessEqual}, {"&&", BaseOperator::And},
+        {"||", BaseOperator::Or}, {"!", BaseOperator::Not}, {"&", BaseOperator::BitAnd},
+        {"|", BaseOperator::BitOr}, {"^", BaseOperator::BitXor}, {"~", BaseOperator::BitNot},
+        {">>", BaseOperator::ShiftRight}, {"<<", BaseOperator::ShiftLeft}, {".", BaseOperator::Dot},
+        {"->", BaseOperator::Arrow}, {"[]", BaseOperator::Subscript}, {"@", BaseOperator::AddressOf},
+        {"$", BaseOperator::Dereference},
+    };
 
     class FunctionCall;
     class CompositeExpression;
@@ -296,4 +307,6 @@ export namespace mlc::ast {
     Type::sPtr<InitializerList> MakeInitializerList(std::vector<Type::sPtr<Expression> > &_values) {
         return std::make_shared<InitializerList>(_values);
     }
+
+    bool ConstExpressionCheck(const std::shared_ptr<Expression> &_expr);
 }

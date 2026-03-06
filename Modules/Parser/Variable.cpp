@@ -196,19 +196,3 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
     return result;
 }
 
-bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
-    const auto data = &(*_expr->Storage);
-    if (std::get_if<ConstValue>(data) != nullptr) {
-        return true;
-    }
-    if (const auto funcCall = std::get_if<sPtr<FunctionCall> >(data); funcCall != nullptr) {
-        return std::ranges::all_of((*funcCall)->Arguments, ConstExpressionCheck);
-    }
-    if (const auto compExpr = std::get_if<sPtr<CompositeExpression> >(data); compExpr != nullptr) {
-        return std::ranges::all_of((*compExpr)->Components, ConstExpressionCheck);
-    }
-    if (const auto varPtr = std::get_if<sPtr<Variable> >(data); varPtr != nullptr) {
-        return (*varPtr)->Initializer != nullptr && ConstExpressionCheck((*varPtr)->Initializer);
-    }
-    return false;
-}

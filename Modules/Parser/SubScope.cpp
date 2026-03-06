@@ -155,8 +155,6 @@ sPtr<ast::Statement> astClass::subScopeParser(ContextTable<ast::VariableStatemen
     } else if (_subScopeContent.starts_with("while(")) {
         offest = 6;
     }
-
-
     const auto pos = _subScopeContent.find("){");
     auto condition = expressionParser(newContext, _subScopeContent.substr(offest, pos - offest));
     auto body = _subScopeContent.substr(pos + 2, _subScopeContent.length() - pos - 3);

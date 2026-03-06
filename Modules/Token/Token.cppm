@@ -12,18 +12,6 @@ import std;
 using size_t = std::size_t;
 
 export namespace mlc::ast {
-    const std::unordered_map<std::string_view, BaseOperator> BaseOperators = {
-        {"+", BaseOperator::Add}, {"-", BaseOperator::Sub}, {"*", BaseOperator::Mul},
-        {"/", BaseOperator::Div}, {"%", BaseOperator::Mod}, {"==", BaseOperator::Equal},
-        {"!=", BaseOperator::NotEqual}, {">", BaseOperator::Greater}, {"<", BaseOperator::Less},
-        {">=", BaseOperator::GreaterEqual}, {"<=", BaseOperator::LessEqual}, {"&&", BaseOperator::And},
-        {"||", BaseOperator::Or}, {"!", BaseOperator::Not}, {"&", BaseOperator::BitAnd},
-        {"|", BaseOperator::BitOr}, {"^", BaseOperator::BitXor}, {"~", BaseOperator::BitNot},
-        {">>", BaseOperator::ShiftRight}, {"<<", BaseOperator::ShiftLeft}, {".", BaseOperator::Dot},
-        {"->", BaseOperator::Arrow}, {"[]", BaseOperator::Subscript}, {"@", BaseOperator::AddressOf},
-        {"$", BaseOperator::Dereference},
-    };
-
     const std::unordered_map<BaseOperator, std::string> BaseIROperators = {
         {BaseOperator::Add, "add"}, {BaseOperator::Sub, "sub"}, {BaseOperator::Mul, "mul"},
         {BaseOperator::Div, "div"}, {BaseOperator::Mod, "mod"},
@@ -68,4 +56,6 @@ export namespace mlc::ast::Type {
         }, type);
     }
 }
+
+
 namespace ast = mlc::ast;

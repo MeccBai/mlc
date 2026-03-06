@@ -194,8 +194,6 @@ export namespace mlc::ast {
 
     void dumpFragments(const exprTree &fragment, int indent = 0);
 
-    bool ConstExpressionCheck(const std::shared_ptr<Expression> &_expr);
-
     BaseOperator toBaseOperator(std::string_view _token);
 }
 
