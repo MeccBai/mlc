@@ -171,9 +171,9 @@ export namespace mlc::ast {
             return std::get_if<Type::sPtr<MemberAccess> >(&*Storage);
         }
 
-        [[nodiscard]] Type::sPtr<InitializerList> GetInitializerList() const {
+        [[nodiscard]] Type::sPtr<InitializerList> *GetInitializerList() const {
             if (!Storage) return nullptr;
-            return *std::get_if<Type::sPtr<InitializerList> >(&*Storage);
+            return std::get_if<Type::sPtr<InitializerList> >(&*Storage);
         }
 
 

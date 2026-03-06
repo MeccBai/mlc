@@ -5,7 +5,7 @@
 module Parser;
 import std;
 import aux;
-
+import :Decl;
 
 //[if(p==0){a.x=10;}else{a.y=10;}]
 
@@ -88,105 +88,6 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         auto def = functionDefParser(func);
         functionScopeTable.emplace_back(ast::Make<ast::FunctionScope>(def));
     }
-}
-
-ast::Expression astClass::GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_type) const {
-    const auto func = FindFunction(_type->Name);
-    if (!func) {
-        ErrorPrintln("Compiler Internal Error '{}'\n", _type->Name);
-        std::exit(-1);
-    }
-    const std::string value = _type->Name.starts_with("f") ? "0.0" : "0";
-    if (_type->Name == "i8") {
-        return ast::Expression(ast::ConstValue("\\0", true));
-    }
-    return ast::Expression(ast::ConstValue(value));
-}
-
-ast::Expression astClass::GetStructDefaultValue(const sPtr<type::StructDefinition> &_type) {
-    std::vector<std::shared_ptr<ast::Expression> > memberInits;
-    for (const auto &[name, type]: _type->Members) {
-        memberInits.emplace_back(ast::MakeExpression(GetDefaultValue(type)));
-    }
-    return ast::Expression(ast::MakeInitializerList(memberInits));
-}
-
-ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) {
-    if (const auto baseTypePtr = std::get_if<type::BaseType>(&*_type)) {
-        return GetBaseTypeDefaultValue(std::make_shared<type::BaseType>(*baseTypePtr));
-    }
-    if (std::get_if<type::EnumDefinition>(&*_type)) {
-        return ast::Expression(ast::ConstValue("0"));
-    }
-    if (const auto structDefPtr = std::get_if<type::StructDefinition>(&*_type)) {
-        return GetStructDefaultValue(ast::Make<ast::Type::StructDefinition>(std::move(*structDefPtr)));
-    }
-    if (const auto arrayTypePtr = std::get_if<type::ArrayType>(&*_type)) {
-        return ast::Expression(ast::MakeInitializerList(std::vector(
-            arrayTypePtr->Length, ast::MakeExpression(GetDefaultValue(arrayTypePtr->BaseType)))));
-    }
-    if (std::get_if<type::PointerType>(&*_type)) {
-        return ast::Expression(ast::ConstValue("null"));
-    }
-    return ast::Expression(ast::ConstValue("0"));
-}
-
-ast::Expression astClass::fillDefaultValue(const sPtr<type::CompileType> &_type,
-                                           const sPtr<ast::Expression> &_initExpr) {
-    if (_initExpr == nullptr) {
-        return std::visit([this]<typename T0>(T0 &&arg) -> ast::Expression {
-            using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, type::ArrayType>) {
-                auto defaultValues = std::views::iota(0ULL, arg.Length)
-                                     | std::views::transform([&](auto) {
-                                         return std::make_shared<ast::Expression>(GetDefaultValue(arg.BaseType));
-                                     }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression> > >();
-                return ast::Expression(std::make_shared<ast::InitializerList>(std::move(defaultValues)));
-            } else if constexpr (std::is_same_v<T, type::StructDefinition>) {
-                auto memberInits = arg.Members
-                                   | std::views::transform([this](const auto &member) {
-                                       return std::make_shared<ast::Expression>(GetDefaultValue(member.Type));
-                                   }) | std::ranges::to<std::vector<std::shared_ptr<ast::Expression> > >();
-                return ast::Expression(std::make_shared<ast::InitializerList>(std::move(memberInits)));
-            }
-            return ast::Expression(ast::ConstValue("0"));
-        }, *_type);
-    }
-    if (const auto list = std::get_if<sPtr<ast::InitializerList> >(&*_initExpr->Storage)) {
-        return std::visit([&]<typename T0>(T0 &&arg) -> ast::Expression {
-            using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, type::ArrayType> || std::is_same_v<T, type::StructDefinition>) {
-                size_t expectedSize = 0;
-                if constexpr (std::is_same_v<T, type::ArrayType>) {
-                    expectedSize = arg.Length;
-                } else {
-                    expectedSize = arg.Members.size();
-                }
-                if (list->get()->Values.size() > expectedSize) {
-                    ErrorPrintln("Error: Too many initializers. Expected {}, got {}.\n",
-                                 expectedSize, list->get()->Values.size());
-                    std::exit(-1);
-                }
-                std::vector<sPtr<ast::Expression> > filledValues = list->get()->Values;
-                filledValues.reserve(expectedSize);
-                auto newDefaultValue = [&](auto i) {
-                    sPtr<type::CompileType> typeToFill;
-                    if constexpr (std::is_same_v<T, type::ArrayType>) {
-                        typeToFill = arg.BaseType;
-                    } else {
-                        typeToFill = arg.Members[i].Type;
-                    }
-                    return std::make_shared<ast::Expression>(GetDefaultValue(typeToFill));
-                };
-                auto newDefaults = std::views::iota(list->get()->Values.size(), expectedSize)
-                                   | std::views::transform(newDefaultValue);
-                std::ranges::copy(newDefaults, std::back_inserter(filledValues));
-                return ast::Expression(std::make_shared<ast::InitializerList>(std::move(filledValues)));
-            }
-            return *_initExpr;
-        }, *_type);
-    }
-    return *_initExpr;
 }
 
 auto astClass::findType(const std::string_view _typeName) const -> sOptional<ast::Type::CompileType> {

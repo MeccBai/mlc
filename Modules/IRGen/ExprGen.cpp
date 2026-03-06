@@ -90,7 +90,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         };
     }
     if (const auto initListPtr = _expression->GetInitializerList()) {
-        return InitializerListExpression(initListPtr, _type);
+        return InitializerListExpression(*initListPtr, _type);
     }
     return {"", "", ""};
 }

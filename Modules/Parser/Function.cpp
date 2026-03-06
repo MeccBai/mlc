@@ -4,14 +4,20 @@
 
 module Parser;
 import aux;
+import :Decl;
+
+std::pair<std::string_view,std::string_view> getFunctionHeader(const std::string_view _functionContent) {
+    const auto bracketEndPos = _functionContent.find("){");
+    const auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
+    const auto functionHeader =  _functionContent.substr(0, bracketEndPos + 1);
+    return {functionHeader, functionBody};
+}
 
 ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
     ContextTable<ast::VariableStatement> context;
-    const auto bracketEndPos = _functionContent.find("){");
-    const auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
-    const auto functionHeader = _functionContent.substr(0, bracketEndPos + 1);
-    auto statements = seg::TokenizeFunctionBody(functionBody);
-    auto functionDecl = functionDeclParser(functionHeader);
+    auto [header,body] = getFunctionHeader(_functionContent);
+    auto statements = seg::TokenizeFunctionBody(body);
+    auto functionDecl = functionDeclParser(header);
     const auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
     for (const auto args = functionDeclPtr.Parameters;
          const auto &arg: args) {
@@ -34,61 +40,69 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     return {functionDecl, statementsParsed};
 }
 
+sPtr<ast::Variable> normalArgParser(const std::string_view _argContent,auto findType) {
+    const auto argPack = split(_argContent, " ");
+    if (argPack.size() != 2) {
+        ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
+        std::exit(-1);
+    }
+    const auto type = argPack[0];
+    const auto name = argPack[1];
+    const auto typePtr = findType(type);
+    if (name.find('[') != std::string_view::npos || name.find(']') != std::string_view::npos) {
+        ErrorPrintln("Error: Function Argument not allow array type '{}'\n", name);
+        std::exit(-1);
+    }
+    if (typePtr == std::nullopt) {
+        ErrorPrintln("Error: Unknown type '{}'\n", type);
+        std::exit(-1);
+    }
+    const auto &currentType = typePtr.value();
+    if (name.empty()) {
+        ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
+        std::exit(-1);
+    }
+    return ast::Make<ast::Variable>(ast::Variable(std::string(name), currentType, nullptr));
+}
+
+sPtr<ast::Variable> pointerArgParser(const std::string_view _argContent,auto findType) {
+    const auto first = _argContent.find_first_of('$');
+    const auto last = _argContent.find_last_of('$');
+    auto level = last - first + 1;
+    auto typeName = _argContent.substr(0, first);
+    const auto name = _argContent.substr(last + 1);
+    if (const auto typePtr = findType(typeName); typePtr == std::nullopt) {
+        ErrorPrintln("Error: Unknown type '{}'\n", typeName);
+        std::exit(-1);
+    }
+    auto typePtr = findType(typeName).value();
+    const auto pType = std::make_shared<type::PointerType>(level);
+    pType->Finalize(typePtr);
+    typePtr = std::make_shared<type::CompileType>(*pType);
+    if (name.empty()) {
+        ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
+        std::exit(-1);
+    }
+    return ast::Make<ast::Variable>(ast::Variable(std::string(name), typePtr, nullptr));
+}
+
 sPtr<ast::VariableStatement> astClass::functionArgParser(const std::string_view _argContent) const {
     if (_argContent.empty()) {
         ErrorPrintln("Error: Empty argument declaration\n");
         std::exit(-1);
     }
     if (_argContent.find(' ') != std::string_view::npos) {
-        const auto argPack = split(_argContent," ");
-        if (argPack.size() != 2) {
-            ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
-            std::exit(-1);
-        }
-        const auto type = argPack[0];
-        const auto name = argPack[1];
-        const auto typePtr = findType(type);
-        if (name.find('[') != std::string_view::npos || name.find(']')!= std::string_view::npos) {
-            ErrorPrintln("Error: Function Argument not allow array type '{}'\n", name);
-            std::exit(-1);
-        }
-        if (typePtr == std::nullopt) {
-            ErrorPrintln("Error: Unknown type '{}'\n", type);
-            std::exit(-1);
-        }
-        const auto& currentType = typePtr.value();
-        if (name.empty()) {
-            ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
-            std::exit(-1);
-        }
-        return std::make_shared<ast::VariableStatement>(ast::VariableStatement(std::string(name), currentType, nullptr));
+        return normalArgParser(_argContent, [this](auto & arg){return findType(arg);});
     }
     if (_argContent.find('$') != std::string_view::npos) {
-        const auto first = _argContent.find_first_of('$');
-        const auto last = _argContent.find_last_of('$');
-        auto level = last - first + 1;
-        auto typeName = _argContent.substr(0, first);
-        const auto name = _argContent.substr(last + 1);
-        if (const auto typePtr = findType(typeName); typePtr == std::nullopt) {
-            ErrorPrintln("Error: Unknown type '{}'\n", typeName);
-            std::exit(-1);
-        }
-        auto typePtr = findType(typeName).value();
-        const auto pType = std::make_shared<type::PointerType>(level);
-        pType->Finalize(typePtr);
-        typePtr = std::make_shared<type::CompileType>(*pType);
-        if (name.empty()) {
-            ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
-            std::exit(-1);
-        }
-        return std::make_shared<ast::VariableStatement>(ast::VariableStatement(std::string(name), typePtr, nullptr));
+        return pointerArgParser(_argContent, [this](auto & arg){return findType(arg);});
     }
     ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
     std::exit(-1);
 }
 
 ast::FunctionDeclaration astClass::functionDeclParser(
-    const std::string_view _functionContent)  {
+    const std::string_view _functionContent) const {
     //void func(int a,int b)
     const std::string_view returnType = _functionContent.substr(0, _functionContent.find(' '));
 
@@ -110,19 +124,20 @@ ast::FunctionDeclaration astClass::functionDeclParser(
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {});
     }
 
-    std::vector<sPtr<ast::VariableStatement> > args;
+    auto toArg = [this](const std::string_view arg) {
+        return functionArgParser(arg);
+    };
 
-    for (const auto argsSplit = argSplit(argsList); const auto &arg: argsSplit) {
-        args.emplace_back(functionArgParser(arg));
-    }
+    const std::vector<sPtr<ast::VariableStatement> > args = argSplit(argsList)
+    | std::views::transform(toArg) | std::ranges::to<std::vector>();
 
     return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args);
 }
 
-astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionContent) {
-    const auto bracketEndPos = _functionContent.find("){");
-    const auto functionBody = _functionContent.substr(bracketEndPos + 2, _functionContent.length() - bracketEndPos - 3);
-    const auto functionHeader = _functionContent.substr(0, bracketEndPos + 1);
+astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionHeader) const {
+    const auto bracketEndPos = _functionHeader.find("){");
+    const auto functionBody = _functionHeader.substr(bracketEndPos + 2, _functionHeader.length() - bracketEndPos - 3);
+    const auto functionHeader = _functionHeader.substr(0, bracketEndPos + 1);
     const auto functionDecl = functionDeclParser(functionHeader);
     return {functionDecl, functionBody};
 }

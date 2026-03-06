@@ -4,6 +4,7 @@
 module Parser;
 import std;
 import aux;
+import :Decl;
 
 // ========== parseAtom 辅助函数 ==========
 std::vector<sPtr<ast::Expression>> parseCallArgs(
@@ -77,7 +78,7 @@ sPtr<ast::Expression> parseFunctionCallExpr(
 }
 
 // 解析枚举值表达式
-sPtr<ast::Expression> parseEnumExpr(astClass &self, std::string_view str) {
+sPtr<ast::Expression> parseEnumExpr(const astClass &self, std::string_view str) {
     const auto pos = str.find("::");
     auto left = str.substr(0, pos);
     auto right = str.substr(pos + 2);
@@ -142,14 +143,14 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 
 // --- 2. 链式访问处理器：贪婪收割所有 . 和 -> ---
 sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
-                                                   const std::vector<exprTree> &fragments,
+                                                   const std::vector<ast::exprTree> &fragments,
                                                    const int splitIndex) {
     // 1. 获取最左侧的基准表达式 (可以是复杂表达式，不仅是原子)
-    std::vector<exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
+    std::vector<ast::exprTree> leftFrags(fragments.begin(), fragments.begin() + splitIndex);
 
     // [关键修改]：左侧也必须通过解析器递归解析
     sPtr<ast::Expression> currentExpr = expressionTreeParser(
-        _context, leftFrags.size() == 1 ? leftFrags[0] : exprTree(leftFrags));
+        _context, leftFrags.size() == 1 ? leftFrags[0] : ast::exprTree(leftFrags));
 
     // 2. 迭代处理剩余的成员访问算符和成员名 (从 splitIndex 开始)
     for (size_t i = splitIndex; i < fragments.size(); i += 2) {
@@ -204,14 +205,15 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 }
 
 sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
-                                                      const std::vector<exprTree> &fragments,
+                                                      const std::vector<ast::exprTree> &fragments,
                                                       const int splitIndex) {
+
     const std::vector leftPart(fragments.begin(), fragments.begin() + splitIndex);
     const sPtr<ast::Expression> leftExpr = expressionTreeParser(
-        _context, leftPart.size() == 1 ? leftPart[0] : exprTree(leftPart));
+        _context, leftPart.size() == 1 ? leftPart[0] : ast::exprTree(leftPart));
     const auto &opFrag = fragments[splitIndex];
     const auto op = ast::toBaseOperator(std::get<std::string_view>(opFrag.data));
-    const exprTree &rightFragment = fragments[splitIndex + 1];
+    const ast::exprTree &rightFragment = fragments[splitIndex + 1];
     const sPtr<ast::Expression> indexExpr = expressionTreeParser(_context, rightFragment);
     if (!type::IsIntegerType(*(indexExpr->GetType()))) {
         ErrorPrintln("Subscript operator '[]' requires an integer index.");

@@ -1,23 +1,15 @@
 //
-// Created by Administrator on 2026/2/27.
+// Created by Administrator on 2026/3/6.
 //
-
 module Token;
 
 import :Type;
-import :Statement;
-import :Expression;
 
-import aux;
 import std;
-import Parser;
+using size_t = std::size_t;
+namespace ast = mlc::ast;
+namespace type=ast::Type;
 
-namespace type = ast::Type;
-//std::variant<BaseType, StructDefinition, EnumDefinition, PointerType, ArrayType>
-
-bool type::IsArrayOrPointer(const sPtr<CompileType> &_type) {
-    return std::holds_alternative<ArrayType>(*_type) || std::holds_alternative<PointerType>(*_type);
-}
 
 size_t type::GetSize(const sPtr<CompileType> &_type) {
     return std::visit([]<typename T0>(T0 &&arg) -> size_t {
@@ -44,7 +36,3 @@ size_t ast::Type::ArrayType::Size() const {
     const size_t baseSize = std::visit([](auto &&t) { return t.Size(); }, *BaseType);
     return baseSize * Length;
 }
-
-
-
-

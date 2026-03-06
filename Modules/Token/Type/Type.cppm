@@ -186,15 +186,14 @@ export namespace mlc::ast::Type {
         return std::holds_alternative<_type>(*_compileType);
     }
 
-
     template<IsCompileType T>
     T* GetType(const std::shared_ptr<CompileType> &_type) {
         return _type ? std::get_if<T>(&*_type) : nullptr;
     }
 
-    void ValidateType(const std::shared_ptr<CompileType> &targetType,
-                      const std::shared_ptr<CompileType> &actualType,
-                      std::string_view contextInfo,bool  _tolerance = false);
+    void ValidateType(const std::shared_ptr<CompileType> &_targetType,
+                      const std::shared_ptr<CompileType> &_actualType,
+                      std::string_view _contextInfo,bool  _tolerance = false);
 
     bool IsArrayOrPointer (const sPtr<CompileType>& _type );
 

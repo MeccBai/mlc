@@ -1,5 +1,5 @@
 //
-// Created by Administrator on 2026/2/20.
+// Created by Administrator on 2026/2/27.
 //
 
 module Token;
@@ -12,17 +12,11 @@ import aux;
 import std;
 import Parser;
 
+namespace type = ast::Type;
+//std::variant<BaseType, StructDefinition, EnumDefinition, PointerType, ArrayType>
 
-ast::Expression::~Expression() = default;
-
-ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar):
-    Value(processLiteral(_value, _isChar)),IsChar(_isChar)  {
-    if (_isChar) {
-        Type = ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
-    }
-    else {
-        Type = GetType();
-    }
+bool type::IsArrayOrPointer(const sPtr<CompileType> &_type) {
+    return std::holds_alternative<ArrayType>(*_type) || std::holds_alternative<PointerType>(*_type);
 }
 
 ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
@@ -52,43 +46,43 @@ ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
     return {};
 }
 
-void ast::Type::ValidateType(const std::shared_ptr<CompileType> &targetType,
-                             const std::shared_ptr<CompileType> &actualType,
-                             const std::string_view contextInfo, const bool _tolerance) {
-    if (!targetType || !actualType) {
-        ErrorPrintln("Compiler internal error.\n", contextInfo);
+bool toleranceCheck(const std::shared_ptr<type::CompileType> &targetType,
+                             const std::shared_ptr<type::CompileType> &actualType) {
+    const auto actualBase = std::get_if<type::BaseType>(&*actualType);
+    if (const auto targetBase = std::get_if<type::BaseType>(&*targetType); actualBase && targetBase) {
+        auto isInteger = [](const std::string &typeName) {
+            return typeName.starts_with('i') || typeName.starts_with('u');
+        };
+        if (isInteger(actualBase->Name) && isInteger(targetBase->Name)) {
+            return true;
+        }
+        if (actualBase->Name.starts_with('f') && targetBase->Name.starts_with('f')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ast::Type::ValidateType(const sPtr<CompileType> &_targetType,
+                             const sPtr<CompileType> &_actualType,
+                             const std::string_view _contextInfo, const bool _tolerance) {
+    if (!_targetType || !_actualType) {
+        ErrorPrintln("Compiler internal error.\n", _contextInfo);
         std::exit(-1);
     }
-    auto getName = [](const CompileType &type) -> std::string {
-        return std::visit([](auto &&t) -> std::string {
-            return std::string(t.Name);
-        }, type);
-    };
-    std::string expectedName = getName(*targetType);
-    std::string actualName = getName(*actualType);
-    const auto targetPtr = std::get_if<PointerType>(&*targetType);
-    if (const auto actualPtr = std::get_if<BaseType>(&*actualType);
+    std::string expectedName = GetTypeName(*_targetType);
+    std::string actualName = GetTypeName(*_actualType);
+    const auto targetPtr = GetType<PointerType>(_targetType);
+    if (const auto actualPtr = GetType<BaseType>(_actualType);
         targetPtr && actualPtr && actualPtr->Name == "null") {
         return;
     }
-    if (_tolerance) {
-        const auto actualBase = std::get_if<BaseType>(&*actualType);
-        const auto targetBase = std::get_if<BaseType>(&*targetType);
-        if (actualBase && targetBase) {
-            auto isInteger = [](const std::string &typeName) {
-                return typeName.starts_with('i') || typeName.starts_with('u');
-            };
-            if (isInteger(actualBase->Name) && isInteger(targetBase->Name)) {
-                return;
-            }
-            if (actualBase->Name.starts_with('f') && targetBase->Name.starts_with('f')) {
-                return;
-            }
-        }
+    if (_tolerance && toleranceCheck(_targetType, _actualType)) {
+        return;
     }
     if (expectedName != actualName) {
         ErrorPrintln("Error: Type mismatch for {}. Expected '{}', got '{}'\n",
-                     contextInfo, expectedName, actualName);
+                     _contextInfo, expectedName, actualName);
         std::exit(-1);
     }
 }
@@ -97,20 +91,16 @@ void ast::VariableStatement::InitListValidCheck() const {
     if (!Initializer) {
         return;
     }
-    const auto listPtr = std::get_if<std::shared_ptr<InitializerList> >(&*(Initializer->Storage));
-    if (!listPtr) {
+    if (const auto listPtr = Initializer->GetInitializerList(); !listPtr) {
         return;
     }
-    const auto initializerList = *listPtr;
-
     const auto type = this->VarType;
-    const auto structType = std::get_if<Type::StructDefinition>(&(*type));
-    const auto arrayType = std::get_if<Type::ArrayType>(&(*type));
+    const auto structType = GetType<Type::StructDefinition>(type);
+    const auto arrayType = GetType<Type::ArrayType>(type);
     if (!structType && !arrayType) {
         ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
         std::exit(-1);
     }
-
     if (arrayType || structType) {
         // 定义递归 Lambda
         auto recursiveCheck = [&](auto &self,
@@ -145,8 +135,8 @@ void ast::VariableStatement::InitListValidCheck() const {
                 }
             } else {
                 // 2. 触底反弹：这已经是一个具体的表达式了，执行最终校验
-                auto typeName = std::visit([](auto &&t) { return t.Name; }, *target);
-                auto tip = std::format("element of type '{}'", typeName);
+                auto typeName = GetTypeName(*target);
+                const auto tip = std::format("element of type '{}'", typeName);
                 ValidateType(target, init->GetType(), tip, true);
             }
         };
@@ -156,18 +146,38 @@ void ast::VariableStatement::InitListValidCheck() const {
 
 
 bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
-    const auto data = &(*_expr->Storage);
-    if (std::get_if<ConstValue>(data) != nullptr) {
+    if (_expr->GetConstValue() != nullptr) {
         return true;
     }
-    if (const auto funcCall = std::get_if<Type::sPtr<FunctionCall> >(data); funcCall != nullptr) {
+    if (const auto funcCall = _expr->GetFunctionCall(); funcCall != nullptr) {
         return std::ranges::all_of((*funcCall)->Arguments, ConstExpressionCheck);
     }
-    if (const auto compExpr = std::get_if<Type::sPtr<CompositeExpression> >(data); compExpr != nullptr) {
+    if (const auto compExpr = _expr->GetCompositeExpression(); compExpr != nullptr) {
         return std::ranges::all_of((*compExpr)->Components, ConstExpressionCheck);
     }
-    if (const auto varPtr = std::get_if<Type::sPtr<Variable> >(data); varPtr != nullptr) {
+    if (const auto varPtr = _expr->GetVariable(); varPtr != nullptr) {
         return (*varPtr)->Initializer != nullptr && ConstExpressionCheck((*varPtr)->Initializer);
     }
     return false;
+}
+
+
+std::string ast::Type::ArrayType::GetTypeName() const {
+    std::string baseName = type::GetTypeName(*BaseType);
+    return std::format("{}[{}]", baseName, Length);
+}
+
+ast::Type::sPtr<ast::FunctionDeclaration> ast::FunctionScope::ToDeclaration() const {
+    return Make<FunctionDeclaration>(FunctionDeclaration(Name, ReturnType, Parameters, IsVarList));
+}
+
+
+ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar):
+    Value(processLiteral(_value, _isChar)),IsChar(_isChar)  {
+    if (_isChar) {
+        Type = ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
+    }
+    else {
+        Type = GetType();
+    }
 }

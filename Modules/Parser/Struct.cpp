@@ -5,35 +5,79 @@
 module Parser;
 import std;
 import aux;
+import :Decl;
+
+
+struct structPack {
+    std::string_view name;
+    std::vector<std::string_view> memberDefs;
+};
+
+struct structMemberPack {
+    std::string name;
+    std::string typeName;
+    bool isPointer;
+};
+
+structPack parseStructDef(const std::string_view _structDef) {
+    const auto structNameStart = _structDef.find("struct") + 6; // 跳过 "struct "
+    const auto structName = _structDef.substr(structNameStart+1, _structDef.find('{')-7);
+    auto memberDefs = split(
+        _structDef.substr(_structDef.find('{') + 1, _structDef.rfind('}') - _structDef.find('{') - 1), ";");
+    memberDefs.pop_back();
+    return {structName, memberDefs};
+}
+
+structMemberPack parseStructMember(const std::string_view _memberDef) {
+    if (_memberDef.empty()) {
+        ErrorPrintln("Error: Empty struct member definition\n");
+        std::exit(-1);
+    }
+    bool isPointer = false;
+    auto pos = _memberDef.find(' ');
+    if (pos == std::string_view::npos) {
+        pos = _memberDef.find('$');
+        if (pos == std::string_view::npos) {
+            ErrorPrintln("Error: Invalid struct member definition '{}'\n", _memberDef);
+            std::exit(-1);
+        }
+        isPointer = true;
+    }
+    const auto memberType = _memberDef.substr(0, pos);
+    const auto memberName = _memberDef.substr(pos + 1 * (isPointer ? 0 : 1));
+    if (memberName.find('[') != std::string_view::npos || memberName.find(']') != std::string_view::npos) {
+        ErrorPrintln("Error: Struct member not allow array type '{}'\n", memberName);
+        std::exit(-1);
+    }
+    if (isPointer) {
+        return {
+            std::string(memberName.substr(1)),
+            std::string(memberType), true};
+    }
+    return {std::string(memberName),std::string(memberType) ,false};
+}
 
 
 std::vector<type::StructDefinition> astClass::structDefParser(
     const std::vector<std::string_view> &_structContents) const {
     std::vector<type::StructDefinition> structs;
-    std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string_view>>> lazyPointerTypes(_structContents.size());
+    std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string>>> lazyPointerTypes(_structContents.size());
 
-    auto trim = [](std::string_view str) {
-        while (!str.empty() && std::isspace(str.front())) str.remove_prefix(1);
-        while (!str.empty() && std::isspace(str.back())) str.remove_suffix(1);
-        return str;
-    };
-
-
-    const auto findStruct = [&structs, trim](const std::string_view _typeName) {
+    const auto findStruct = [&structs](const std::string_view _typeName) {
         for (const auto &structDef: structs) {
-            const auto view = trim(std::string_view(structDef.Name));
-            if (const auto typeName = trim(_typeName); view == typeName) {
-                return std::make_shared<ast::Type::CompileType>(structDef);
+            const auto view = std::string_view(structDef.Name);
+            if (const auto typeName = _typeName; view == typeName) {
+                return ast::Make<type::CompileType>(structDef);
             }
         }
-        return std::shared_ptr<ast::Type::CompileType>(nullptr);
+        return sPtr<ast::Type::CompileType>(nullptr);
     };
 
-    const auto findType = [this, trim, findStruct](const std::string_view _typeName) {
+    const auto findType = [this, findStruct](const std::string_view _typeName) {
         for (const auto &type: typeSymbolTable) {
             if (const auto basePtr = std::get_if<ast::Type::BaseType>(&*type)) {
-                const auto view = trim(std::string_view(basePtr->Name));
-                if (const auto typeName = trim(_typeName); view == typeName) {
+                const auto view = std::string_view(basePtr->Name);
+                if (const auto typeName = _typeName; view == typeName) {
                     return std::make_shared<ast::Type::CompileType>(*basePtr);
                 }
             }
@@ -42,43 +86,27 @@ std::vector<type::StructDefinition> astClass::structDefParser(
     };
 
     for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
-        const auto structNameStart = structDef.find("struct") + 6; // 跳过 "struct "
-        auto structName = structDef.substr(structNameStart+1, structDef.find('{')-7);
-        auto memberDefs = split(
-            structDef.substr(structDef.find('{') + 1, structDef.rfind('}') - structDef.find('{') - 1), ";");
-        std::vector<ast::Type::StructMember> members;
-        for (const auto &memberDef: memberDefs) {
-            if (memberDef.empty()) continue; // 跳过空成员定义（可能是最后一个分号后面）
-            bool isPointer = false;
-            auto pos = memberDef.find(' ');
-            if (pos == std::string_view::npos) {
-                pos = memberDef.find('$');
-                if (pos == std::string_view::npos) {
-                    ErrorPrintln("Error: Invalid struct member definition '{}'\n", memberDef);
-                    std::exit(-1);
-                }
-                isPointer = true;
-            }
-            const auto memberType = memberDef.substr(0, pos);
-            const auto memberName = memberDef.substr(pos + 1 * (isPointer ? 0 : 1));
-            if (memberName.find('[') != std::string_view::npos || memberName.find(']') != std::string_view::npos) {
-                ErrorPrintln("Error: Struct member not allow array type '{}'\n", memberName);
-                std::exit(-1);
-            }
-            auto typePtr = findType(memberType);
+        auto [structName, memberDefs] = parseStructDef(structDef);
+        lazyPtrs.clear();
+        auto members = std::vector<type::StructMember>{};
+        for (auto membersViews = memberDefs | std::views::transform(parseStructMember);
+            const auto&[name, typeName, isPointer]:membersViews) {
             if (isPointer) {
                 auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(1));
-                lazyPtrs.emplace_back(ptr,memberType);
-                members.emplace_back(std::string(memberName.substr(1)), ptr);
-            } else {
+                lazyPtrs.emplace_back(ptr, typeName);
+                std::println("{}",typeName);
+                members.emplace_back(std::string(name), ptr);
+            }
+            else {
+                auto typePtr = findType(typeName);
                 if (!typePtr) {
-                    ErrorPrintln("Error : Invalid type '{}' for struct member '{}'\n", memberType, memberName);
+                    ErrorPrintln("Error: Unknown type '{}' for struct member '{}'\n", typeName, name);
                     std::exit(-1);
                 }
-                members.emplace_back(std::string(memberName), typePtr);
+                members.emplace_back(std::string(name), typePtr);
             }
         }
-        structs.emplace_back(std::string(structName), members);
+        structs.emplace_back(structName, members);
     }
 
     for (const auto& ptrs : lazyPointerTypes) {

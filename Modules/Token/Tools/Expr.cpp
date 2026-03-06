@@ -8,7 +8,7 @@ import :Type;
 import std;
 using size_t = std::size_t;
 namespace ast = mlc::ast;
-namespace type=ast::Type;
+namespace type = ast::Type;
 
 std::string baseOperator(const ast::BaseOperator _op) {
     for (const auto &[token, op]: ast::BaseOperators) {
@@ -153,39 +153,33 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 type::sPtr<ast::Type::CompileType> ast::Expression::GetType() const {
     if (!Storage) return nullptr;
 
-    // 1. 获取 Variant 指针
-    auto *storagePtr = &*Storage;
-
-    // 2. 依次尝试获取每种类型
+    const auto *storagePtr = &*Storage;
     if (const auto *constVal = std::get_if<ConstValue>(storagePtr)) {
         return constVal->GetType();
     }
-
     if (const auto *varPtr = std::get_if<std::shared_ptr<Variable> >(storagePtr)) {
         return (*varPtr) ? (*varPtr)->VarType : nullptr;
     }
-
     if (const auto *funcCallPtr = std::get_if<std::shared_ptr<FunctionCall> >(storagePtr)) {
         return (*funcCallPtr && (*funcCallPtr)->FunctionDecl) ? (*funcCallPtr)->FunctionDecl->ReturnType : nullptr;
     }
-
     if (const auto *compExprPtr = std::get_if<std::shared_ptr<CompositeExpression> >(storagePtr)) {
         return handleCompositeType(*compExprPtr);
     }
-
     if (const auto *enumValPtr = std::get_if<EnumValue>(storagePtr)) {
         return std::make_shared<Type::CompileType>(*(enumValPtr->EnumDef));
     }
-
-    if (auto *memberAccessPtr = std::get_if<std::shared_ptr<MemberAccess> >(storagePtr)) {
-        auto &arg = *memberAccessPtr; // 为了方便书写
-        if (arg && arg->StructDef) {
-            const auto &members = arg->StructDef->Members;
-            if (arg->Index < members.size()) {
+    if (const auto *memberAccessPtr = std::get_if<std::shared_ptr<MemberAccess> >(storagePtr)) {
+        if (auto &arg = *memberAccessPtr;
+            arg && arg->StructDef) {
+            if (const auto &members = arg->StructDef->Members;
+                arg->Index < members.size()) {
                 return members[arg->Index].Type;
             }
         }
     }
-
     return nullptr;
 }
+
+
+ast::Expression::~Expression() = default;
