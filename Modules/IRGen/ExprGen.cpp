@@ -79,7 +79,6 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         }
         return result;
     }
-
     if (const auto functionCallPtr = _expression->GetFunctionCall()) {
         const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
         return exprResult{
@@ -99,14 +98,14 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
                                             const sPtr<ast::Expression> &_expression) {
     if (!_expression || !_expression->Storage) return "";
     const auto &data = *_expression->Storage;
-    if (const auto *constVal = std::get_if<ast::ConstValue>(&data)) {
+    if (const auto *constVal = _expression->GetConstValue()) {
         std::string typeStr = GetTypeName(*_expression->GetType());
         return std::format("{} {}", typeStr, constVal->Value);
     }
-    if (const auto *initListPtr = std::get_if<sPtr<ast::InitializerList> >(&data)) {
+    if (const auto *initListPtr = _expression->GetInitializerList()) {
         return ConstInitializerListExpression(*initListPtr, _type);
     }
-    if (const auto *compExprPtr = std::get_if<sPtr<ast::CompositeExpression> >(&data)) {
+    if (const auto *compExprPtr = _expression->GetCompositeExpression()) {
         const auto &compExpr = *compExprPtr;
         if (compExpr->Components.empty()) return "";
         std::vector<std::string> workingExpr;
@@ -134,7 +133,7 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
         return workingExpr[0];
     }
 
-    if (const auto *funcCallPtr = std::get_if<sPtr<ast::FunctionCall> >(&data)) {
+    if (const auto *funcCallPtr = _expression->GetFunctionCall()) {
         const auto &funcCall = *funcCallPtr;
         auto functionName = funcCall->FunctionDecl ? funcCall->FunctionDecl->Name : "unknown_func";
         auto sourceType = std::get_if<type::BaseType>(&*funcCall->Arguments[0]->GetType());
@@ -238,14 +237,14 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
                                                   const std::vector<ast::BaseOperator> &_ops) {
     std::vector<exprResult> workingExpr = _expr;
     std::vector<ast::BaseOperator> workingOps = _ops;
-
     for (size_t priority = 1; priority <= 12; ++priority) {
         for (size_t i = 0; i < workingOps.size();) {
             if (ast::OperatorPriority.at(workingOps[i]) == priority) {
                 const exprResult &left = workingExpr[i];
                 const exprResult &right = workingExpr[i + 1];
                 const ast::BaseOperator op = workingOps[i];
-                exprResult combined = TripleExpression(left, right, op);
+                exprResult combined;
+                combined = TripleExpression(left, right, op);
                 workingExpr[i] = std::move(combined); // 更新左侧位置
                 workingExpr.erase(workingExpr.begin() + i + 1); // 移除右侧操作数
                 workingOps.erase(workingOps.begin() + i); // 移除已处理的运算符
@@ -254,10 +253,8 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
             }
         }
     }
-
     return workingExpr[0];
 }
 
 GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
 }
-

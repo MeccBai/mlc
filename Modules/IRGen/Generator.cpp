@@ -21,8 +21,7 @@ std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> 
             } else if constexpr (std::is_same_v<T, ast::Type::StructDefinition>) {
                 body += std::format("%struct.{},", arg.Name);
             } else if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
-                body += std::format("[{} x {}],", arg.Size(),
-                                    std::visit([](auto &&t) -> std::string { return t.Name; }, *arg.BaseType));
+                body += std::format("[{} x {}],", arg.Size(),type::GetTypeName(*(arg.BaseType.get())));
             } else if constexpr (std::is_same_v<T, ast::Type::PointerType>) {
                 body += "ptr,";
             }

@@ -117,8 +117,8 @@ auto seg::TopTokenize(const std::string_view _source) -> std::vector<TokenStatem
                 findSemicolon();
             }
         }
-
-        fragments.emplace_back(TokenStatement{type, _source.substr(start, cursor - start)});
+        const auto source = std::string(_source.substr(start, cursor - start));
+        fragments.emplace_back(TokenStatement{type, source});
     }
 
     return fragments;

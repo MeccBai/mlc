@@ -9,6 +9,64 @@ import keyword;
 import Parser;
 import aux;
 
+std::string functionCallGenerate(ast::FunctionCall *_funcCall) {
+    auto funcDecl = _funcCall->FunctionDecl;
+    std::string finalCode;
+    std::vector<std::string> argStrings;
+
+    for (const auto &argExpr: _funcCall->Arguments) {
+        auto [argType, argVar, argCode, _] = GenClass::ExpressionExpand(argExpr);
+        finalCode += argCode; // 🌟 关键：把参数计算的 IR 捡回来！
+
+        std::string finalType = argType;
+        if (std::get_if<type::ArrayType>(&*argExpr->GetType())) finalType = "ptr";
+        argStrings.emplace_back(std::format("{} {}", finalType, argVar));
+    }
+    std::string argsList = std::views::all(argStrings)
+                           | std::views::join_with(std::string(", "))
+                           | std::ranges::to<std::string>();
+
+    // 3. 构建调用签名 (针对可变参数的关键步骤！🌟)
+    std::string retType = GenClass::TypeToLLVM(funcDecl->ReturnType);
+    std::string callSignature;
+
+    if (funcDecl->IsVarList) {
+        std::vector<std::string> fixedTypes;
+        fixedTypes.reserve(_funcCall->Arguments.size());
+        for (const auto &p: _funcCall->Arguments) {
+            const auto type = p->GetType();
+            if (std::get_if<type::ArrayType>(&*type)) {
+                fixedTypes.emplace_back("ptr");
+                continue;
+            }
+            fixedTypes.push_back(GenClass::TypeToLLVM(type));
+        }
+        std::string fixedStr = std::views::all(fixedTypes)
+                               | std::views::join_with(std::string(", "))
+                               | std::ranges::to<std::string>();
+        if (fixedStr.empty()) {
+            callSignature = std::format("{} (...)", retType);
+        } else {
+            callSignature = std::format("{} ({}, ...)", retType, fixedStr);
+        }
+    } else {
+        callSignature = retType;
+    }
+
+    if (retType != "void") {
+        auto valReg = std::format("%{}", GenClass::exprCnt++);
+        finalCode += std::format("{} = call {} @{}({})\n",
+                                 valReg, callSignature, funcDecl->Name, argsList);
+
+        auto resultAddr = std::format("%{}", GenClass::exprCnt++);
+        finalCode += std::format("{} = alloca {}\n", resultAddr, retType);
+        finalCode += std::format("store {} {}, ptr {}\n", retType, valReg, resultAddr);
+    } else {
+        finalCode += std::format("call void @{}({})\n", funcDecl->Name, argsList);
+    }
+    return finalCode;
+}
+
 
 std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
@@ -40,61 +98,7 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         return SubScopeGenerate(_stmt, _decl);
     }
     if (auto funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
-        auto funcDecl = funcCall->FunctionDecl;
-        std::string finalCode;
-        std::vector<std::string> argStrings;
-
-        for (const auto &argExpr : funcCall->Arguments) {
-            auto [argType, argVar, argCode, _] = ExpressionExpand(argExpr);
-            finalCode += argCode; // 🌟 关键：把参数计算的 IR 捡回来！
-
-            std::string finalType = argType;
-            if (std::get_if<type::ArrayType>(&*argExpr->GetType())) finalType = "ptr";
-            argStrings.emplace_back(std::format("{} {}", finalType, argVar));
-        }
-        std::string argsList = std::views::all(argStrings)
-                               | std::views::join_with(std::string(", "))
-                               | std::ranges::to<std::string>();
-
-        // 3. 构建调用签名 (针对可变参数的关键步骤！🌟)
-        std::string retType = TypeToLLVM(funcDecl->ReturnType);
-        std::string callSignature;
-
-        if (funcDecl->IsVarList) {
-            std::vector<std::string> fixedTypes;
-            fixedTypes.reserve(funcCall->Arguments.size());
-            for (const auto &p: funcCall->Arguments) {
-                const auto type = p->GetType();
-                if (std::get_if<type::ArrayType>(&*type)) {
-                    fixedTypes.emplace_back("ptr");
-                    continue;
-                }
-                fixedTypes.push_back(TypeToLLVM(type));
-            }
-            std::string fixedStr = std::views::all(fixedTypes)
-                                   | std::views::join_with(std::string(", "))
-                                   | std::ranges::to<std::string>();
-            if (fixedStr.empty()) {
-                callSignature = std::format("{} (...)", retType);
-            } else {
-                callSignature = std::format("{} ({}, ...)", retType, fixedStr);
-            }
-        } else {
-            callSignature = retType;
-        }
-
-        if (retType != "void") {
-            auto valReg = std::format("%{}", exprCnt++);
-            finalCode += std::format("{} = call {} @{}({})\n",
-                                     valReg, callSignature, funcDecl->Name, argsList);
-
-            auto resultAddr = std::format("%{}", exprCnt++);
-            finalCode += std::format("{} = alloca {}\n", resultAddr, retType);
-            finalCode += std::format("store {} {}, ptr {}\n", retType, valReg, resultAddr);
-        } else {
-            finalCode += std::format("call void @{}({})\n", funcDecl->Name, argsList);
-        }
-        return finalCode;
+        return functionCallGenerate(funcCall);
     }
     if (std::holds_alternative<ast::ContinueStatement>(*_stmt) || std::holds_alternative<ast::BreakStatement>(*_stmt)) {
         ErrorPrintln("Loop control statements (continue/break) are not supported in general scope\n");

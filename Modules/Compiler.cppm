@@ -11,7 +11,7 @@ namespace mlc::seg {
 
     export struct TokenStatement {
         ast::GlobalStateType type{};
-        std::string_view content{};
+        std::string content{};
     };
 
     export auto TopTokenize(std::string_view _source) -> std::vector<TokenStatement>;
