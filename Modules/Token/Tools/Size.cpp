@@ -18,6 +18,13 @@ size_t type::GetSize(const sPtr<CompileType> &_type) {
     }, *_type);
 }
 
+size_t type::GetSize(const CompileType* _type) {
+    return std::visit([]<typename T0>(T0 &&arg) -> size_t {
+        using T = std::decay_t<T0>;
+        return arg.Size();
+    }, *_type);
+}
+
 size_t ast::Type::StructDefinition::Size() const {
     size_t currentOffset = 0;
     size_t maxAlign = 1;

@@ -33,8 +33,9 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         if (isComplexType) {
             return exprResult{
                 TypeToLLVM(varPtr->VarType),
-                varAddr, // 直接返回 %str 这样的地址
-                "" // 没有额外的 IR 代码
+                varAddr,
+                "",
+                true
             };
         }
         std::string tempReg = std::format("%{}", exprCnt++);
@@ -47,7 +48,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         };
     }
     if (const auto compPtr = _expression->GetCompositeExpression()) {
-        auto isLogic = [](ast::BaseOperator op) {
+        auto isLogic = [](const ast::BaseOperator op) {
             return op == ast::BaseOperator::And || op == ast::BaseOperator::Or || op == ast::BaseOperator::Not || op ==
                    ast::BaseOperator::Equal || op == ast::BaseOperator::NotEqual || op == ast::BaseOperator::Greater ||
                    op == ast::BaseOperator::Less || op == ast::BaseOperator::GreaterEqual || op ==
@@ -59,13 +60,19 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             std::exit(-1);
         }
         if (components.size() >= 2 && components[1]->GetMemberAccess()) {
-            return MemberAccessExpression(_expression);
+            return MemberAccessExpression(_expression,false);
         }
         if (opFirst) {
-            if (const auto var = components[0]->GetVariable()) {
+            if (const auto var = *(components[0]->GetVariable())) {
+                if (operators[0] == ast::BaseOperator::AddressOf) {
+                    return exprResult{
+                        "ptr",
+                        std::format("%{}", var->Name), ""
+                    };
+                }
                 return exprResult{
-                    std::format("{}", TypeToLLVM(components[0]->GetType())),
-                    std::format("%{}", (*var)->Name), ""
+                    TypeToLLVM(components[0]->GetType()),
+                    std::format("%{}", var->Name), ""
                 };
             }
         }
@@ -168,7 +175,7 @@ GenClass::exprResult GenClass::TripleExpression(const expr &_left, const expr &_
 
 GenClass::exprResult GenClass::TripleExpression(const exprResult &_left, const exprResult &_right,
                                                 ast::BaseOperator _op) {
-    std::string targetReg = std::format("%{}", exprCnt++);
+    std::string targetReg = std::format("%tr{}", exprCnt++);
     const std::string combinedCode = _left.code + _right.code;
     std::string llvmOp = OperatorToIR(_left.llvmType, _op);
     const std::string currentInstr = std::format("{} = {} {} {}, {}\n",
@@ -257,4 +264,23 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
 }
 
 GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
+    if (const auto vPtr = _expr->GetVariable(); vPtr != nullptr) {
+        const auto type = TypeToLLVM((*vPtr)->VarType);
+        const auto name = std::format("%{}", (*vPtr)->Name);
+
+        return exprResult{
+            type,
+            name,
+            ""
+        };
+    }
+    if (const auto compPtr = _expr->GetCompositeExpression(); compPtr != nullptr) {
+        return MemberAccessExpression(_expr,true);
+    }
+
+
+}
+
+gen::IRGenerator::exprResult gen::IRGenerator::TypeConvert(const expr &_expr, const type::CompileType *_targetType) {
+
 }

@@ -19,8 +19,8 @@ std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variab
     std::exit(-1);
 }
 
-size_t GetAlignment(const sPtr<type::CompileType>& t) {
-    size_t s = type::GetSize(t);
+size_t gen::GetAlignment(const sPtr<type::CompileType>& t) {
+    const auto s = type::GetSize(t);
     if (s <= 1) return 1;
     if (s <= 2) return 2;
     if (s <= 4) return 4;
@@ -44,7 +44,7 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variabl
             // 场景 B: 结构体/大对象拷贝 (memcpy)
             code += initRes.code;
             code += std::format(
-                "call void @llvm.memcpy.p0.p0.i64(ptr %{}, ptr {}, i64 {}, i1 false)\n",
+                "call void @{}(ptr %{}, ptr {}, i64 {}, i1 false)\n",llvmCopy,
                 regName, initRes.resultVar, type::GetSize(_variable->VarType)
             );
         }

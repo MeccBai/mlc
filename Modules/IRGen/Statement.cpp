@@ -74,7 +74,7 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         return LocalVariable(ast::Make<ast::Variable>(*_variable));
     }
     if (auto assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
-        auto leftResult = ExpressionExpand(assign->BaseValue);
+        auto leftResult = LeftExpressionExpand(assign->BaseValue);
         auto rightResult = ExpressionExpand(assign->Value);
         std::string code = leftResult.code + rightResult.code;
         if (rightResult.isCopyResult) {

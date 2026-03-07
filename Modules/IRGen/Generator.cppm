@@ -85,7 +85,7 @@ namespace mlc::ir::gen {
 
         static std::string TypeToLLVM(const sPtr<type::CompileType> &_type);
 
-        static exprResult MemberAccessExpression(const expr &_base);
+        static exprResult MemberAccessExpression(const expr &_base,bool _isWrite = false);
 
         static exprResult MemberAccessBinary(const type::CompileType *_type, const exprResult &_parent,
                                              const expr &_child, ast::BaseOperator _op);
@@ -142,6 +142,8 @@ namespace mlc::ir::gen {
         static std::string ConditionExpression(const expr &_condition,std::string_view _true,std::string_view _false = "");
 
         static exprResult LeftExpressionExpand(const expr &_expr);
+
+        static exprResult TypeConvert(const expr &_expr, const type::CompileType *_targetType);
     };
 
     export
@@ -155,6 +157,8 @@ namespace mlc::ir::gen {
     };
 
     std::string determineCastOperator(const type::BaseType *_sourceType, const type::BaseType *_targetType);
+
+    size_t GetAlignment(const ast::Type::sPtr<type::CompileType>& t);
 
 }
 

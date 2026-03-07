@@ -51,7 +51,7 @@ GenClass::exprResult GenClass::InitializerListExpression(const sPtr<ast::Initial
             resultCode += std::format("%il{} = getelementptr {}, ptr %{}, i32 0, i32 {}\n",
                                       memberId, type, varName, i);
             if (isCopyResult) {
-                resultCode += std::format("call void {}(ptr %{}, ptr {}, i64 {}, i1 false)\n",
+                resultCode += std::format("call void {}(ptr %il{}, ptr {}, i64 {}, i1 false)\n",
                                           llvmCopy, memberId, resultVar, type::GetSize(value->GetType()));
             } else {
                 resultCode += std::format("store {} {}, ptr %il{}\n",

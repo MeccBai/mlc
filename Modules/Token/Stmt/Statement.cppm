@@ -106,11 +106,11 @@ export namespace mlc::ast {
                                      Args _args, const bool _isVarList = false,
                                      const bool _isExported = false,
                                      const bool _isTypeConvert = false) : IsVarList(_isVarList),
+                                                                          IsTypeConvert(_isTypeConvert),
                                                                           Name(std::move(_name)),
                                                                           Parameters(std::move(_args)),
                                                                           ReturnType(_returnType),
-                                                                          IsExported(_isExported),
-                                                                          IsTypeConvert(_isTypeConvert) {
+                                                                          IsExported(_isExported) {
             if (!_isTypeConvert) {
                 Type::IsValidName(Name);
                 std::ranges::for_each(Parameters, [](const auto &param) {
