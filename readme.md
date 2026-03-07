@@ -1,13 +1,20 @@
 # MLC 
 ## Description
-MLC(Mecc LLVM C-Frontend) is a C compiler based on the LLVM infrastructure. It is designed to provide a modern and safer C-Language. It can't compile any .c file, but you can use function declarations in .c files to call functions defined in .ll files. MLC is still in early development, and it is not yet ready for production use. However, it is a promising project that aims to provide a better C programming experience.
+- MLC(Mecc LLVM C-Frontend) is a C compiler based on the LLVM infrastructure. It is designed to provide a modern and safer C-Language. It can't compile any .c file, but you can use function declarations in .c files to call functions defined in .c files. MLC is still in early development, and it is not yet ready for production use. However, it is a promising project that aims to provide a better C programming experience.
 
-Non-streaming architecture: The system first undergoes dehydration processing, followed by the use of global slicing to partition the data into several discrete blocks, which are then processed sequentially. By bypassing traditional lexical, syntactic, and semantic analysis phases, the Abstract Syntax Tree (AST) is generated directly from raw strings. Subsequently, the LLVM IR is emitted directly from the AST.
+- Non-streaming architecture: The system first undergoes dehydration processing, followed by the use of global slicing to partition the data into several discrete blocks, which are then processed sequentially. Single-Pass Integrated Frontend Pipeline, the Abstract Syntax Tree (AST) is generated directly from raw strings. Subsequently, the LLVM IR is emitted directly from the AST.
 
+- Non-Third Library: MLC is built without relying on any third-party libraries, ensuring a lightweight and efficient compiler.
+
+- Undergraduate Project : MLC is an undergraduate project, and it is still in early development. It is not yet ready for production use. It is born out of the personal interest and passion of the developer, and it aims to explore the field of compiler design and implementation.
 ## 介绍
-MLC(Mecc LLVM C-Frontend) 是一个以LLVM为基础的C语言编译器。它旨在提供一个现代化和更安全的C语言。它不能编译任何.c文件，但你可以使用.c文件中的函数声明来调用在.ll文件中定义的函数。MLC仍处于早期开发阶段，还不适合生产使用。然而，它是一个有前途的项目，旨在提供更好的C编程体验。
+- MLC(Mecc LLVM C-Frontend) 是一个以LLVM为基础的C语言编译器。它旨在提供一个现代化和更安全的C语言。它不能编译任何.c文件，但你可以使用.c文件中的函数声明来调用在.c文件中定义的函数。MLC仍处于早期开发阶段，还不适合生产使用。然而，它是一个有前途的项目，旨在提供更好的C编程体验。
 
-非流式架构：系统首先进行脱水处理，然后使用全局切片将数据划分为几个离散的块，依次处理。通过绕过传统的词法、语法和语义分析阶段，直接从原始字符串生成抽象语法树（AST）。随后，直接从AST发出LLVM IR。
+- 非流式架构：系统首先进行脱水处理，然后使用全局切片将数据划分为几个离散的块，依次处理。将词法语法语义分析三合一，直接从原始字符串生成抽象语法树（AST）。随后，直接从AST发出LLVM IR。
+
+- 非第三方库：MLC在构建过程中不依赖任何第三方库，确保了编译器的轻量级和高效性。
+
+- 学生项目：MLC是一个本科生项目，目前仍处于早期开发阶段，还不适合生产使用。它因开发者的个人兴趣和热情而生，旨在探索编译器设计和实现的领域。
 
 ## Features
 - Variable shadowing is strictly prohibited.
@@ -130,7 +137,21 @@ cmake -DCMAKE_BUILD_TYPE=Debug \
 cmake --build .\build\Debug --target MLC
 ```
 
+## Roadmap
+-[ ] Method Injection: Integrated struct impl logic for object-oriented style in C.
+-[ ] Loop Modernization: Reimagining the traditional for loop for safety and clarity.
+-[ ] Memory & Ownership Precursors: Enforcing the "Single Mutable Pointer" rule to mitigate data races at the compiler level.
 
+## 路线图
+-[ ] 方法注入：集成结构体impl逻辑，实现C语言的面向对象风格。
+-[ ] 循环现代化：重新设计传统的for循环，以提高安全性和清晰度。
+-[ ] 内存与所有权前置条件：强制执行“单可变指针”规则，在编译器级别缓解数据竞争。
+
+## Example
+Example files are located in the "Example" directory. You can build and run them after MLC built;
+
+## 示例
+示例文件位于"Example"目录下。你可以在MLC构建完成后构建并运行它们；
 
 ## License
 Apache License 2.0
