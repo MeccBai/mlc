@@ -42,16 +42,17 @@
 - 目前不支持for循环，但很快会添加
 - 类型转换目前没有实现
 
-## Feature
+## Future Features
 - Introduce import/export keywords to replace function declarations (except for C-interop).
 - Out-of-the-box dependency resolution for .mc files; automatic target generation without external build tools.
 - Implement JSON-based compilation caching to support binary distribution, replacing traditional header-based models.
 - Currently, for loop is not supported
 
-## 特性
+## 未来特性
 - 引入import/export关键字替代函数声明（C-interop除外）。
 - 开箱即用的.mc文件依赖解析；无需外部构建工具的自动目标生成。
 - 实现基于JSON的编译缓存以支持二进制分发，取代传统的基于头文件的模型。
+- 目前不支持for循环
 
 ## Environment & Build Configuration
 ### Prerequisites
