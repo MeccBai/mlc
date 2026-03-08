@@ -7,12 +7,11 @@ import aux;
 import :Decl;
 
 // ========== parseAtom 辅助函数 ==========
-std::vector<sPtr<ast::Expression>> parseCallArgs(
+std::vector<sPtr<ast::Expression> > parseCallArgs(
     astClass &self,
     astClass::ContextTable<ast::VariableStatement> &_context,
     const std::string_view _argsStr) {
-
-    std::vector<sPtr<ast::Expression>> args;
+    std::vector<sPtr<ast::Expression> > args;
     if (_argsStr.empty()) return args;
 
     int bracketLevel = 0;
@@ -36,7 +35,6 @@ sPtr<ast::Expression> parseFunctionCallExpr(
     astClass &self,
     astClass::ContextTable<ast::VariableStatement> &_context,
     std::string_view str) {
-
     const auto pos = str.find('(');
     auto funcName = str.substr(0, pos);
     const auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
@@ -55,9 +53,10 @@ sPtr<ast::Expression> parseFunctionCallExpr(
                 const auto pType = std::make_shared<type::PointerType>(level);
                 pType->Finalize(typePtr);
                 typePtr = std::make_shared<type::CompileType>(*pType);
-                self.functionSymbolTable.emplace_back(std::make_shared<ast::FunctionDeclaration>(
-                    ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true)));
-                const auto isTypeConvert = const_cast<bool *>(&self.functionSymbolTable.back().get()->IsTypeConvert);
+                const auto funcDecl = std::make_shared<ast::FunctionDeclaration>(
+                    ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true));
+                self.functionSymbolTable.insert(funcDecl);
+                auto *const isTypeConvert = const_cast<bool *>(&funcDecl->IsTypeConvert);
                 *isTypeConvert = true;
                 if (args.size() > 1) {
                     ErrorPrintln("Error: Type Convert '{}' require unique variable", funcName);
@@ -66,15 +65,15 @@ sPtr<ast::Expression> parseFunctionCallExpr(
                 if (!type::IsArrayOrPointer(args[0]->GetType())) {
                     ErrorPrintln("Error: Type Convert '{}' require array or pointer", funcName);
                 }
-                return std::make_shared<ast::Expression>(
-                    ast::Expression(std::make_shared<ast::FunctionCall>(self.functionSymbolTable.back(), args)));
+
+                return ast::MakeExpression(
+                    std::make_shared<ast::FunctionCall>(funcDecl, args));
             }
         }
         ErrorPrintln("Error: Undefined function '{}'\n", funcName);
         std::exit(-1);
     }
-    return std::make_shared<ast::Expression>(
-        ast::Expression(std::make_shared<ast::FunctionCall>(functionPtr.value(), args)));
+    return ast::MakeExpression(std::make_shared<ast::FunctionCall>(functionPtr.value(), args));
 }
 
 // 解析枚举值表达式
@@ -94,7 +93,7 @@ sPtr<ast::Expression> parseEnumExpr(const astClass &self, std::string_view str) 
                      right, left, str);
         std::exit(-1);
     }
-    return std::make_shared<ast::Expression>(ast::EnumValue(enumType.value(), index.value()));
+    return ast::MakeExpression(ast::EnumValue(enumType.value(), index.value()));
 }
 
 // ========== 主 parseAtom ==========
@@ -106,7 +105,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 
     // null 字面量
     if (str == "null") {
-        return std::make_shared<ast::Expression>(ast::ConstValue("null"));
+        return ast::MakeExpression(ast::ConstValue("null"));
     }
 
     if (str.empty()) {
@@ -121,15 +120,15 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 
     // 常量 (数字/字符串/字符)
     if (std::isdigit(str[0]) || str[0] == '"' || str[0] == '\'') {
-        return std::make_shared<ast::Expression>(ast::ConstValue(str));
+        return ast::MakeExpression(ast::ConstValue(str));
     }
 
     // 变量查找 (先局部后全局)
     if (auto typeOpt = FindVariable(str, _context)) {
-        return std::make_shared<ast::Expression>(typeOpt.value());
+        return ast::MakeExpression(typeOpt.value());
     }
     if (auto typeOpt = FindVariable(str)) {
-        return std::make_shared<ast::Expression>(typeOpt.value());
+        return ast::MakeExpression(typeOpt.value());
     }
 
     // 枚举值
@@ -207,7 +206,6 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 sPtr<ast::Expression> astClass::handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
                                                       const std::vector<ast::exprTree> &fragments,
                                                       const int splitIndex) {
-
     const std::vector leftPart(fragments.begin(), fragments.begin() + splitIndex);
     const sPtr<ast::Expression> leftExpr = expressionTreeParser(
         _context, leftPart.size() == 1 ? leftPart[0] : ast::exprTree(leftPart));

@@ -11,27 +11,50 @@ import aux;
 
 
 GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _isWrite) {
-    const auto composite = _base->GetCompositeExpression();
+    auto *const composite = _base->GetCompositeExpression();
     if (!composite) {
         ErrorPrintln("Error: Invalid member access expression.\n");
         std::exit(-1);
     }
-    exprResult currentResult = ExpressionExpand((*composite)->Components[0]);
-    const type::CompileType *currentType = (*composite)->Components[0]->GetType().get();
-    for (size_t i = 0; i < (*composite)->Operators.size(); ++i) {
-        const auto op = (*composite)->Operators[i];
-        const auto &nextComp = (*composite)->Components[i + 1];
-        currentResult = MemberAccessBinary(currentType, currentResult, nextComp, op);
-        currentType = &*(*composite)->Components[i + 1]->GetType();
+    const auto & [operators,components, opFirst] = **composite;
+    exprResult currentResult = ExpressionExpand(components[0]);
+    auto currentType = components[0]->GetType();
+
+    for (size_t i = 0; i < operators.size() - 1; ++i) {
+        const auto op = operators[i];
+        const auto &nextComp = components[i + 1];
+        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentType = components[i + 1]->GetType();
+    }
+
+    if (auto *array = std::get_if<type::ArrayType>(&*components[0]->GetType()); operators.size() == 1 && array) {
+        const auto op = operators[0];
+        const auto &nextComp = components[1];
+        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentType = array->BaseType;
+    }
+
+    if (auto * pointer = std::get_if<type::PointerType>(&*components[0]->GetType()); operators.size() == 1 && pointer) {
+        const auto op = operators[0];
+        const auto &nextComp = components[1];
+        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentType = pointer->BaseType;
+    }
+
+    if (auto *structDef = std::get_if<type::StructDefinition>(&*components[0]->GetType()); operators.size() == 1 && structDef) {
+        const auto op = operators[0];
+        const auto &nextComp = components[1];
+        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentType = nextComp->GetType();
     }
 
     if (!_isWrite) {
-        if (std::get_if<type::BaseType>(currentType)) {
-            auto reg = std::format("{}", exprCnt++);
+        if (std::get_if<type::BaseType>(&*currentType)) {
+            auto reg = std::format("ma{}", exprCnt++);
             currentResult.code += std::format(
                 "%{} = load {}, ptr {}, align {}\n",
                 reg,
-                currentResult.llvmType,
+                TypeToLLVM(currentType),
                 currentResult.resultVar,
                 type::GetSize(currentType)
             );
@@ -43,8 +66,8 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
 
 GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type, const exprResult &_parent,
                                                   const expr &_child, ast::BaseOperator _op) {
-    auto gepReg = std::format("%{}", exprCnt++);
-    if (const auto arrayType = std::get_if<type::ArrayType>(_type)) {
+    auto gepReg = std::format("%ma{}", exprCnt++);
+    if (const auto *const arrayType = std::get_if<type::ArrayType>(_type)) {
         auto indexResult = ExpressionExpand(_child);
         auto gepInstr = std::format(
             "{} = getelementptr {}, ptr {}, i32 0, i32 {}\n",
@@ -83,7 +106,7 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type
 
     if (const auto pointerType = std::get_if<type::PointerType>(_type)) {
         if (_op == ast::BaseOperator::Arrow) {
-            auto loadReg = std::format("%{}", exprCnt++);
+            auto loadReg = std::format("%ma{}", exprCnt++);
             auto loadInstr = std::format(
                 "{} = load ptr, ptr {}, align 8\n",
                 loadReg,

@@ -15,21 +15,22 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
                                                 const sPtr<type::CompileType> &_type) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
     const auto type = TypeToLLVM(_expression->GetType());
-    if (const auto constPtr = _expression->GetConstValue()) {
+    if (auto *const constPtr = _expression->GetConstValue()) {
         return {type, constPtr->Value, ""};
     }
-    if (const auto enumPtr = _expression->GetEnumValue()) {
+    if (auto *const enumPtr = _expression->GetEnumValue()) {
         return {type, std::to_string(enumPtr->Index), ""};
     }
-    if (const auto varPtrT = _expression->GetVariable()) {
-        auto varPtr = *varPtrT;
+    if (auto *const varPtrT = _expression->GetVariable()) {
+        const auto varPtr = *varPtrT;
         std::string varAddr = std::format("%{}", varPtr->Name);
         std::string llvmType = TypeToLLVM(varPtr->VarType);
 
         // 💡 物理分流：判断是否为“复合类型”（数组、指针、结构体等）
-        bool isComplexType = std::holds_alternative<type::ArrayType>(*varPtr->VarType) ||
-                             std::holds_alternative<type::PointerType>(*varPtr->VarType) || std::holds_alternative<
-                                 type::StructDefinition>(*varPtr->VarType);
+        bool const isComplexType = std::holds_alternative<type::ArrayType>(*varPtr->VarType) ||
+                                   std::holds_alternative<type::PointerType>(*varPtr->VarType) || std::holds_alternative
+                                   <
+                                       type::StructDefinition>(*varPtr->VarType);
         if (isComplexType) {
             return exprResult{
                 TypeToLLVM(varPtr->VarType),
@@ -47,7 +48,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             loadCode
         };
     }
-    if (const auto compPtr = _expression->GetCompositeExpression()) {
+    if (auto *const compPtr = _expression->GetCompositeExpression()) {
         auto isLogic = [](const ast::BaseOperator op) {
             return op == ast::BaseOperator::And || op == ast::BaseOperator::Or || op == ast::BaseOperator::Not || op ==
                    ast::BaseOperator::Equal || op == ast::BaseOperator::NotEqual || op == ast::BaseOperator::Greater ||
@@ -59,8 +60,8 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             ErrorPrintln("Error: Composite expression has no components.\n");
             std::exit(-1);
         }
-        if (components.size() >= 2 && components[1]->GetMemberAccess()) {
-            return MemberAccessExpression(_expression,false);
+        if (components.size() >= 2 && (components[1]->GetMemberAccess() || operators[0] == ast::BaseOperator::Subscript)) {
+            return MemberAccessExpression(_expression, false);
         }
         if (opFirst) {
             if (const auto var = *(components[0]->GetVariable())) {
@@ -86,7 +87,11 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         }
         return result;
     }
-    if (const auto functionCallPtr = _expression->GetFunctionCall()) {
+    if (auto *const functionCallPtr = _expression->GetFunctionCall()) {
+        if (functionCallPtr->get()->FunctionDecl->IsTypeConvert) {
+            auto func = *functionCallPtr;
+            return TypeConvert(func->Arguments[0], func->FunctionDecl->ReturnType);
+        }
         const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
         return exprResult{
             llvmType,
@@ -95,7 +100,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             isCopyResult
         };
     }
-    if (const auto initListPtr = _expression->GetInitializerList()) {
+    if (auto *const initListPtr = _expression->GetInitializerList()) {
         return InitializerListExpression(*initListPtr, _type);
     }
     return {"", "", ""};
@@ -104,7 +109,6 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
                                             const sPtr<ast::Expression> &_expression) {
     if (!_expression || !_expression->Storage) return "";
-    const auto &data = *_expression->Storage;
     if (const auto *constVal = _expression->GetConstValue()) {
         std::string typeStr = GetTypeName(*_expression->GetType());
         return std::format("{} {}", typeStr, constVal->Value);
@@ -126,7 +130,7 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
                     std::string left = workingExpr[i];
                     std::string right = workingExpr[i + 1];
                     auto compileType = compExpr->Components[i]->GetType();
-                    auto type = std::get_if<type::BaseType>(&*compileType);
+                    auto *type = std::get_if<type::BaseType>(&*compileType);
                     std::string opSymbol = OperatorToIR(type, workingOps[i]);
                     std::string combined = std::format("{} ({}, {})", opSymbol, left, right);
                     workingExpr[i] = combined;
@@ -139,12 +143,11 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
         }
         return workingExpr[0];
     }
-
     if (const auto *funcCallPtr = _expression->GetFunctionCall()) {
         const auto &funcCall = *funcCallPtr;
         auto functionName = funcCall->FunctionDecl ? funcCall->FunctionDecl->Name : "unknown_func";
-        auto sourceType = std::get_if<type::BaseType>(&*funcCall->Arguments[0]->GetType());
-        auto convertFuncType = &*std::ranges::find_if(type::BaseTypes, [&](const type::BaseType &baseType) {
+        const auto *sourceType = std::get_if<type::BaseType>(&*funcCall->Arguments[0]->GetType());
+        const auto *convertFuncType = &*std::ranges::find_if(type::BaseTypes, [&](const type::BaseType &baseType) {
             return baseType.Name == functionName;
         });
         std::string castOp = determineCastOperator(sourceType, convertFuncType);
@@ -175,6 +178,7 @@ GenClass::exprResult GenClass::TripleExpression(const expr &_left, const expr &_
 
 GenClass::exprResult GenClass::TripleExpression(const exprResult &_left, const exprResult &_right,
                                                 ast::BaseOperator _op) {
+
     std::string targetReg = std::format("%tr{}", exprCnt++);
     const std::string combinedCode = _left.code + _right.code;
     std::string llvmOp = OperatorToIR(_left.llvmType, _op);
@@ -264,7 +268,9 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
 }
 
 GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
-    if (const auto vPtr = _expr->GetVariable(); vPtr != nullptr) {
+    static int tempCnt = 0;
+    std::println("Left Expression Expand: {}", tempCnt++);
+    if (const auto *const vPtr = _expr->GetVariable(); vPtr != nullptr) {
         const auto type = TypeToLLVM((*vPtr)->VarType);
         const auto name = std::format("%{}", (*vPtr)->Name);
 
@@ -274,13 +280,74 @@ GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
             ""
         };
     }
-    if (const auto compPtr = _expr->GetCompositeExpression(); compPtr != nullptr) {
-        return MemberAccessExpression(_expr,true);
+    if (const auto *const compPtr = _expr->GetCompositeExpression(); compPtr != nullptr) {
+        return MemberAccessExpression(_expr, true);
     }
-
-
+    ErrorPrintln("Error: Expression is not a valid left-hand side expression.\n");
+    std::exit(-1);
 }
 
-gen::IRGenerator::exprResult gen::IRGenerator::TypeConvert(const expr &_expr, const type::CompileType *_targetType) {
+GenClass::exprResult GenClass::TypeConvert(const expr &_expr, const sPtr<type::CompileType> &_targetType) {
+    const auto nowType = TypeToLLVM(_expr->GetType());
+    const auto nowTypeSize = type::GetSize(_expr->GetType());
+    auto expr = ExpressionExpand(_expr);
+    const auto targetType = TypeToLLVM(_targetType);
+    const auto targetTypeSize = type::GetSize(_targetType);
 
+    if (expr.llvmType == targetType) {
+        return expr; // 类型相同，无需转换
+    }
+
+    auto isIntegerType = [](const std::string_view type) {
+        return type.starts_with('i') || type.starts_with('u');
+    };
+    auto isFloatType = [](const std::string_view type) {
+        return type.starts_with('f');
+    };
+
+    if (type::IsType<type::ArrayType>(_expr->GetType())) {
+        if (!type::IsType<type::PointerType>(_targetType)) {
+            ErrorPrintln("Error: Cannot convert array type to non-pointer type.\n");
+            std::exit(-1);
+        }
+        auto reg = std::format("%{}", exprCnt++);
+        std::string code = std::format("{} = getelementptr inbounds {}, ptr {}, i64 0, i64 0\n",
+                                       reg, nowType, expr.resultVar);
+        return exprResult{ targetType, reg, expr.code + code };
+    }
+
+    if (isIntegerType(nowType) && isIntegerType(targetType)) {
+        if (nowTypeSize == targetTypeSize) return { targetType, expr.resultVar, expr.code }; // 符号互转是 No-op
+
+        std::string op = (nowTypeSize < targetTypeSize)
+                         ? (nowType[0] == 'i' ? "sext" : "zext") // 假设你的 nowType 字符串能区分有无符号
+                         : "trunc";
+        auto reg = std::format("%{}", exprCnt++);
+        std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
+        return exprResult{ targetType, reg, expr.code + code };
+    }
+
+    if (isFloatType(nowType) && isFloatType(targetType)) {
+        std::string op = (nowTypeSize < targetTypeSize) ? "fpext" : "fptrunc";
+        auto reg = std::format("%{}", exprCnt++);
+        std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
+        return exprResult{ targetType, reg, expr.code + code };
+    }
+
+    if (isIntegerType(nowType) && isFloatType(targetType)) {
+        std::string op = (nowType[0] == 'i') ? "sitofp" : "uitofp";
+        auto reg = std::format("%{}", exprCnt++);
+        std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
+        return exprResult{ targetType, reg, expr.code + code };
+    }
+
+    if (isFloatType(nowType) && isIntegerType(targetType)) {
+        std::string op = (targetType[0] == 'i') ? "fptosi" : "fptoui";
+        auto reg = std::format("%{}", exprCnt++);
+        std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
+        return exprResult{ targetType, reg, expr.code + code };
+    }
+
+    ErrorPrintln("Error: Unsupported type conversion from {} to {}.\n", nowType, targetType);
+    std::exit(-1);
 }

@@ -18,13 +18,13 @@ export namespace mlc::parser {
     class AbstractSyntaxTree {
     public:
         template<typename _type>
-        using SymbolTable = std::vector<std::shared_ptr<_type> >;
+        using SymbolTable = std::set<std::shared_ptr<_type> >;
 
         template<typename _type>
-        using ContextTable = std::vector<std::shared_ptr<_type> >;
+        using ContextTable = std::set<std::shared_ptr<_type> >;
 
         template<typename _type>
-        using StatementTable = SymbolTable<_type>;
+        using StatementTable = std::vector<std::shared_ptr<_type> >;
 
         template<typename _type>
         using sPtr = std::shared_ptr<_type>;
@@ -39,11 +39,12 @@ export namespace mlc::parser {
 
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
 
-        [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent) const;
+        [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent,
+                                                                  bool _isExported = false) const;
 
         [[nodiscard]] sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
 
-        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader) const;
+        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader,bool _isExported = false) const;
 
 
         StatementTable<ast::Statement> statementParser(std::string_view statementContent) {
@@ -56,7 +57,7 @@ export namespace mlc::parser {
 
         struct caseBlock {
             sPtr<ast::Expression> condition; // case 条件表达式
-            SymbolTable<ast::Statement> statements; // case 块内的语句
+            StatementTable<ast::Statement> statements; // case 块内的语句
         };
 
         sPtr<caseBlock> caseBlockParser(ContextTable<ast::VariableStatement> &_context,
@@ -90,7 +91,7 @@ export namespace mlc::parser {
                                                     int splitIndex);
 
         sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent) {
-            constexpr ContextTable<ast::VariableStatement> dummyContext;
+            const ContextTable<ast::VariableStatement> dummyContext{};
             return subScopeParser(dummyContext, _subScopeContent);
         }
 
@@ -184,6 +185,11 @@ export namespace mlc::parser {
         [[nodiscard]] sOptional<type::CompileType> findType(std::string_view _typeName) const;
 
         explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
+
+        void extractExportSymbols(const std::filesystem::path &_importPath);
+
+        [[nodiscard]] static std::vector<std::filesystem::path> getImportPaths(
+            const std::vector<std::string_view> &_tokens);
 
         sPtr<ast::Expression> initExprParser(std::string_view _initExpr, const sPtr<type::CompileType> &_currentType,
                                              ContextTable<ast::VariableStatement> &_context,

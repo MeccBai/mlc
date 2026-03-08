@@ -29,7 +29,7 @@ ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent)
 
 
 astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
-    std::vector<std::string_view> groups[6];
+    std::vector<std::string_view> groups[7];
 
     std::ranges::for_each(tokens, [&](const auto &t) {
         groups[static_cast<size_t>(t.type)].emplace_back(t.content);
@@ -40,13 +40,14 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     auto &enums = groups[static_cast<size_t>(ast::GlobalStateType::EnumDefinition)];
     auto &varDecls = groups[static_cast<size_t>(ast::GlobalStateType::VariableDeclaration)];
     auto &funcDecls = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDeclaration)];
+    auto &imports = groups[static_cast<size_t>(ast::GlobalStateType::ImportFile)];
 
-    functionSymbolTable.reserve(ast::Type::BaseTypes.size() + functions.size() + funcDecls.size());
+    auto paths = getImportPaths(imports);
+
     for (auto type: ast::Type::BaseTypes) {
         auto typePtr = ast::Make<ast::Type::CompileType>(type);
-
-        typeSymbolTable.emplace_back(typePtr);
-        functionSymbolTable.emplace_back(
+        typeSymbolTable.insert(typePtr);
+        functionSymbolTable.insert(
             ast::Make<ast::FunctionDeclaration>(
                 ast::FunctionDeclaration(
                     type.Name, typePtr, {},
@@ -55,40 +56,46 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
             )
         );
     }
+
+    std::ranges::for_each(paths, [&](const std::filesystem::path &path) {
+        extractExportSymbols(path);
+    });
+
     for (auto &enumDef: enums) {
         auto enumParsed = enumDefParser(enumDef);
         auto enumPtr = ast::Make<ast::Type::CompileType>(enumParsed);
-        typeSymbolTable.emplace_back(enumPtr);
+        typeSymbolTable.insert(enumPtr);
     }
     for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
         auto structPtr = ast::Make<ast::Type::CompileType>(structDef);
-        typeSymbolTable.emplace_back(structPtr);
+        typeSymbolTable.insert(structPtr);
     }
 
     for (auto &decl: funcDecls) {
         auto declParsed = functionDeclParser(decl);
-        functionSymbolTable.emplace_back(ast::Make<ast::FunctionDeclaration>(declParsed));
+        functionSymbolTable.insert(ast::Make<ast::FunctionDeclaration>(declParsed));
     }
 
     for (auto &varDecl: varDecls) {
         auto dummyContext = ContextTable<ast::VariableStatement>{};
-        for (const auto varParsed = variableParser(dummyContext, varDecl); auto &v: varParsed) {
-            auto vPtr = std::get_if<ast::VariableStatement>(v.operator->());
+        for (const auto varParsed = variableParser(dummyContext, varDecl); const auto &v: varParsed) {
+            auto *vPtr = std::get_if<ast::VariableStatement>(v.operator->());
             auto shadowPtr = std::shared_ptr<ast::VariableStatement>(v, vPtr);
-            variableSymbolTable.emplace_back(shadowPtr);
+            variableSymbolTable.insert(shadowPtr);
         }
     }
 
     for (auto &func: functions) {
         auto [decl, body] = functionDeclSpliter(func);
-        functionSymbolTable.emplace_back(ast::Make<ast::FunctionDeclaration>(decl));
+        functionSymbolTable.insert(ast::Make<ast::FunctionDeclaration>(decl));
     }
 
     for (auto &func: functions) {
         auto def = functionDefParser(func);
-        functionScopeTable.emplace_back(ast::Make<ast::FunctionScope>(def));
+        functionScopeTable.insert(ast::Make<ast::FunctionScope>(def));
     }
 }
+
 
 auto astClass::findType(const std::string_view _typeName) const -> sOptional<ast::Type::CompileType> {
     for (const auto &typePtr: typeSymbolTable) {

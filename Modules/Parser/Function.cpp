@@ -21,7 +21,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     const auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
     for (const auto args = functionDeclPtr.Parameters;
          const auto &arg: args) {
-        context.emplace_back(arg);
+        context.insert(arg);
     }
     const auto statementsTemp = statements | std::views::transform(
                                     [&](const std::string_view statement) {
@@ -32,7 +32,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
 
-    if (auto returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
+    if (auto *returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
         ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDeclPtr.Name);
         std::exit(-1);
     }
@@ -102,26 +102,28 @@ sPtr<ast::VariableStatement> astClass::functionArgParser(const std::string_view 
 }
 
 ast::FunctionDeclaration astClass::functionDeclParser(
-    const std::string_view _functionContent) const {
+    const std::string_view _functionContent,const bool _isExported) const {
     //void func(int a,int b)
-    const std::string_view returnType = _functionContent.substr(0, _functionContent.find(' '));
+    std::string_view funcContent = _functionContent;
 
-    const auto leftBracket = _functionContent.find('(');
-    const auto rightBracket = _functionContent.find(')');
-    const auto argsList = _functionContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
-    const auto functionName = _functionContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
+    const std::string_view returnType = funcContent.substr(0, funcContent.find(' '));
+
+    const auto leftBracket = funcContent.find('(');
+    const auto rightBracket = funcContent.find(')');
+    const auto argsList = funcContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
+    const auto functionName = funcContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
 
     const auto returnTypePtr = findType(returnType);
     if (!returnTypePtr) {
         ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
         std::exit(-1);
     }
-    if (argsList == "...") {
+    if (argsList == std::string_view("...")) {
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true);
     }
 
     if (argsList.empty()) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {});
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {},false);
     }
 
     auto toArg = [this](const std::string_view arg) {
@@ -131,13 +133,13 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     const std::vector<sPtr<ast::VariableStatement> > args = argSplit(argsList)
     | std::views::transform(toArg) | std::ranges::to<std::vector>();
 
-    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args);
+    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args,false,_isExported);
 }
 
-astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionHeader) const {
+astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionHeader,const bool _isExported) const {
     const auto bracketEndPos = _functionHeader.find("){");
     const auto functionBody = _functionHeader.substr(bracketEndPos + 2, _functionHeader.length() - bracketEndPos - 3);
     const auto functionHeader = _functionHeader.substr(0, bracketEndPos + 1);
-    const auto functionDecl = functionDeclParser(functionHeader);
+    const auto functionDecl = functionDeclParser(functionHeader,_isExported);
     return {functionDecl, functionBody};
 }

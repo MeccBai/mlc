@@ -20,10 +20,12 @@ struct structMemberPack {
 };
 
 structPack parseStructDef(const std::string_view _structDef) {
-    const auto structNameStart = _structDef.find("struct") + 6; // 跳过 "struct "
-    const auto structName = _structDef.substr(structNameStart+1, _structDef.find('{')-7);
+
+    const auto structDefine = _structDef;
+    const auto structNameStart = structDefine.find("struct") + 6; // 跳过 "struct "
+    const auto structName = structDefine.substr(structNameStart+1, structDefine.find('{')-7);
     auto memberDefs = split(
-        _structDef.substr(_structDef.find('{') + 1, _structDef.rfind('}') - _structDef.find('{') - 1), ";");
+        structDefine.substr(structDefine.find('{') + 1, structDefine.rfind('}') - structDefine.find('{') - 1), ";");
     memberDefs.pop_back();
     return {structName, memberDefs};
 }
@@ -75,7 +77,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
 
     const auto findType = [this, findStruct](const std::string_view _typeName) {
         for (const auto &type: typeSymbolTable) {
-            if (const auto basePtr = std::get_if<ast::Type::BaseType>(&*type)) {
+            if (auto *const basePtr = std::get_if<ast::Type::BaseType>(&*type)) {
                 const auto view = std::string_view(basePtr->Name);
                 if (const auto typeName = _typeName; view == typeName) {
                     return std::make_shared<ast::Type::CompileType>(*basePtr);

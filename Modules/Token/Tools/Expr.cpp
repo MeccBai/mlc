@@ -75,7 +75,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
         if (op == ast::BaseOperator::Add || op == ast::BaseOperator::Sub ||
             op == ast::BaseOperator::Mul || op == ast::BaseOperator::Div) {
             // 2. 地毯式检查所有组件
-            for (auto &exp: arg->Components) {
+            for (const auto &exp: arg->Components) {
                 auto type = exp->GetType();
                 if (!type) continue;
                 // 3. 核心安检：只要任何一个组件是 PointerType，立刻“枪毙”
@@ -99,7 +99,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
             if (baseOp == ast::BaseOperator::Arrow) {
                 if (const auto *ptrData = std::get_if<ast::Type::PointerType>(&(*leftType))) {
                     const auto baseType = ptrData->BaseType;
-                    if (const auto baseStruct = std::get_if<ast::Type::StructDefinition>(&(*baseType))) {
+                    if (const auto *const baseStruct = std::get_if<ast::Type::StructDefinition>(&(*baseType))) {
                         const auto &dataVariant = *(arg->Components[1]->Storage);
                         const auto memberAccess = *std::get_if<std::shared_ptr<ast::MemberAccess> >(&dataVariant);
                         return baseStruct->Members[memberAccess->Index].Type;
@@ -167,10 +167,10 @@ type::sPtr<ast::Type::CompileType> ast::Expression::GetType() const {
         return handleCompositeType(*compExprPtr);
     }
     if (const auto *enumValPtr = std::get_if<EnumValue>(storagePtr)) {
-        return std::make_shared<Type::CompileType>(*(enumValPtr->EnumDef));
+        return ast::Make<type::CompileType>(*(enumValPtr->EnumDef));
     }
     if (const auto *memberAccessPtr = std::get_if<std::shared_ptr<MemberAccess> >(storagePtr)) {
-        if (auto &arg = *memberAccessPtr;
+        if (const auto &arg = *memberAccessPtr;
             arg && arg->StructDef) {
             if (const auto &members = arg->StructDef->Members;
                 arg->Index < members.size()) {

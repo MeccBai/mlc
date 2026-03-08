@@ -143,7 +143,7 @@ namespace mlc::ir::gen {
 
         static exprResult LeftExpressionExpand(const expr &_expr);
 
-        static exprResult TypeConvert(const expr &_expr, const type::CompileType *_targetType);
+        static exprResult TypeConvert(const expr &_expr, const sPtr<type::CompileType> &_targetType);
     };
 
     export

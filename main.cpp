@@ -15,9 +15,10 @@ void PrintUsage() {
 
 int main(int argc, char* argv[]) {
     DisableOutputBuffering();
+
     namespace fs = std::filesystem;
 
-    std::vector<std::string> args(argv + 1, argv + argc);
+    const std::vector<std::string> args(argv + 1, argv + argc);
     if (args.empty()) {
         PrintUsage();
         return 1;
@@ -56,12 +57,12 @@ int main(int argc, char* argv[]) {
 
     std::println("{}",ir);
 
-    auto compileCmd = std::format("clang \"{}\" -o \"{}\" -Wno-override-module -mconsole",
+    const auto compileCmd = std::format(R"(clang "{}" -o "{}" -Wno-override-module -mconsole)",
                                          llPath.string(), exePath.string());
 
     std::println("🚀 Compiling {} -> {}...", inputPath.string(), exePath.string());
 
-    auto res = std::system(compileCmd.c_str());
+    const auto res = std::system(compileCmd.c_str());
 
     if (res == 0) {
         std::println("🎉 Done!");

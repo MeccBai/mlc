@@ -25,6 +25,7 @@ export namespace mlc::ast {
         StructDefinition,
         EnumDefinition,
         VariableDeclaration,
+        ImportFile,
     };
 
     enum class SubScopeType {

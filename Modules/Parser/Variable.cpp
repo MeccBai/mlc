@@ -79,7 +79,7 @@ astClass::StatementTable<ast::Statement> astClass::globalVariableParser(
         }
         if (vptr->Initializer != nullptr) {
         }
-        variableSymbolTable.emplace_back(std::make_shared<ast::VariableStatement>(*vptr));
+        variableSymbolTable.insert(std::make_shared<ast::VariableStatement>(*vptr));
     }
     return result;
 }
@@ -149,14 +149,23 @@ sPtr<ast::Expression> astClass::initExprParser(std::string_view _initExpr,
             finalInitExpr = parseInitList(parseInitList, _initExpr);
             finalInitExpr = ast::MakeExpression(fillDefaultValue(_currentType, finalInitExpr));
         } else if (_initExpr.starts_with('"') and _initExpr.ends_with('"')) {
-            auto str = _initExpr.substr(1, _initExpr.size() - 2) | std::views::transform(
-                           [](const char c) {
-                               return ast::MakeExpression(
-                                   ast::ConstValue(std::string_view(&c, 1), true));
-                           }) | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
-            finalInitExpr = ast::MakeExpression(ast::MakeInitializerList(str));
+            std::vector<sPtr<ast::Expression>> strElements;
+            const auto rawContent = _initExpr.substr(1, _initExpr.size() - 2);
+            for (size_t i = 0; i < rawContent.size(); ++i) {
+                std::string charBuffer;
+                if (rawContent[i] == '\\' && i + 1 < rawContent.size()) {
+                    charBuffer = std::string(rawContent.substr(i, 2));
+                    i++;
+                } else {
+                    charBuffer = std::string(1, rawContent[i]);
+                }
+                strElements.push_back(ast::MakeExpression(
+                    ast::ConstValue(charBuffer, true)
+                ));
+            }
+            finalInitExpr = ast::MakeExpression(ast::MakeInitializerList(strElements));
             finalInitExpr = ast::MakeExpression(fillDefaultValue(_currentType, finalInitExpr));
-        } else {
+        }else {
             finalInitExpr = expressionParser(_context, _initExpr);
             type::ValidateType(_currentType, finalInitExpr->GetType(), _realName);
         }
@@ -165,6 +174,8 @@ sPtr<ast::Expression> astClass::initExprParser(std::string_view _initExpr,
     }
     return finalInitExpr;
 }
+
+
 
 std::pair<std::string_view, sPtr<type::CompileType>> resolveTypeModifier(const sPtr<type::CompileType> &_baseType, std::string_view decl) {
     auto currentType = _baseType;
@@ -201,10 +212,16 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
             std::exit(-1);
         }
         auto [realName, currentType] = resolveTypeModifier(typePtr.value(), name);
-        sPtr<ast::Expression> finalInitExpr = initExprParser(initExpression, currentType, _context, realName);
+        if (initExpression.empty()) {
+            auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, nullptr);
+            _context.insert(varStmt);
+            result.emplace_back(std::make_shared<ast::Statement>(*varStmt));
+            continue;
+        }
+        auto finalInitExpr = initExprParser(initExpression, currentType, _context, realName);
         auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, finalInitExpr);
-        _context.emplace_back(varStmt);
-        result.push_back(std::make_shared<ast::Statement>(*varStmt));
+        _context.insert(varStmt);
+        result.emplace_back(std::make_shared<ast::Statement>(*varStmt));
     }
     return result;
 }

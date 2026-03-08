@@ -96,9 +96,8 @@
 
         class StructDefinition {
         public:
-            explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members,
-                                      const bool _isExported = false)
-                : Name(_name), Members(std::move(_members)), IsExported(_isExported) {
+            explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
+                : Name(_name), Members(std::move(_members)) {
                 IsValidName(Name);
                 std::ranges::for_each(Members, [](const StructMember &member) {
                     IsValidName(member.Name);
@@ -107,7 +106,6 @@
 
             const std::string Name;
             const std::vector<StructMember> Members; // type and name
-            const bool IsExported;
 
             [[nodiscard]] size_t Size() const;
         };
