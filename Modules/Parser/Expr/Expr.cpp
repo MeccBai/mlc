@@ -162,7 +162,7 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
 
 
 int astClass::findSplitOperator(const std::vector<ast::exprTree> &fragments) {
-    int maxPriority = -1;
+    int minUrgency = -1; // 这里的 minUrgency 代表“最不紧急”，即优先级数值最大
     int splitIndex = -1;
 
     for (int i = 0; i < static_cast<int>(fragments.size()); ++i) {
@@ -171,14 +171,12 @@ int astClass::findSplitOperator(const std::vector<ast::exprTree> &fragments) {
             auto op = toBaseOperator(opStr);
             const auto priority = ast::OperatorPriority.at(op);
 
-            // 【关键修改】：实现左结合性
-            // 找到优先级最高的（数值最大）的运算符作为分割点
-            if (priority > maxPriority) {
-                maxPriority = priority;
+            // 逻辑：我们要找数值最大的（最后算的）
+            // 如果优先级数值更大，或者相等且是左结合，就更新 splitIndex 到更右边的位置
+            if (priority >= minUrgency) {
+                minUrgency = priority;
                 splitIndex = i;
             }
-            // 如果优先级相同，且它是左结合的运算符（如 []），保留之前找到的最左边的那个
-            // 也就是在 if (priority > maxPriority) 中就已经包含了对左结合的处理
         }
     }
     return splitIndex;

@@ -32,7 +32,7 @@ export bool isOpChar(const char c) {
 astClass::StatementTable<ast::Statement> parseReturnStatement(
     astClass &self,
     astClass::ContextTable<ast::VariableStatement> &_context,
-    std::string_view _content);
+    std::string_view _content,sPtr<ast::FunctionDeclaration>_currentFunc);
 
 astClass::StatementTable<ast::Statement> parseAssignmentStatement(
     astClass &self,

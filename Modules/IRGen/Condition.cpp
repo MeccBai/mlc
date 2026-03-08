@@ -94,13 +94,13 @@ std::string compositeConditionExpand(const std::string_view _true, const std::st
 
 std::string GenClass::ConditionExpression(const expr &_condition, const std::string_view _true,
                                           const std::string_view _false) {
-    if (const auto constVal = _condition->GetConstValue()) {
+    if (auto *const constVal = _condition->GetConstValue()) {
         return constConditionExpand(_true, _false, constVal);
     }
-    if (const auto varExprPtr = _condition->GetVariable()) {
+    if (const auto *const varExprPtr = _condition->GetVariable()) {
         return varConditionExpand(_true, _false, varExprPtr->get());
     }
-    if (const auto funcExprPtr = _condition->GetFunctionCall()) {
+    if (const auto *const funcExprPtr = _condition->GetFunctionCall()) {
         return funcConditionExpand(_true, _false, funcExprPtr->get());
     }
     if (_condition->GetCompositeExpression()) {
@@ -196,10 +196,10 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
                 caseCode += std::format("{}:\n{}\n", currentLabel,
                                         caseBlockGenerate(_stmt, sub, endLabel, _decl));
             }
-            size_t total = subScope->Statements.size();
+            const size_t total = subScope->Statements.size();
             for (size_t i = 0; i < total - 1; ++i) {
-                auto sub = std::get_if<ast::SubScope>(&*subScope->Statements[i]);
-                auto caseCondRes = ConstExpressionExpand(sub->Condition->GetType(), sub->Condition);
+                auto *sub = std::get_if<ast::SubScope>(&*subScope->Statements[i]);
+                auto caseCondRes = ConstExpressionExpand(sub->Condition->GetType(), sub->Condition,true);
                 std::string cmpReg = std::format("%{}", exprCnt++);
                 std::string nextCheckLabel = getLabel();
                 jumpCode += std::format("{} = icmp eq {} {}, {}\n",

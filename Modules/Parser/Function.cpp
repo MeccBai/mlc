@@ -17,15 +17,15 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     ContextTable<ast::VariableStatement> context;
     auto [header,body] = getFunctionHeader(_functionContent);
     auto statements = seg::TokenizeFunctionBody(body);
-    auto functionDecl = functionDeclParser(header);
-    const auto functionDeclPtr = ast::FunctionDeclaration(functionDecl);
-    for (const auto args = functionDeclPtr.Parameters;
+    auto functionDecl = ast::FunctionDeclaration(functionDeclParser(header));
+    const auto functionDeclPtr = std::make_shared<ast::FunctionDeclaration>(functionDecl);
+    for (const auto args = functionDecl.Parameters;
          const auto &arg: args) {
-        context.insert(arg);
+        context.insert({arg->Name,arg});
     }
     const auto statementsTemp = statements | std::views::transform(
                                     [&](const std::string_view statement) {
-                                        return statementParser(context, statement);
+                                        return statementParser(context, statement,functionDeclPtr);
                                     }) | std::ranges::to<std::vector<std::vector<std::shared_ptr<
                                     ast::Statement> > > >();
 
@@ -33,7 +33,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
                                 ast::Statement> > >();
 
     if (auto *returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
-        ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDeclPtr.Name);
+        ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
         std::exit(-1);
     }
 
@@ -101,23 +101,56 @@ sPtr<ast::VariableStatement> astClass::functionArgParser(const std::string_view 
     std::exit(-1);
 }
 
+std::pair<std::string_view,size_t> getPointerLevel(const std::string_view _typeName) {
+    size_t level = 0;
+    for (const auto c: _typeName) {
+        if (c == '$') {
+            level++;
+        } else {
+            break;
+        }
+    }
+    return {_typeName.substr(0,_typeName.size()-level-1), level};
+}
+
 ast::FunctionDeclaration astClass::functionDeclParser(
     const std::string_view _functionContent,const bool _isExported) const {
     //void func(int a,int b)
     std::string_view funcContent = _functionContent;
 
-    const std::string_view returnType = funcContent.substr(0, funcContent.find(' '));
+    bool isPointer = false;
+    size_t pointerLevel = 0;
+    auto returnPos = funcContent.find(' ');
+    if (returnPos == std::string_view::npos) {
+        returnPos = funcContent.find('$');
+        isPointer = true;
+    }
+    std::string_view returnType = funcContent.substr(0, returnPos + (isPointer ? 1 : 0));
+    if (isPointer) {
+        auto [baseType, level] = getPointerLevel(returnType);
+        returnType = baseType;
+        pointerLevel = level;
+    }
+    auto returnTypePtr = findType(returnType);
+    if (!returnTypePtr) {
+        ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
+        std::exit(-1);
+    }
+    if (isPointer) {
+        const auto pType = std::make_shared<type::PointerType>(pointerLevel);
+        pType->Finalize(returnTypePtr.value());
+        returnTypePtr = std::make_shared<type::CompileType>(*pType);
+    }
+    else {
+        returnTypePtr = std::make_shared<type::CompileType>(*returnTypePtr.value());
+    }
 
     const auto leftBracket = funcContent.find('(');
     const auto rightBracket = funcContent.find(')');
     const auto argsList = funcContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
     const auto functionName = funcContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
 
-    const auto returnTypePtr = findType(returnType);
-    if (!returnTypePtr) {
-        ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
-        std::exit(-1);
-    }
+
     if (argsList == std::string_view("...")) {
         return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true);
     }

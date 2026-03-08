@@ -65,6 +65,51 @@ std::string gen::determineCastOperator(const type::BaseType *_sourceType, const 
     return "bitcast";
 }
 
+
+void fixLLVMTypes(std::string& ir) {
+    size_t pos = 0;
+    while ((pos = ir.find(" f64 ", pos)) != std::string::npos) {
+        ir.replace(pos, 5, " double "); // " f64 " 是 5 位，" double " 是 8 位
+        pos += 8; // 跳过新替换的长度
+    }
+    pos = 0;
+    while ((pos = ir.find("f64\n", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "double\n");
+        pos += 7;
+    }
+    pos = 0;
+    while ((pos = ir.find("f64,", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "double,");
+        pos += 7;
+    }
+    pos = 0;
+    while ((pos = ir.find("f64]", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "double]");
+        pos += 7;
+    }
+    pos = 0;
+    while ((pos = ir.find(" f32 ", pos)) != std::string::npos) {
+        ir.replace(pos, 5, " float "); // " f64 " 是 5 位，" double " 是 8 位
+        pos += 8; // 跳过新替换的长度
+    }
+    pos = 0;
+    while ((pos = ir.find("f32\n", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "float\n");
+        pos += 6;
+    }
+    pos = 0;
+    while ((pos = ir.find("f32,", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "float,");
+        pos += 6;
+    }
+    pos = 0;
+    while ((pos = ir.find("f32]", pos)) != std::string::npos) {
+        ir.replace(pos, 4, "float]");
+        pos += 6;
+    }
+
+}
+
 std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
     std::string code;
     auto structCode = _ast.typeSymbolTable
@@ -110,5 +155,8 @@ std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
     code += join_to_string(globalVarCode);
     code += join_to_string(funcDecl);
     code += join_to_string(funcCode);
+
+    fixLLVMTypes(code);
+
     return code;
 }

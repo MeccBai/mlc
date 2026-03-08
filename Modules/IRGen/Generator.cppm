@@ -77,7 +77,7 @@ namespace mlc::ir::gen {
                                            const sPtr<type::CompileType> &_type = nullptr);
 
         static std::string ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
-                                                 const sPtr<ast::Expression> &_expression);
+                                                 const sPtr<ast::Expression> &_expression,bool _isCondition = false);
 
         static std::string OperatorToIR(const type::BaseType *_type, ast::BaseOperator _value);
 

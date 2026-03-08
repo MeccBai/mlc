@@ -149,14 +149,14 @@ bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
     if (_expr->GetConstValue() != nullptr) {
         return true;
     }
-    if (const auto funcCall = _expr->GetFunctionCall(); funcCall != nullptr) {
-        return std::ranges::all_of((*funcCall)->Arguments, ConstExpressionCheck);
-    }
-    if (const auto compExpr = _expr->GetCompositeExpression(); compExpr != nullptr) {
+    if (const auto *const compExpr = _expr->GetCompositeExpression(); compExpr != nullptr) {
         return std::ranges::all_of((*compExpr)->Components, ConstExpressionCheck);
     }
-    if (const auto varPtr = _expr->GetVariable(); varPtr != nullptr) {
+    if (const auto *const varPtr = _expr->GetVariable(); varPtr != nullptr) {
         return (*varPtr)->Initializer != nullptr && ConstExpressionCheck((*varPtr)->Initializer);
+    }
+    if (const auto *const enumPtr = _expr->GetEnumValue(); enumPtr != nullptr) {
+        return true;
     }
     return false;
 }

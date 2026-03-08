@@ -27,11 +27,16 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         std::string llvmType = TypeToLLVM(varPtr->VarType);
 
         // 💡 物理分流：判断是否为“复合类型”（数组、指针、结构体等）
-        bool const isComplexType = std::holds_alternative<type::ArrayType>(*varPtr->VarType) ||
-                                   std::holds_alternative<type::PointerType>(*varPtr->VarType) || std::holds_alternative
-                                   <
-                                       type::StructDefinition>(*varPtr->VarType);
-        if (isComplexType) {
+        auto isComplex = [](const sPtr<type::CompileType> &cType) {
+            const auto isArray = std::get_if<type::ArrayType>(&*cType) != nullptr;
+            const auto isStruct = std::get_if<type::StructDefinition>(&*cType) != nullptr;
+            if (const auto *const ptr = std::get_if<type::PointerType>(&*cType)) {
+                const auto baseType = ptr->BaseType;
+                return std::get_if<type::ArrayType>(&*baseType) || std::get_if<type::StructDefinition>(&*baseType);
+            }
+            return isArray || isStruct;
+        };
+        if (isComplex(varPtr->VarType)) {
             return exprResult{
                 TypeToLLVM(varPtr->VarType),
                 varAddr,
@@ -60,7 +65,8 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
             ErrorPrintln("Error: Composite expression has no components.\n");
             std::exit(-1);
         }
-        if (components.size() >= 2 && (components[1]->GetMemberAccess() || operators[0] == ast::BaseOperator::Subscript)) {
+        if (components.size() >= 2 && (components[1]->GetMemberAccess() || operators[0] ==
+                                       ast::BaseOperator::Subscript)) {
             return MemberAccessExpression(_expression, false);
         }
         if (opFirst) {
@@ -107,10 +113,13 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
 }
 
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
-                                            const sPtr<ast::Expression> &_expression) {
+                                            const sPtr<ast::Expression> &_expression,bool _isCondition) {
     if (!_expression || !_expression->Storage) return "";
     if (const auto *constVal = _expression->GetConstValue()) {
         std::string typeStr = GetTypeName(*_expression->GetType());
+        if (_isCondition) {
+            return std::format("{}", constVal->Value);
+        }
         return std::format("{} {}", typeStr, constVal->Value);
     }
     if (const auto *initListPtr = _expression->GetInitializerList()) {
@@ -154,6 +163,12 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
         return std::format("{} ({} {})", castOp, GetTypeName(*convertFuncType),
                            ConstExpressionExpand(funcCall->Arguments[0]->GetType(), funcCall->Arguments[0]));
     }
+    if (const auto &enumPtr = _expression->GetEnumValue()) {
+        if (_isCondition) {
+            return std::format("{}", enumPtr->Index);
+        }
+        return std::format("{} {}", "i32", enumPtr->Index);
+    }
 
     ErrorPrintln("Error: Expression is not a constant expression and cannot be evaluated at compile time.\n");
     std::exit(-1);
@@ -178,7 +193,6 @@ GenClass::exprResult GenClass::TripleExpression(const expr &_left, const expr &_
 
 GenClass::exprResult GenClass::TripleExpression(const exprResult &_left, const exprResult &_right,
                                                 ast::BaseOperator _op) {
-
     std::string targetReg = std::format("%tr{}", exprCnt++);
     const std::string combinedCode = _left.code + _right.code;
     std::string llvmOp = OperatorToIR(_left.llvmType, _op);
@@ -294,6 +308,10 @@ GenClass::exprResult GenClass::TypeConvert(const expr &_expr, const sPtr<type::C
     const auto targetType = TypeToLLVM(_targetType);
     const auto targetTypeSize = type::GetSize(_targetType);
 
+    auto getReg = []() {
+        return std::format("%ty{}", exprCnt++);
+    };
+
     if (expr.llvmType == targetType) {
         return expr; // 类型相同，无需转换
     }
@@ -310,42 +328,42 @@ GenClass::exprResult GenClass::TypeConvert(const expr &_expr, const sPtr<type::C
             ErrorPrintln("Error: Cannot convert array type to non-pointer type.\n");
             std::exit(-1);
         }
-        auto reg = std::format("%{}", exprCnt++);
+        auto reg = getReg();
         std::string code = std::format("{} = getelementptr inbounds {}, ptr {}, i64 0, i64 0\n",
                                        reg, nowType, expr.resultVar);
-        return exprResult{ targetType, reg, expr.code + code };
+        return exprResult{targetType, reg, expr.code + code};
     }
 
     if (isIntegerType(nowType) && isIntegerType(targetType)) {
-        if (nowTypeSize == targetTypeSize) return { targetType, expr.resultVar, expr.code }; // 符号互转是 No-op
+        if (nowTypeSize == targetTypeSize) return {targetType, expr.resultVar, expr.code}; // 符号互转是 No-op
 
         std::string op = (nowTypeSize < targetTypeSize)
-                         ? (nowType[0] == 'i' ? "sext" : "zext") // 假设你的 nowType 字符串能区分有无符号
-                         : "trunc";
-        auto reg = std::format("%{}", exprCnt++);
+                             ? (nowType[0] == 'i' ? "sext" : "zext") // 假设你的 nowType 字符串能区分有无符号
+                             : "trunc";
+        auto reg = getReg();
         std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
-        return exprResult{ targetType, reg, expr.code + code };
+        return exprResult{targetType, reg, expr.code + code};
     }
 
     if (isFloatType(nowType) && isFloatType(targetType)) {
         std::string op = (nowTypeSize < targetTypeSize) ? "fpext" : "fptrunc";
-        auto reg = std::format("%{}", exprCnt++);
+        auto reg = getReg();
         std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
-        return exprResult{ targetType, reg, expr.code + code };
+        return exprResult{targetType, reg, expr.code + code};
     }
 
     if (isIntegerType(nowType) && isFloatType(targetType)) {
         std::string op = (nowType[0] == 'i') ? "sitofp" : "uitofp";
-        auto reg = std::format("%{}", exprCnt++);
+        auto reg = getReg();
         std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
-        return exprResult{ targetType, reg, expr.code + code };
+        return exprResult{targetType, reg, expr.code + code};
     }
 
     if (isFloatType(nowType) && isIntegerType(targetType)) {
         std::string op = (targetType[0] == 'i') ? "fptosi" : "fptoui";
-        auto reg = std::format("%{}", exprCnt++);
+        auto reg = getReg();
         std::string code = std::format("{} = {} {} {} to {}\n", reg, op, nowType, expr.resultVar, targetType);
-        return exprResult{ targetType, reg, expr.code + code };
+        return exprResult{targetType, reg, expr.code + code};
     }
 
     ErrorPrintln("Error: Unsupported type conversion from {} to {}.\n", nowType, targetType);

@@ -17,20 +17,19 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
         std::exit(-1);
     }
     const auto & [operators,components, opFirst] = **composite;
-    exprResult currentResult = ExpressionExpand(components[0]);
+    exprResult currentResult = LeftExpressionExpand(components[0]);
     auto currentType = components[0]->GetType();
-
-    for (size_t i = 0; i < operators.size() - 1; ++i) {
+    for (size_t i = 0; i < components.size() - 1; ++i) {
         const auto op = operators[i];
         const auto &nextComp = components[i + 1];
         currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
         currentType = components[i + 1]->GetType();
     }
-
+#if 0
     if (auto *array = std::get_if<type::ArrayType>(&*components[0]->GetType()); operators.size() == 1 && array) {
         const auto op = operators[0];
         const auto &nextComp = components[1];
-        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op,_isWrite);
         currentType = array->BaseType;
     }
 
@@ -44,10 +43,10 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
     if (auto *structDef = std::get_if<type::StructDefinition>(&*components[0]->GetType()); operators.size() == 1 && structDef) {
         const auto op = operators[0];
         const auto &nextComp = components[1];
-        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
+        currentResult = MemberAccessExpression(components[1], _isWrite);
         currentType = nextComp->GetType();
     }
-
+#endif
     if (!_isWrite) {
         if (std::get_if<type::BaseType>(&*currentType)) {
             auto reg = std::format("ma{}", exprCnt++);
@@ -67,6 +66,7 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
 GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type, const exprResult &_parent,
                                                   const expr &_child, ast::BaseOperator _op) {
     auto gepReg = std::format("%ma{}", exprCnt++);
+
     if (const auto *const arrayType = std::get_if<type::ArrayType>(_type)) {
         auto indexResult = ExpressionExpand(_child);
         auto gepInstr = std::format(

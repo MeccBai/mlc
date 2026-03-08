@@ -70,10 +70,10 @@ std::string functionCallGenerate(ast::FunctionCall *_funcCall) {
 
 std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
-    if (auto _variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
-        return LocalVariable(ast::Make<ast::Variable>(*_variable));
+    if (auto *variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
+        return LocalVariable(ast::Make<ast::Variable>(*variable));
     }
-    if (auto assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
+    if (auto *assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
         auto leftResult = LeftExpressionExpand(assign->BaseValue);
         auto rightResult = ExpressionExpand(assign->Value);
         std::string code = leftResult.code + rightResult.code;
@@ -91,13 +91,13 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         }
         return code;
     }
-    if (const auto ret = std::get_if<ast::ReturnStatement>(&*_stmt)) {
+    if (auto *const ret = std::get_if<ast::ReturnStatement>(&*_stmt)) {
         return ReturnStatementGenerate(_stmt, FunctionUnit(_decl));
     }
-    if (auto subScope = std::get_if<ast::SubScope>(&*_stmt)) {
+    if (auto *subScope = std::get_if<ast::SubScope>(&*_stmt)) {
         return SubScopeGenerate(_stmt, _decl);
     }
-    if (auto funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
+    if (auto *funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
         return functionCallGenerate(funcCall);
     }
     if (std::holds_alternative<ast::ContinueStatement>(*_stmt) || std::holds_alternative<ast::BreakStatement>(*_stmt)) {

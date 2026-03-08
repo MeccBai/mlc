@@ -7,7 +7,7 @@ import aux;
 import :Decl;
 
 astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
-                                                                   const std::string_view _statementContent) {
+                                                                   const std::string_view _statementContent,sPtr<ast::FunctionDeclaration> _currentFunc) {
     // 控制流语句
     if (_statementContent.starts_with("if(") ||
         _statementContent.starts_with("while(") ||
@@ -15,7 +15,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
         _statementContent.starts_with("do{") ||
         _statementContent.starts_with("else{") ||
         _statementContent.starts_with("{")) {
-        return {std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent))};
+        return {std::static_pointer_cast<ast::Statement>(subScopeParser(_context, _statementContent,_currentFunc))};
     }
 
     // return 语句
@@ -25,7 +25,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
                              _statementContent[6] == '(' ||
                              _statementContent[6] == ';');
         if (isStandalone) {
-            return parseReturnStatement(*this, _context, _statementContent);
+            return parseReturnStatement(*this, _context, _statementContent,_currentFunc);
         }
     }
 

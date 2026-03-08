@@ -21,7 +21,7 @@ export namespace mlc::parser {
         using SymbolTable = std::set<std::shared_ptr<_type> >;
 
         template<typename _type>
-        using ContextTable = std::set<std::shared_ptr<_type> >;
+        using ContextTable = std::map<std::string,std::shared_ptr<_type> >;
 
         template<typename _type>
         using StatementTable = std::vector<std::shared_ptr<_type> >;
@@ -49,11 +49,11 @@ export namespace mlc::parser {
 
         StatementTable<ast::Statement> statementParser(std::string_view statementContent) {
             ContextTable<ast::VariableStatement> dummyContext;
-            return statementParser(dummyContext, statementContent);
+            return statementParser(dummyContext, statementContent,nullptr);
         }
 
         StatementTable<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
-                                                       std::string_view statementContent);
+                                                       std::string_view statementContent,sPtr<ast::FunctionDeclaration> _currentFunc);
 
         struct caseBlock {
             sPtr<ast::Expression> condition; // case 条件表达式
@@ -61,14 +61,14 @@ export namespace mlc::parser {
         };
 
         sPtr<caseBlock> caseBlockParser(ContextTable<ast::VariableStatement> &_context,
-                                        std::string_view statementContent);
+                                        std::string_view statementContent, const sPtr<ast::FunctionDeclaration> &_currentFunc);
 
         sPtr<ast::Statement> handleSwitchBlock(std::string_view _subScopeContent,
-                                               const ContextTable<ast::VariableStatement> &_context);
+                                               const ContextTable<ast::VariableStatement> &_context,const sPtr<ast::FunctionDeclaration>& _currentFunc);
 
         sPtr<ast::Statement> handleDoWhileBlock(std::string_view _subScopeContent,
                                                 const ContextTable<ast::VariableStatement> &_context,
-                                                auto &_bodyToStatements);
+                                                auto &_bodyToStatements,sPtr<ast::FunctionDeclaration> _currentFunc);
 
         sPtr<ast::Expression> expressionParser(ContextTable<ast::VariableStatement> &_context,
                                                std::string_view _expressionContent);
@@ -84,15 +84,15 @@ export namespace mlc::parser {
                                                       std::string_view _variableContent);
 
         sPtr<ast::Statement> subScopeParser(const ContextTable<ast::VariableStatement> &_context,
-                                            std::string_view _subScopeContent);
+                                            std::string_view _subScopeContent,const sPtr<ast::FunctionDeclaration>& _currentFunc);
 
         sPtr<ast::Expression> handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
                                                     const std::vector<ast::exprTree> &fragments,
                                                     int splitIndex);
 
-        sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent) {
+        sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent,sPtr<ast::FunctionDeclaration> _currentFunc) {
             const ContextTable<ast::VariableStatement> dummyContext{};
-            return subScopeParser(dummyContext, _subScopeContent);
+            return subScopeParser(dummyContext, _subScopeContent,_currentFunc);
         }
 
         sPtr<ast::Expression> expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
@@ -135,26 +135,23 @@ export namespace mlc::parser {
         [[nodiscard]] static sOptional<ast::VariableStatement> FindVariable(const std::string_view name,
                                                                             const ContextTable<ast::VariableStatement> &
                                                                             _context) {
-            for (const auto &var: _context) {
-                if (var->Name == name) {
-                    return var;
-                }
+            if (const auto it = _context.find(std::string(name)); it != _context.end()) {
+                return it->second;
             }
             return std::nullopt;
         }
 
         [[nodiscard]] sOptional<ast::VariableStatement> FindVariable(const std::string_view name) const {
-            for (const auto &var: variableSymbolTable) {
-                if (var->Name == name) {
-                    return var;
-                }
+            if (const auto it = variableSymbolTable.find(std::make_shared<ast::VariableStatement>(name, nullptr, nullptr));
+                it != variableSymbolTable.end()) {
+                return *it;
             }
             return std::nullopt;
         }
 
         [[nodiscard]] sOptional<type::EnumDefinition> FindEnum(const std::string_view _name) const {
             for (const auto &type: typeSymbolTable) {
-                if (const auto enumDefPtr = std::get_if<ast::Type::EnumDefinition>(&*type)) {
+                if (auto *const enumDefPtr = std::get_if<ast::Type::EnumDefinition>(&*type)) {
                     if (enumDefPtr->Name == _name) {
                         return std::make_shared<type::EnumDefinition>(*enumDefPtr);
                     }

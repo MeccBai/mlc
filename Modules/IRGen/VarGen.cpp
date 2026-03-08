@@ -13,7 +13,7 @@ import aux;
 std::string GenClass::GlobalVariable(const sPtr<ast::VariableStatement> &_variable) {
     if (const auto initExpr = _variable->Initializer; initExpr != nullptr && ConstExpressionCheck(initExpr)) {
         auto value = ConstExpressionExpand(_variable->VarType, initExpr);
-        return std::format("@{} = global {}", _variable->Name, value);
+        return std::format("@{} = global {}\n", _variable->Name, value);
     }
     ErrorPrintln("Error: Global variable '{}' must be initialized with a constant expression.\n", _variable->Name);
     std::exit(-1);

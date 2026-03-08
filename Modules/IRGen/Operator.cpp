@@ -130,6 +130,9 @@ std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
         if (baseType->Name == "null") {
             return "ptr";
         }
+        if (baseType->Name == "void") {
+            return "void";
+        }
     }
     if (const auto *const structDef = std::get_if<type::StructDefinition>(&*_type)) {
         return std::format("%struct.{}", structDef->Name);

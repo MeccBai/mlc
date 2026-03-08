@@ -214,13 +214,21 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
         auto [realName, currentType] = resolveTypeModifier(typePtr.value(), name);
         if (initExpression.empty()) {
             auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, nullptr);
-            _context.insert(varStmt);
+            if (FindVariable(realName, _context)) {
+                ErrorPrintln("Error: Variable '{}' is already defined in the current scope\n", realName);
+                std::exit(-1);
+            }
+            _context.insert({std::string(realName),varStmt});
             result.emplace_back(std::make_shared<ast::Statement>(*varStmt));
             continue;
         }
         auto finalInitExpr = initExprParser(initExpression, currentType, _context, realName);
         auto varStmt = std::make_shared<ast::VariableStatement>(realName, currentType, finalInitExpr);
-        _context.insert(varStmt);
+        if (FindVariable(realName, _context)) {
+            ErrorPrintln("Error: Variable '{}' is already defined in the current scope\n", realName);
+            std::exit(-1);
+        }
+        _context.insert({std::string(realName),varStmt});
         result.emplace_back(std::make_shared<ast::Statement>(*varStmt));
     }
     return result;

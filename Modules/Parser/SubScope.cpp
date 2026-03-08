@@ -39,8 +39,8 @@ size_t caseConditionParser(const std::string_view caseBlockStr) {
     for (size_t i = 0; i < caseBlockStr.length(); ++i) {
         if (caseBlockStr[i] == ':') {
             const bool prevIsColon = (i > 0 && caseBlockStr[i - 1] == ':');
-            const bool nextIsColon = (i + 1 < caseBlockStr.length() && caseBlockStr[i + 1] == ':');
-            if (!prevIsColon && !nextIsColon) {
+            if (const bool nextIsColon = (i + 1 < caseBlockStr.length() && caseBlockStr[i + 1] == ':');
+                !prevIsColon && !nextIsColon) {
                 return i;
             }
         }
@@ -49,7 +49,8 @@ size_t caseConditionParser(const std::string_view caseBlockStr) {
 }
 
 sPtr<astClass::caseBlock> astClass::caseBlockParser(
-    ContextTable<ast::VariableStatement> &_context, std::string_view statementContent) {
+    ContextTable<ast::VariableStatement> &_context, const std::string_view statementContent,
+    const sPtr<ast::FunctionDeclaration> &_currentFunc) {
     const auto conditionStr = statementContent.substr(0, caseConditionParser(statementContent));
     const auto statementsStr = statementContent.substr(caseConditionParser(statementContent) + 1);
     std::shared_ptr<ast::Expression> condition;
@@ -60,7 +61,7 @@ sPtr<astClass::caseBlock> astClass::caseBlockParser(
     }
     const auto statementsTemp = seg::TokenizeFunctionBody(statementsStr) | std::views::transform(
                                     [&](const std::string_view statement) {
-                                        return statementParser(_context, statement);
+                                        return statementParser(_context, statement, _currentFunc);
                                     }) | std::ranges::to<std::vector<std::vector<sPtr<ast::Statement> > > >();
     const auto statements = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
@@ -80,21 +81,32 @@ sPtr<astClass::caseBlock> astClass::caseBlockParser(
     for (const auto &stmt: statements) {
         checkNoVarDef(stmt);
     }
-
+    if (condition != nullptr) {
+        if (!ConstExpressionCheck(condition)) {
+            ErrorPrintln("Error : case condition must be a constant expression");
+            std::exit(-1);
+        }
+    }
     return std::make_shared<caseBlock>(caseBlock{condition, statements});
 }
 
-sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScopeContent,const ContextTable<ast::VariableStatement> &_context) {
+sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScopeContent,
+                                                 const ContextTable<ast::VariableStatement> &_context,
+                                                 const sPtr<ast::FunctionDeclaration>& _currentFunc) {
     auto newContext = _context;
     const auto pos = _subScopeContent.find("){");
     const auto condition = expressionParser(newContext, _subScopeContent.substr(7, pos - 7));
     const auto caseBlocksStr = _subScopeContent.substr(pos + 2, _subScopeContent.length() - pos - 3);
     const auto caseBlocks = splitCaseBlocks(caseBlocksStr);
-    auto toBlock = [this, &newContext](const std::string_view block) {
-        return caseBlockParser(newContext, block);
+    auto toBlock = [this, &newContext, _currentFunc](const std::string_view block) {
+        return caseBlockParser(newContext, block,_currentFunc);
     };
     auto toCaseBlock = [](const std::shared_ptr<caseBlock> &block) {
         auto &[caseCondition,statements] = block.operator*();
+        if (!caseCondition) {
+            return std::make_shared<ast::Statement>(
+                ast::SubScope(statements, ast::SubScopeType::DefaultBlock, caseCondition));
+        }
         return std::make_shared<ast::Statement>(
             ast::SubScope(statements, ast::SubScopeType::CaseBlock, caseCondition));
     };
@@ -105,7 +117,7 @@ sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScop
         ErrorPrintln("Error: Switch statement must contain at least one case or default block\n");
         std::exit(-1);
     }
-    const auto& endCaseBlock = caseBlockParsed.back();
+    const auto &endCaseBlock = caseBlockParsed.back();
     if (const auto caseBlockPtr = std::get_if<ast::SubScope>(&*endCaseBlock)) {
         if (caseBlockPtr->ScopeType != ast::SubScopeType::DefaultBlock) {
             ErrorPrintln("Error: The last block in a switch statement must be a default block\n");
@@ -117,43 +129,46 @@ sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScop
 }
 
 sPtr<ast::Statement> mlc::parser::AbstractSyntaxTree::handleDoWhileBlock(std::string_view _subScopeContent,
-    const ContextTable<ast::VariableStatement> &_context,auto& _bodyToStatements) {
+                                                                         const ContextTable<ast::VariableStatement> &
+                                                                         _context, auto &_bodyToStatements,
+                                                                         sPtr<ast::FunctionDeclaration> _currentFunc) {
     auto newContext = _context;
     const auto pos = _subScopeContent.rfind("}while(");
     const auto body = _subScopeContent.substr(3, pos - 3);
     const auto endParen = _subScopeContent.find_last_of(')');
     const auto conditionStr = _subScopeContent.substr(pos + 7, endParen - (pos + 7));
     const auto condition = expressionParser(newContext, conditionStr);
-    const auto statements = _bodyToStatements(body);
+    const auto statements = _bodyToStatements(body,_currentFunc);
     return ast::Make<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::DoWhileBlock, condition));
 }
 
 sPtr<ast::Statement> astClass::subScopeParser(const ContextTable<ast::VariableStatement> &_context,
-                                              const std::string_view _subScopeContent) {
+                                              const std::string_view _subScopeContent,
+                                              const sPtr<ast::FunctionDeclaration>& _currentFunc) {
     auto newContext = _context; // 创建新的上下文，初始内容为父作用域的内容
 
     if (_subScopeContent.find("switch(") == 0) {
-        return handleSwitchBlock(_subScopeContent,newContext);
+        return handleSwitchBlock(_subScopeContent, newContext, _currentFunc);
     }
-    const auto bodyToStatements = [this, &newContext](const std::string_view body) {
+    const auto bodyToStatements = [this, &newContext](const std::string_view body,const sPtr<ast::FunctionDeclaration>& _currentFunc) {
         auto temp = seg::TokenizeFunctionBody(body) | std::views::transform(
-                        [&newContext, this](const std::string_view statement) {
-                            return statementParser(newContext, statement);
+                        [&newContext, this, _currentFunc](const std::string_view statement) {
+                            return statementParser(newContext, statement, _currentFunc);
                         }) | std::ranges::to<std::vector<std::vector<sPtr<ast::Statement> > > >();
         return temp | std::views::join | std::ranges::to<std::vector<sPtr<ast::Statement> > >();
     };
 
     if (const auto start = _subScopeContent.starts_with("do{"); start) {
-        return handleDoWhileBlock(_subScopeContent,newContext,bodyToStatements);
+        return handleDoWhileBlock(_subScopeContent, newContext, bodyToStatements, _currentFunc);
     }
     if (_subScopeContent.starts_with("{")) {
         const auto body = _subScopeContent.substr(1, _subScopeContent.length() - 1);
-        const auto statements = bodyToStatements(body);
+        const auto statements = bodyToStatements(body,_currentFunc);
         return std::make_shared<ast::Statement>(ast::SubScope(statements));
     }
     if (_subScopeContent.find("else{") != std::string_view::npos) {
         const auto body = _subScopeContent.substr(5, _subScopeContent.length() - 6);
-        const auto statements = bodyToStatements(body);
+        const auto statements = bodyToStatements(body,_currentFunc);
         return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::ElseBlock));
     }
 
@@ -166,7 +181,7 @@ sPtr<ast::Statement> astClass::subScopeParser(const ContextTable<ast::VariableSt
     const auto pos = _subScopeContent.find("){");
     const auto condition = expressionParser(newContext, _subScopeContent.substr(offest, pos - offest));
     const auto body = _subScopeContent.substr(pos + 2, _subScopeContent.length() - pos - 3);
-    const auto statements = bodyToStatements(body);
+    const auto statements = bodyToStatements(body,_currentFunc);
     if (offest == 3) {
         return std::make_shared<ast::Statement>(ast::SubScope(statements, ast::SubScopeType::IfBlock, condition));
     }

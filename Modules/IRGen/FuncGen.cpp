@@ -69,7 +69,7 @@ GenClass::funcCall GenClass::FunctionCall(
     const std::string llvmRetType = isCopyResult ? "void" : TypeToLLVM(retType);
     std::string preCode;
     for (const auto &arg: args) preCode += arg.code;
-    auto resultVar = std::format("%{}",exprCnt++);
+    auto resultVar = std::format("%fa{}",exprCnt++);
     std::string callLine;
     if (isCopyResult && llvmRetType != "void") {
         callLine = "%{} = "; // 留给上级填入变量名

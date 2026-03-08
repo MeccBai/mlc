@@ -9,7 +9,7 @@ import :Decl;
 astClass::StatementTable<ast::Statement> parseReturnStatement(
     astClass &self,
     astClass::ContextTable<ast::VariableStatement> &_context,
-    const std::string_view _content) {
+    const std::string_view _content,sPtr<ast::FunctionDeclaration> _currentFunc) {
 
     auto returnBody = _content.substr(6);
     if (!returnBody.empty() && returnBody.back() == ';') {
@@ -18,6 +18,10 @@ astClass::StatementTable<ast::Statement> parseReturnStatement(
     if (returnBody.empty()) {
         return {std::make_shared<ast::Statement>(ast::ReturnStatement(nullptr))};
     }
+
+    auto returnExpr = self.expressionParser(_context, returnBody);
+    type::ValidateType(_currentFunc->ReturnType, returnExpr->GetType(),
+                         std::format("return statement in function '{}'", _currentFunc->Name));
     return {std::make_shared<ast::Statement>(
         ast::ReturnStatement(self.expressionParser(_context, returnBody)))};
 }
