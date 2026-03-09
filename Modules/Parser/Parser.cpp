@@ -9,6 +9,8 @@ import :Decl;
 import Formatter;
 //[if(p==0){a.x=10;}else{a.y=10;}]
 
+
+
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent,const bool _isExported) {
     const auto pos = _enumContent.find(' ');
     const auto enumName = _enumContent.substr(pos, _enumContent.find('{') - pos);
@@ -50,7 +52,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens,cons
         return t.exported;
     });
 
-    if (hasExportImport) {
+    if (hasExportImport && !imports.empty()) {
         ErrorPrintln("Error: Exported imports are not allowed.");
         std::exit(-1);
     }
@@ -70,7 +72,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens,cons
         );
     }
     std::ranges::for_each(paths, [&](const std::filesystem::path &path) {
-        auto [types,funcs] = ast::fmt::ParseExportTable(*this, path);
+        auto [types,funcs] = mlc::ast::fmt::ParseExportTable(*this, path);
         typeSymbolTable.insert(types.begin(), types.end());
         functionSymbolTable.insert(funcs.begin(), funcs.end());
     });

@@ -1,0 +1,222 @@
+{
+    "functions": [
+        {
+            "isVarList": false,
+            "name": "putchar",
+            "parameters": [
+                {
+                    "name": "c",
+                    "type": {
+                        "kind": "baseType",
+                        "name": "i32"
+                    }
+                }
+            ],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": true,
+            "name": "scanf",
+            "parameters": [],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": true,
+            "name": "printf",
+            "parameters": [],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "puts",
+            "parameters": [
+                {
+                    "name": "str",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                }
+            ],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "getchar",
+            "parameters": [],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "fopen",
+            "parameters": [
+                {
+                    "name": "filename",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                },
+                {
+                    "name": "mode",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                }
+            ],
+            "returnType": {
+                "baseType": "i8",
+                "kind": "pointer",
+                "level": 1,
+                "name": "i8p"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "fflush",
+            "parameters": [
+                {
+                    "name": "stream",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                }
+            ],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": true,
+            "name": "fprintf",
+            "parameters": [],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "fclose",
+            "parameters": [
+                {
+                    "name": "stream",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                }
+            ],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": true,
+            "name": "fscanf",
+            "parameters": [],
+            "returnType": {
+                "kind": "baseType",
+                "name": "i32"
+            }
+        },
+        {
+            "isVarList": false,
+            "name": "perror",
+            "parameters": [
+                {
+                    "name": "msg",
+                    "type": {
+                        "baseType": "i8",
+                        "kind": "pointer",
+                        "level": 1,
+                        "name": "i8p"
+                    }
+                }
+            ],
+            "returnType": {
+                "kind": "baseType",
+                "name": "void"
+            }
+        }
+    ],
+    "hash": 8763322101021289815,
+    "types": [
+        {
+            "kind": "struct",
+            "members": [
+                {
+                    "name": "a",
+                    "type": {
+                        "kind": "baseType",
+                        "name": "i32"
+                    }
+                },
+                {
+                    "name": "b",
+                    "type": {
+                        "kind": "baseType",
+                        "name": "i32"
+                    }
+                }
+            ],
+            "name": "iot"
+        },
+        {
+            "kind": "struct",
+            "members": [
+                {
+                    "name": "x",
+                    "type": {
+                        "kind": "baseType",
+                        "name": "i32"
+                    }
+                },
+                {
+                    "name": "y",
+                    "type": {
+                        "kind": "baseType",
+                        "name": "i32"
+                    }
+                },
+                {
+                    "name": "io",
+                    "type": {
+                        "kind": "struct",
+                        "name": "iot"
+                    }
+                }
+            ],
+            "name": "iota"
+        }
+    ]
+}

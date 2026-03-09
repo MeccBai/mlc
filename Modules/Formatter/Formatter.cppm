@@ -9,22 +9,21 @@ import std;
 import Json;
 
 export namespace mlc::ast::fmt {
-
     using astClass = parser::AbstractSyntaxTree;
     using json = nlohmann::json;
     using sComType = std::shared_ptr<Type::CompileType>;
 
     using sComType = std::shared_ptr<Type::CompileType>;
 
-    json formatType(const sComType& _type);
+    json formatType(const sComType &_type);
 
-    json FormatExportTable(const astClass::ExportTable& _exportTable);
+    json FormatExportTable(const astClass::ExportTable &_exportTable);
 
-    astClass::ExportTable ParseExportTable(astClass & _ast,const std::filesystem::path& _importPath);
+    astClass::ExportTable ParseExportTable(astClass &_ast, const std::filesystem::path &_importPath);
 
-    sComType parseCompileType(astClass & _ast,const json & _json,std::set<sComType> & _types);
+    sComType parseCompileType(astClass &_ast, const json &_json, std::set<sComType> &_types);
 
-    void GenerateCache(const std::filesystem::path& _sourcePath);
-
-
+    astClass::ExportTable GenerateCache(const std::filesystem::path &_sourcePath);
 }
+
+bool CheckCache(const std::filesystem::path &_sourcePath);

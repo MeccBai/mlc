@@ -52,21 +52,16 @@ bool CheckCache(const std::filesystem::path& _sourcePath) {
     return result;
 }
 
-void afmt::GenerateCache(const std::filesystem::path &_sourcePath) {
+astClass::ExportTable afmt::GenerateCache(const std::filesystem::path &_sourcePath) {
     auto path = _sourcePath;
     auto jsonCachePath = path.replace_extension(".json");
 
-    std::ifstream sourceFile(jsonCachePath);
+    std::ifstream sourceFile(_sourcePath);
     std::string sourceContent((std::istreambuf_iterator(sourceFile)), std::istreambuf_iterator<char>());
     auto hash = fnv1aHash(sourceContent);
 
     std::ifstream cacheFile(jsonCachePath);
     std::string cacheContent((std::istreambuf_iterator(cacheFile)), std::istreambuf_iterator<char>());
-    if (auto cacheJson = json::parse(cacheContent);
-        cacheJson.contains("hash")
-        && cacheJson["hash"].get<std::uint64_t>() == hash) {
-        return;
-    }
 
     auto imports = astClass::GetImportPaths(_sourcePath);
 
@@ -92,4 +87,6 @@ void afmt::GenerateCache(const std::filesystem::path &_sourcePath) {
     std::ofstream out(jsonCachePath);
     out << j.dump(4);
     out.close();
+
+    return cache.ExtractExportSymbols();
 }

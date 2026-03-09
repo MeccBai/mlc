@@ -21,3 +21,11 @@ export i8$ fopen(i8$ filename, i8$ mode); // 返回 FILE$
 export i32 fclose(i8$ stream);
 export i32 fprintf(...);
 export i32 fscanf(...);
+
+export struct iot {
+    i32 a; i32 b;
+};
+
+export struct iota {
+    i32 x; i32 y; iot io;
+};

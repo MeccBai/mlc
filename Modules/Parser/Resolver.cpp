@@ -85,16 +85,16 @@ astClass::ExportTable astClass::ExtractExportSymbols() {
 
 
     auto typeTable = typeSymbolTable | std::views::filter([](const sPtr<type::CompileType>& _type) {
-        if (const auto type = std::get_if<type::StructDefinition >(&*_type)) {
+        if (auto *const type = std::get_if<type::StructDefinition >(&*_type)) {
             return type->isExported;
         }
-        if (const auto type = std::get_if<type::EnumDefinition >(&*_type)) {
+        if (auto *const type = std::get_if<type::EnumDefinition >(&*_type)) {
             return type->isExported;
         }
         return false;
     }) | std::ranges::to<std::set<sPtr<type::CompileType> > >();
     auto funcTable = functionSymbolTable | std::views::filter([](const sPtr<ast::FunctionDeclaration>& _func) {
-        return _func->IsExported;
+        return _func->IsExported && !_func->IsTypeConvert;
     }) | std::ranges::to<std::set<sPtr<ast::FunctionDeclaration> > >();
 
 
@@ -103,7 +103,7 @@ astClass::ExportTable astClass::ExtractExportSymbols() {
 
 std::vector<std::filesystem::path> astClass::getImportPaths(
     const std::vector<std::string> &_tokens, const std::filesystem::path &_currentPath) {
-    const std::filesystem::path sysLibPath = "./lib";
+    const std::filesystem::path sysLibPath = "F:\\Develop\\A.Projects\\C++\\mlc\\lib\\";
 
     return _tokens | std::views::transform([&](const std::string &t) -> std::filesystem::path {
                auto pathStr = std::string(t.substr(7, t.size() - 8));

@@ -106,11 +106,9 @@ std::pair<std::string_view,size_t> getPointerLevel(const std::string_view _typeN
     for (const auto c: _typeName) {
         if (c == '$') {
             level++;
-        } else {
-            break;
         }
     }
-    return {_typeName.substr(0,_typeName.size()-level-1), level};
+    return {_typeName.substr(0,_typeName.size()-level), level};
 }
 
 ast::FunctionDeclaration astClass::functionDeclParser(
@@ -152,11 +150,11 @@ ast::FunctionDeclaration astClass::functionDeclParser(
 
 
     if (argsList == std::string_view("...")) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true);
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true,_isExported);
     }
 
     if (argsList.empty()) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {},false);
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {},false,_isExported);
     }
 
     auto toArg = [this](const std::string_view arg) {

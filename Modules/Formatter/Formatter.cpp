@@ -10,6 +10,7 @@ import Compiler;
 import Json;
 import aux;
 import :Pool;
+import Prepare;
 
 namespace ast = mlc::ast;
 namespace type = ast::Type;
@@ -27,10 +28,21 @@ json formatStruct(const sComType &_type) {
     j[afmt::Kind] = afmt::Struct;
     j[afmt::Name] = structType->Name;
     j[afmt::Members] = json::array();
+
+    auto formatMember = [](const sComType & _member) {
+        if (type::GetType<type::StructDefinition>(_member)) {
+            json j;
+            j[afmt::Kind] = afmt::Struct;
+            j[afmt::Name] = type::GetTypeName(*_member);
+            return j;
+        }
+        return afmt::formatType(_member);
+    };
+
     for (const auto &[fieldName, fieldType]: structType->Members) {
         json fieldJson;
         fieldJson[afmt::Name] = fieldName;
-        fieldJson[afmt::Type] = afmt::formatType(fieldType);
+        fieldJson[afmt::Type] = formatMember(fieldType);
         j[afmt::Members].push_back(fieldJson);
     }
     return j;
@@ -68,10 +80,15 @@ json afmt::formatType(const sComType &_type) {
     }
     if (std::holds_alternative<type::EnumDefinition>(*_type)) {
         return formatEnum(_type);
-    } {
-        ErrorPrintln("Invalid type for export : {}", type::GetTypeName(*_type));
-        std::exit(-1);
     }
+    if (const auto baseType = type::GetType<type::BaseType>(_type); baseType) {
+        json j;
+        j[Kind] = BaseType;
+        j[Name] = type::GetTypeName(*_type);
+        return j;
+    }
+    ErrorPrintln("Invalid type for export : {}", type::GetTypeName(*_type));
+    std::exit(-1);
 }
 
 json formatFunction(const sFunc &_func) {
@@ -85,6 +102,7 @@ json formatFunction(const sFunc &_func) {
         j[afmt::Parameters].push_back(paramJson);
     }
     j[afmt::ReturnType] = afmt::formatType(_func->ReturnType);
+    j[afmt::IsVarList] = _func->IsVarList;
     return j;
 }
 
@@ -174,7 +192,7 @@ std::set<sComType> parseStructTypes(astClass &_ast, const std::vector<json> &_jA
         if (!baseType) {
             baseType = localFind(baseTypeName);
             if (!baseType) {
-                ErrorPrintln("Error: Unknown type '{}' for struct member pointer\n", baseTypeName);
+                ErrorPrintln("Error: Unknown type '{}' for struct member pointer", baseTypeName);
                 std::exit(-1);
             }
         }
@@ -259,7 +277,24 @@ sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType>
         return std::nullopt;
     };
     const auto funcName = _func[afmt::Name].get<std::string>();
-    const auto returnType = localFind(_func[afmt::ReturnType][afmt::Name].get<std::string>());
+    auto returnType = localFind(_func[afmt::ReturnType][afmt::Name].get<std::string>());
+    bool isVarList = _func[afmt::IsVarList].get<bool>();
+    if (_func[afmt::ReturnType][afmt::Kind] == afmt::Pointer) {
+        auto baseType = _func[afmt::ReturnType][afmt::BaseType].get<std::string>();
+        auto baseTypePtr = localFind(baseType);
+        if (!baseTypePtr) {
+            baseTypePtr = _ast.FindType(baseType);
+            if (!baseTypePtr) {
+                ErrorPrintln("Error: Unknown return type '{}' for function '{}'\n", baseType, funcName);
+                std::exit(-1);
+            }
+        }
+        returnType = std::make_shared<type::CompileType>(
+            type::PointerType(_func[afmt::ReturnType][afmt::Level].get<size_t>()));
+        auto returnBaseTypePtr = baseTypePtr.value();
+        auto *ptr = type::GetType<type::PointerType>(*returnType);
+        ptr->Finalize(returnBaseTypePtr);
+    }
 
     ast::FunctionDeclaration::Args parameters;
     for (const auto &param: _func[afmt::Parameters]) {
@@ -274,6 +309,22 @@ sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType>
         const auto paramName = param[afmt::Name].get<std::string>();
         const auto paramType = param[afmt::Type][afmt::Name].get<std::string>();
         auto paramTypePtr = localFind(paramType);
+        if (param[afmt::Type][afmt::Kind] == afmt::Pointer) {
+            auto baseType = param[afmt::Type][afmt::BaseType].get<std::string>();
+            auto baseTypePtr = localFind(baseType);
+            if (!baseTypePtr) {
+                baseTypePtr = _ast.FindType(baseType);
+                if (!baseTypePtr) {
+                    ErrorPrintln("Error: Unknown type '{}' for function parameter '{}'\n", baseType, paramName);
+                    std::exit(-1);
+                }
+            }
+            paramTypePtr = std::make_shared<type::CompileType>(
+                type::PointerType(param[afmt::Type][afmt::Level].get<size_t>()));
+            auto paramBaseTypePtr = baseTypePtr.value();
+            auto *ptr = type::GetType<type::PointerType>(*paramTypePtr);
+            ptr->Finalize(paramBaseTypePtr);
+        }
         if (!paramTypePtr) {
             ErrorPrintln("Error: Unknown type '{}' for function parameter '{}'\n", paramType, paramName);
             std::exit(-1);
@@ -281,65 +332,73 @@ sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType>
         parameters.push_back(ast::Make<ast::Variable>(ast::Variable(paramName, paramTypePtr.value(), nullptr)));
     }
     return std::make_shared<ast::FunctionDeclaration>(
-        ast::FunctionDeclaration(funcName, returnType.value(), parameters));
+        ast::FunctionDeclaration(funcName, returnType.value(), parameters,isVarList));
 }
 
 afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::filesystem::path &_importPath) {
     std::ifstream file(_importPath);
-    auto fileContent = std::string((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
-    if (fileContent.empty()) {
-        ErrorPrintln("Error: failed to read '{}'", _importPath.string());
-        std::exit(-1);
-    }
-    auto content = json::parse(fileContent);
-    auto types = content[afmt::Types];
-    auto functions = content[afmt::Functions];
-    auto typeTable = std::set<sComType>();
-    auto structs = std::vector<json>();
-    auto enums = std::vector<json>();
-    for (const auto &type: types) {
-        if (type[afmt::Kind] == afmt::Struct) {
-            structs.push_back(type);
-        }
-        if (type[afmt::Kind] == afmt::Enum) {
-            enums.push_back(type);
-        }
-    }
-    auto FindType = [&typeTable](const std::string_view _name) -> std::optional<sComType> {
-        for (const auto &type: typeTable) {
-            if (std::holds_alternative<type::StructDefinition>(*type) &&
-                std::get<type::StructDefinition>(*type).Name == _name) {
-                return type;
-            }
-            if (std::holds_alternative<type::EnumDefinition>(*type) &&
-                std::get<type::EnumDefinition>(*type).Name == _name) {
-                return type;
-            }
-        }
-        return std::nullopt;
-    };
 
-    for (const auto &type: enums) {
-        auto typePtr = afmt::parseCompileType(_ast, type, typeTable);
-        if (FindType(type[afmt::Name].get<std::string>())) {
-            ErrorPrintln("Error: Duplicate type name '{}' in export table.\n", type[afmt::Name].get<std::string>());
+
+    auto jsonPath = std::filesystem::path(_importPath).replace_extension(".json");
+
+    if (std::filesystem::exists(jsonPath) && CheckCache(_importPath)) {
+        auto jsonFile = std::ifstream(jsonPath);
+        if (!jsonFile.is_open()) {
+            ErrorPrintln("Error: failed to open '{}'", jsonPath.string());
             std::exit(-1);
         }
-        typeTable.insert(typePtr);
-    }
-    auto structTypes = parseStructTypes(_ast, structs, typeTable);
-    typeTable.insert(structTypes.begin(), structTypes.end());
+        auto jsonContent = std::string((std::istreambuf_iterator(jsonFile)), std::istreambuf_iterator<char>());
+        auto content = json::parse(jsonContent);
+        auto types = content[Types];
+        auto functions = content[Functions];
+        auto typeTable = std::set<sComType>();
+        auto structs = std::vector<json>();
+        auto enums = std::vector<json>();
+        for (const auto &type: types) {
+            if (type[Kind] == Struct) {
+                structs.push_back(type);
+            }
+            if (type[Kind] == Enum) {
+                enums.push_back(type);
+            }
+        }
+        auto FindType = [&typeTable](const std::string_view _name) -> std::optional<sComType> {
+            for (const auto &type: typeTable) {
+                if (std::holds_alternative<type::StructDefinition>(*type) &&
+                    std::get<type::StructDefinition>(*type).Name == _name) {
+                    return type;
+                }
+                if (std::holds_alternative<type::EnumDefinition>(*type) &&
+                    std::get<type::EnumDefinition>(*type).Name == _name) {
+                    return type;
+                }
+            }
+            return std::nullopt;
+        };
 
-    auto funcTable = std::set<sFunc>();
-    for (const auto &func: functions) {
-        funcTable.insert(parserFunction(_ast, func, typeTable));
-    }
+        for (const auto &type: enums) {
+            auto typePtr = afmt::parseCompileType(_ast, type, typeTable);
+            if (FindType(type[afmt::Name].get<std::string>())) {
+                ErrorPrintln("Error: Duplicate type name '{}' in export table.\n", type[afmt::Name].get<std::string>());
+                std::exit(-1);
+            }
+            typeTable.insert(typePtr);
+        }
+        auto structTypes = parseStructTypes(_ast, structs, typeTable);
+        typeTable.insert(structTypes.begin(), structTypes.end());
 
-    auto result = afmt::astClass::ExportTable(typeTable, funcTable);
-    return result;
+        auto funcTable = std::set<sFunc>();
+        for (const auto &func: functions) {
+            funcTable.insert(parserFunction(_ast, func, typeTable));
+        }
+
+        auto result = afmt::astClass::ExportTable(typeTable, funcTable);
+        return result;
+    }
+    return GenerateCache(_importPath);
 }
 
-json afmt::FormatExportTable(const astClass::ExportTable& _exportTable) {
+json afmt::FormatExportTable(const astClass::ExportTable &_exportTable) {
     json j;
     j[Types] = json::array();
 

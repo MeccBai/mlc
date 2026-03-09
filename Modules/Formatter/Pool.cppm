@@ -23,6 +23,8 @@ export namespace mlc::ast::fmt {
     constexpr std::string_view Parameters = "parameters";
     constexpr std::string_view ReturnType = "returnType";
 
+    constexpr std::string_view IsVarList = "isVarList";
+
     constexpr std::string_view Kind= "kind";
 
 }

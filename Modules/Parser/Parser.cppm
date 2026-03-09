@@ -12,7 +12,18 @@ import :Expr;
 
 namespace ast = mlc::ast;
 namespace type = ast::Type;
+struct TypeComp {
+    bool operator ()(const std::shared_ptr<type::CompileType> &_lhs, const std::shared_ptr<type::CompileType> &_rhs) const {
+        if (!_lhs || !_rhs) return _lhs < _rhs; // 处理空指针
+        const std::size_t s1 = type::GetSize(_lhs);
+        const std::size_t s2 = type::GetSize(_rhs);
+        if (s1 != s2) return s1 < s2;
 
+        auto addr1 = reinterpret_cast<std::size_t>(_lhs.get());
+        auto addr2 = reinterpret_cast<std::size_t>(_rhs.get());
+        return addr1 < addr2;
+    }
+};
 
 export namespace mlc::parser {
     class AbstractSyntaxTree {
@@ -136,7 +147,7 @@ export namespace mlc::parser {
         static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent,const bool _isExported);
 
         std::unordered_map<std::string, sPtr<ast::Type::CompileType> > typeMap;
-        SymbolTable<ast::Type::CompileType> typeSymbolTable;
+        std::set<std::shared_ptr<ast::Type::CompileType>,TypeComp> typeSymbolTable;
         SymbolTable<ast::VariableStatement> variableSymbolTable;
         SymbolTable<ast::FunctionDeclaration> functionSymbolTable;
         SymbolTable<ast::FunctionScope> functionScopeTable;
@@ -218,9 +229,8 @@ export namespace mlc::parser {
 
         static std::vector<std::filesystem::path> GetImportPaths(const std::filesystem::path &_importPath);
 
-
         using ASTExport = struct {
-            SymbolTable<ast::Type::CompileType> &typeSymbolTable;
+            std::set<std::shared_ptr<ast::Type::CompileType>,TypeComp> &typeSymbolTable;
             SymbolTable<ast::VariableStatement> &variableSymbolTable;
             SymbolTable<ast::FunctionDeclaration>& functionSymbolTable;
             SymbolTable<ast::FunctionScope> &functionScopeTable;

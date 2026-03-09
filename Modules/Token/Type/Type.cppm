@@ -180,18 +180,6 @@ export namespace mlc::ast::Type {
         );
     };
 
-    bool operator > (const CompileType &_lhs, const CompileType &_rhs) {
-        return std::visit([]<typename T0, typename T1>
-            (T0 &&lhs, T1 &&rhs) -> bool {
-            using LhsType = std::decay_t<T0>;
-            using RhsType = std::decay_t<T1>;
-            if constexpr (std::is_same_v<LhsType, RhsType>) {
-                return lhs > rhs;
-            } else {
-                return lhs.Size() > rhs.Size();
-            }
-        }, _lhs, _rhs);
-    }
 
     template<IsCompileType _type>
     bool IsType(const sPtr<CompileType> &_compileType) {
