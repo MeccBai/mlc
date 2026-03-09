@@ -61,7 +61,7 @@ structMemberPack parseStructMember(const std::string_view _memberDef) {
 
 
 std::vector<type::StructDefinition> astClass::structDefParser(
-    const std::vector<std::string> &_structContents) const {
+    const std::vector<seg::TokenStatement> &_structContents) const {
     std::vector<type::StructDefinition> structs;
     std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string>>> lazyPointerTypes(_structContents.size());
 
@@ -87,7 +87,8 @@ std::vector<type::StructDefinition> astClass::structDefParser(
         return findStruct(_typeName);
     };
 
-    for (auto [structDef,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
+    for (auto [structToken,lazyPtrs]: std::views::zip(_structContents, lazyPointerTypes)) {
+        auto [_,structDef, isExported] = structToken;
         auto [structName, memberDefs] = parseStructDef(structDef);
         lazyPtrs.clear();
         auto members = std::vector<type::StructMember>{};
@@ -108,7 +109,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 members.emplace_back(std::string(name), typePtr);
             }
         }
-        structs.emplace_back(structName, members);
+        structs.emplace_back(structName, members,isExported);
     }
 
     for (const auto& ptrs : lazyPointerTypes) {

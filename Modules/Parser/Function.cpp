@@ -13,7 +13,7 @@ std::pair<std::string_view,std::string_view> getFunctionHeader(const std::string
     return {functionHeader, functionBody};
 }
 
-ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent) {
+ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent,const bool _isExported) {
     ContextTable<ast::VariableStatement> context;
     auto [header,body] = getFunctionHeader(_functionContent);
     auto statements = seg::TokenizeFunctionBody(body);
@@ -37,7 +37,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
         std::exit(-1);
     }
 
-    return {functionDecl, statementsParsed};
+    return {functionDecl, statementsParsed,_isExported};
 }
 
 sPtr<ast::Variable> normalArgParser(const std::string_view _argContent,auto findType) {

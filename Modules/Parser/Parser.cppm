@@ -41,7 +41,7 @@ export namespace mlc::parser {
 
     private:
 
-        ast::FunctionScope functionDefParser(std::string_view _functionContent);
+        ast::FunctionScope functionDefParser(std::string_view _functionContent,bool _isExported);
 
         [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent,
                                                                   bool _isExported = false) const;
@@ -131,9 +131,9 @@ export namespace mlc::parser {
         }
 
         [[nodiscard]] std::vector<ast::Type::StructDefinition> structDefParser(
-            const std::vector<std::string> &_structContents) const;
+            const std::vector<seg::TokenStatement> &_structContents) const;
 
-        static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
+        static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent,const bool _isExported);
 
         std::unordered_map<std::string, sPtr<ast::Type::CompileType> > typeMap;
         SymbolTable<ast::Type::CompileType> typeSymbolTable;
@@ -210,9 +210,9 @@ export namespace mlc::parser {
 
         [[nodiscard]] sOptional<type::CompileType> FindType(std::string_view _typeName) const;
 
-        explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens, const std::filesystem::path& _currentPath);
+        explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens, const std::filesystem::path& _currentDirPath);
 
-        ExportTable ExtractExportSymbols(const std::filesystem::path &_importPath);
+        ExportTable ExtractExportSymbols();
 
         void ImportSymbols(const ExportTable& _exportTable);
 

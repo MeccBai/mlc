@@ -6,9 +6,9 @@ module Builder;
 import Parser;
 import std;
 import aux;
+import TaskFlow;
 
 namespace build = mlc::builder;
-using builder = mlc::builder::Builder;
 using astClass = mlc::parser::AbstractSyntaxTree;
 using requireGraphType = std::unordered_map<std::size_t, std::unordered_set<std::string>>;
 
@@ -141,3 +141,21 @@ build::RequireScaner::RequireScaner(const std::filesystem::path &_entryPath) {
     mergeBuildPlan(root,0);
 }
 
+
+void build::Build(const build::buildPlanType &_buildPlan) {
+
+    tf::Executor executor(8);
+    tf::Taskflow taskflow;
+
+    for (const auto &level: _buildPlan) {
+        taskflow.for_each(level.begin(),level.end(), [](const std::string &filePath) {;
+            BuildFile(filePath);
+        });
+    }
+
+
+}
+
+void build::BuildFile(const std::string &_filePath) {
+
+}

@@ -8,7 +8,7 @@ import Token;
 import std;
 import Json;
 
-namespace mlc::ast::fmt {
+export namespace mlc::ast::fmt {
 
     using astClass = parser::AbstractSyntaxTree;
     using json = nlohmann::json;
@@ -18,10 +18,13 @@ namespace mlc::ast::fmt {
 
     json formatType(const sComType& _type);
 
-    std::string FormatExportTable(parser::AbstractSyntaxTree & _ast,const std::filesystem::path& _sourcePath);
+    json FormatExportTable(const astClass::ExportTable& _exportTable);
 
     astClass::ExportTable ParseExportTable(astClass & _ast,const std::filesystem::path& _importPath);
 
-    sComType parseCompileType(astClass & _ast,json & _j);
+    sComType parseCompileType(astClass & _ast,const json & _json,std::set<sComType> & _types);
+
+    void GenerateCache(const std::filesystem::path& _sourcePath);
+
 
 }

@@ -65,14 +65,15 @@ export namespace mlc::ast::Type {
 
     class EnumDefinition {
     public:
-        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
-            Values(std::move(_values)) {
+        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values,bool _isExported) : Name(_name),
+            Values(std::move(_values)),isExported(_isExported) {
             IsValidName(Name);
             std::ranges::for_each(Values, [](const std::string_view _name) { IsValidName(_name); });
         }
 
         const std::string Name;
         const std::vector<std::string> Values;
+        const bool isExported;
 
         static std::size_t Size() {
             return 4;
@@ -95,8 +96,8 @@ export namespace mlc::ast::Type {
 
     class StructDefinition {
     public:
-        explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
-            : Name(_name), Members(std::move(_members)) {
+        explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members,bool _isExported = false)
+            : Name(_name), Members(std::move(_members)),isExported(_isExported) {
             IsValidName(Name);
             std::ranges::for_each(Members, [](const StructMember &member) {
                 IsValidName(member.Name);
@@ -105,6 +106,7 @@ export namespace mlc::ast::Type {
 
         const std::string Name;
         const std::vector<StructMember> Members; // type and name
+        const bool isExported;
 
         [[nodiscard]] size_t Size() const;
     };

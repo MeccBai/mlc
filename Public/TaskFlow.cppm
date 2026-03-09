@@ -9,7 +9,9 @@ module;
 #include <taskflow/algorithm/transform.hpp>
 export module TaskFlow;
 
-export using ::tf::Executor;
-export using ::tf::Taskflow;
-export using ::tf::Task;
-export using ::tf::Subflow;
+export namespace tf {
+    using tf::Executor;
+    using tf::Taskflow;
+    using tf::Task;
+    using tf::Subflow;
+}

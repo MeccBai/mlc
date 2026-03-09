@@ -59,7 +59,7 @@ json formatEnum(const sComType &_type) {
     return j;
 }
 
-json formatType(const sComType &_type) {
+json afmt::formatType(const sComType &_type) {
     if (std::holds_alternative<type::StructDefinition>(*_type)) {
         return formatStruct(_type);
     }
@@ -81,14 +81,14 @@ json formatFunction(const sFunc &_func) {
     for (const auto &param: _func->Parameters) {
         json paramJson;
         paramJson[afmt::Name] = param->Name;
-        paramJson[afmt::Type] = formatType(param->VarType);
+        paramJson[afmt::Type] = afmt::formatType(param->VarType);
         j[afmt::Parameters].push_back(paramJson);
     }
-    j[afmt::ReturnType] = formatType(_func->ReturnType);
+    j[afmt::ReturnType] = afmt::formatType(_func->ReturnType);
     return j;
 }
 
-sComType parseEnumType(astClass &_ast, json &_json) {
+sComType parseEnumType(astClass &_ast, const json &_json) {
     if (!_json.contains(afmt::Name) || !_json[afmt::Name].is_string()) {
         ErrorPrintln("Invalid enum type: missing or invalid 'name' field.");
         std::exit(-1);
@@ -106,18 +106,26 @@ sComType parseEnumType(astClass &_ast, json &_json) {
         options.push_back(option.get<std::string>());
     }
     const auto name = _json[afmt::Name].get<std::string>();
-    return ast::Make<type::CompileType>(type::EnumDefinition(name, options));
+    return ast::Make<type::CompileType>(type::EnumDefinition(name, options,false));
 }
 
-std::vector<sComType> parseStructTypes(astClass &_ast, std::vector<json> &_jArray) {
-    std::vector<sComType> structTypes;
-    auto localStructFind = [&structTypes](const std::string_view _name) -> std::optional<sComType> {
-        for (const auto &type: structTypes) {
-            if (const auto *const structDef = std::get_if<type::StructDefinition>(&*type)) {
-                if (structDef->Name == _name) {
-                    return type;
-                }
+std::set<sComType> parseStructTypes(astClass &_ast, const std::vector<json> &_jArray, std::set<sComType> &_types) {
+    std::set<sComType> structTypes;
+    auto localFind = [&structTypes, _types, _ast](const std::string_view _name) -> std::optional<sComType> {
+        for (auto type: _types) {
+            if (std::holds_alternative<type::StructDefinition>(*type) &&
+                std::get<type::StructDefinition>(*type).Name == _name) {
+                return type;
             }
+        }
+        for (auto type: structTypes) {
+            if (std::holds_alternative<type::StructDefinition>(*type) &&
+                std::get<type::StructDefinition>(*type).Name == _name) {
+                return type;
+            }
+        }
+        if (const auto type = _ast.FindType(_name)) {
+            return type;
         }
         return std::nullopt;
     };
@@ -146,16 +154,25 @@ std::vector<sComType> parseStructTypes(astClass &_ast, std::vector<json> &_jArra
                 lazyPointers.emplace_back(pointer, memberType[afmt::BaseType].get<std::string>());
                 structMembers.push_back({memberName, pointer});
             } else {
-                structMembers.push_back({memberName, afmt::parseCompileType(_ast, memberType)});
+                auto memberTypePtr = localFind(memberType[afmt::Name].get<std::string>());
+                if (!memberTypePtr) {
+                    memberTypePtr = _ast.FindType(memberType[afmt::Name].get<std::string>());
+                    if (!memberTypePtr) {
+                        ErrorPrintln("Error: Unknown type '{}' for struct member '{}'\n",
+                                     memberType[afmt::Name].get<std::string>(), memberName);
+                        std::exit(-1);
+                    }
+                }
+                structMembers.push_back({memberName, memberTypePtr.value()});
             }
         }
-        structTypes.push_back(ast::Make<type::CompileType>(type::StructDefinition(name, structMembers)));
+        structTypes.insert(ast::Make<type::CompileType>(type::StructDefinition(name, structMembers)));
     }
 
     for (const auto &[ptrType, baseTypeName]: lazyPointers) {
         auto baseType = _ast.FindType(baseTypeName);
         if (!baseType) {
-            baseType = localStructFind(baseTypeName);
+            baseType = localFind(baseTypeName);
             if (!baseType) {
                 ErrorPrintln("Error: Unknown type '{}' for struct member pointer\n", baseTypeName);
                 std::exit(-1);
@@ -168,7 +185,19 @@ std::vector<sComType> parseStructTypes(astClass &_ast, std::vector<json> &_jArra
     return structTypes;
 }
 
-sComType parsePointerType(astClass &_ast, json &_json) {
+sComType parsePointerType(astClass &_ast, const json &_json, std::set<sComType> &_types) {
+    auto localFind = [_types, _ast](const std::string_view _name) -> std::optional<sComType> {
+        for (auto type: _types) {
+            if (std::holds_alternative<type::StructDefinition>(*type) &&
+                std::get<type::StructDefinition>(*type).Name == _name) {
+                return type;
+            }
+        }
+        if (const auto type = _ast.FindType(_name)) {
+            return type;
+        }
+        return std::nullopt;
+    };
     if (!_json.contains(afmt::BaseType) || !_json[afmt::BaseType].is_string()) {
         ErrorPrintln("Invalid pointer type: missing or invalid 'baseType' field.");
         std::exit(-1);
@@ -177,49 +206,144 @@ sComType parsePointerType(astClass &_ast, json &_json) {
         ErrorPrintln("Invalid pointer type: missing or invalid 'level' field.");
         std::exit(-1);
     }
-    const auto baseType = afmt::parseCompileType(_ast, _json[afmt::BaseType]);
+    const auto baseType = localFind(_json[afmt::BaseType][afmt::Name].get<std::string>());
     const auto level = _json[afmt::Level].get<size_t>();
     const auto pointerType = std::make_shared<type::PointerType>(level);
-    pointerType->Finalize(baseType);
+    pointerType->Finalize(baseType.value());
     return ast::Make<type::CompileType>(*pointerType);
 }
 
-sComType afmt::parseCompileType(astClass &_ast, json &_j) {
-    if (!_j.contains(Kind) || !_j[Kind].is_string()) {
+sComType afmt::parseCompileType(astClass &_ast, const json &_json, std::set<sComType> &_types) {
+    if (!_json.contains(Kind) || !_json[Kind].is_string()) {
         ErrorPrintln("Invalid type: missing or invalid 'kind' field.");
         std::exit(-1);
     }
-    const auto kind = _j[Kind].get<std::string>();
+    const auto kind = _json[Kind].get<std::string>();
     if (kind == Struct) {
         ErrorPrintln("Struct type must be defined before use.");
         std::exit(-1);
     }
     if (kind == Pointer) {
-        return parsePointerType(_ast, _j);
+        return parsePointerType(_ast, _json, _types);
     }
     if (kind == Enum) {
-        return parseEnumType(_ast, _j);
+        return parseEnumType(_ast, _json);
     }
     ErrorPrintln("Invalid type: unknown kind '{}'.", kind);
     std::exit(-1);
 }
 
-afmt::astClass::ExportTable ParseExportTable(astClass &_ast, const std::filesystem::path &_importPath) {
+sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType> &_types) {
+    if (!_func.contains(afmt::Name) || !_func[afmt::Name].is_string()) {
+        ErrorPrintln("Invalid function: missing or invalid 'name' field.");
+        std::exit(-1);
+    }
+    if (!_func.contains(afmt::Parameters) || !_func[afmt::Parameters].is_array()) {
+        ErrorPrintln("Invalid function: missing or invalid 'parameters' field.");
+        std::exit(-1);
+    }
+    if (!_func.contains(afmt::ReturnType) || !_func[afmt::ReturnType].is_object()) {
+        ErrorPrintln("Invalid function: missing or invalid 'returnType' field.");
+        std::exit(-1);
+    }
+    auto localFind = [_types, _ast](const std::string_view _name) -> std::optional<sComType> {
+        for (auto type: _types) {
+            if (std::holds_alternative<type::StructDefinition>(*type) &&
+                std::get<type::StructDefinition>(*type).Name == _name) {
+                return type;
+            }
+        }
+        if (const auto type = _ast.FindType(_name)) {
+            return type;
+        }
+        return std::nullopt;
+    };
+    const auto funcName = _func[afmt::Name].get<std::string>();
+    const auto returnType = localFind(_func[afmt::ReturnType][afmt::Name].get<std::string>());
+
+    ast::FunctionDeclaration::Args parameters;
+    for (const auto &param: _func[afmt::Parameters]) {
+        if (!param.contains(afmt::Name) || !param[afmt::Name].is_string()) {
+            ErrorPrintln("Invalid function parameter: missing or invalid 'name' field.");
+            std::exit(-1);
+        }
+        if (!param.contains(afmt::Type) || !param[afmt::Type].is_object()) {
+            ErrorPrintln("Invalid function parameter: missing or invalid 'type' field.");
+            std::exit(-1);
+        }
+        const auto paramName = param[afmt::Name].get<std::string>();
+        const auto paramType = param[afmt::Type][afmt::Name].get<std::string>();
+        auto paramTypePtr = localFind(paramType);
+        if (!paramTypePtr) {
+            ErrorPrintln("Error: Unknown type '{}' for function parameter '{}'\n", paramType, paramName);
+            std::exit(-1);
+        }
+        parameters.push_back(ast::Make<ast::Variable>(ast::Variable(paramName, paramTypePtr.value(), nullptr)));
+    }
+    return std::make_shared<ast::FunctionDeclaration>(
+        ast::FunctionDeclaration(funcName, returnType.value(), parameters));
+}
+
+afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::filesystem::path &_importPath) {
     std::ifstream file(_importPath);
     auto fileContent = std::string((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
     if (fileContent.empty()) {
         ErrorPrintln("Error: failed to read '{}'", _importPath.string());
         std::exit(-1);
     }
-    auto json = json::parse(fileContent);
+    auto content = json::parse(fileContent);
+    auto types = content[afmt::Types];
+    auto functions = content[afmt::Functions];
+    auto typeTable = std::set<sComType>();
+    auto structs = std::vector<json>();
+    auto enums = std::vector<json>();
+    for (const auto &type: types) {
+        if (type[afmt::Kind] == afmt::Struct) {
+            structs.push_back(type);
+        }
+        if (type[afmt::Kind] == afmt::Enum) {
+            enums.push_back(type);
+        }
+    }
+    auto FindType = [&typeTable](const std::string_view _name) -> std::optional<sComType> {
+        for (const auto &type: typeTable) {
+            if (std::holds_alternative<type::StructDefinition>(*type) &&
+                std::get<type::StructDefinition>(*type).Name == _name) {
+                return type;
+            }
+            if (std::holds_alternative<type::EnumDefinition>(*type) &&
+                std::get<type::EnumDefinition>(*type).Name == _name) {
+                return type;
+            }
+        }
+        return std::nullopt;
+    };
+
+    for (const auto &type: enums) {
+        auto typePtr = afmt::parseCompileType(_ast, type, typeTable);
+        if (FindType(type[afmt::Name].get<std::string>())) {
+            ErrorPrintln("Error: Duplicate type name '{}' in export table.\n", type[afmt::Name].get<std::string>());
+            std::exit(-1);
+        }
+        typeTable.insert(typePtr);
+    }
+    auto structTypes = parseStructTypes(_ast, structs, typeTable);
+    typeTable.insert(structTypes.begin(), structTypes.end());
+
+    auto funcTable = std::set<sFunc>();
+    for (const auto &func: functions) {
+        funcTable.insert(parserFunction(_ast, func, typeTable));
+    }
+
+    auto result = afmt::astClass::ExportTable(typeTable, funcTable);
+    return result;
 }
 
-
-std::string afmt::FormatExportTable(astClass &_ast, const std::filesystem::path &_sourcePath) {
+json afmt::FormatExportTable(const astClass::ExportTable& _exportTable) {
     json j;
     j[Types] = json::array();
 
-    auto [typeTable, functionTable] = _ast.ExtractExportSymbols(_sourcePath);
+    auto [typeTable, functionTable] = _exportTable;
 
     for (const auto &typeEntry: typeTable) {
         j[Types].push_back(formatType(typeEntry));
@@ -228,5 +352,5 @@ std::string afmt::FormatExportTable(astClass &_ast, const std::filesystem::path 
     for (const auto &funcEntry: functionTable) {
         j[Functions].push_back(formatFunction(funcEntry));
     }
-    return j.dump(4);
+    return j;
 }

@@ -11,19 +11,21 @@ export namespace mlc::builder {
 
     struct importNode {
         fs::path path;
-        std::vector<importNode*> imports{};
+        std::vector<importNode *> imports{};
     };
+
+    using buildPlanType = std::vector<std::vector<std::string> >;
 
     class RequireScaner {
         struct buildNode {
             std::string self;
             std::weak_ptr<buildNode> parent;
-            std::unordered_set<std::shared_ptr<buildNode>> childs;
+            std::unordered_set<std::shared_ptr<buildNode> > childs;
         };
 
         using requireGraphType = std::unordered_map<std::size_t, std::unordered_set<std::string> >;
         using requireMapType = std::unordered_map<std::string, std::pair<std::size_t, std::shared_ptr<buildNode> > >;
-        using buildPlanType = std::vector<std::vector<std::string>>;
+
 
         requireGraphType requireGraph;
         requireMapType requireMap;
@@ -33,13 +35,12 @@ export namespace mlc::builder {
 
         void scan(const fs::path &_entryPath, std::size_t _currentLevel, std::shared_ptr<buildNode> &_node);
 
-        void mergeBuildPlan(const std::shared_ptr<buildNode>& _node,std::size_t _depth);
+        void mergeBuildPlan(const std::shared_ptr<buildNode> &_node, std::size_t _depth);
 
     public:
-
         explicit RequireScaner(const fs::path &_entryPath);
 
-        [[nodiscard]] const buildPlanType& GetBuildPlan() const {
+        [[nodiscard]] const buildPlanType &GetBuildPlan() const {
             return buildPlan;
         }
 
@@ -49,6 +50,7 @@ export namespace mlc::builder {
     };
 
 
-    class Builder {
-    };
+    void Build(const buildPlanType &_buildPlan);
+
+    void BuildFile(const std::string &_filePath);
 }

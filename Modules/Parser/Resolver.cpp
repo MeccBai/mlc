@@ -6,32 +6,15 @@ module Parser;
 import Prepare;
 import std;
 import aux;
+import Formatter;
 import :Decl;
 
 
 std::vector<std::filesystem::path> importedFiles;
 std::unordered_set<std::filesystem::path> importedFileNames;
 
-astClass::ExportTable astClass::ExtractExportSymbols(const std::filesystem::path &_importPath) {
+astClass::ExportTable astClass::ExtractExportSymbols() {
 #if 0
-    importedFiles.push_back(_importPath);
-    importedFileNames.insert(_importPath);
-    if (std::ranges::find(importedFiles, _importPath) != importedFiles.end() && importedFiles.back() != _importPath) {
-        ErrorPrintln("Error: Circular import detected! \n");
-        std::string trace;
-        for (const auto &p: importedFiles) {
-            trace += p.filename().string() + " -> "; // 只取文件名更清晰，或者用 string() 全路径
-        }
-        trace += _importPath.filename().string(); // 循环回到当前文件
-        ErrorPrintln("Import Trace: {}\n", trace);
-        std::exit(-1);
-    }
-
-    if (importedFiles.size() > 50) {
-        ErrorPrintln("Two many imports in '{}'", _importPath.string());
-        std::exit(-1);
-    }
-#endif
     std::ifstream file(_importPath);
     std::string source((std::istreambuf_iterator(file)), std::istreambuf_iterator<char>());
     if (source.empty()) {
@@ -55,6 +38,10 @@ astClass::ExportTable astClass::ExtractExportSymbols(const std::filesystem::path
     using tokenResult = std::pair<std::string, bool>;
     auto tokenToContent = [](const tokenResult &t) { return t.first; };
     auto tokenToExported = [](const tokenResult &t) { return t.second; };
+
+    for (const auto& importFile : imports) {
+        auto result = tokenToContent(importFile);
+    }
 
     std::ranges::for_each(
         getImportPaths(imports | std::views::transform(tokenToContent) | std::ranges::to<std::vector>(),
@@ -92,9 +79,26 @@ astClass::ExportTable astClass::ExtractExportSymbols(const std::filesystem::path
             functionSymbolTable.insert(ast::Make<ast::FunctionDeclaration>(decl));
         }
     }
+    return {typeSymbolTable, functionSymbolTable};
+#endif
 
 
 
+    auto typeTable = typeSymbolTable | std::views::filter([](const sPtr<type::CompileType>& _type) {
+        if (const auto type = std::get_if<type::StructDefinition >(&*_type)) {
+            return type->isExported;
+        }
+        if (const auto type = std::get_if<type::EnumDefinition >(&*_type)) {
+            return type->isExported;
+        }
+        return false;
+    }) | std::ranges::to<std::set<sPtr<type::CompileType> > >();
+    auto funcTable = functionSymbolTable | std::views::filter([](const sPtr<ast::FunctionDeclaration>& _func) {
+        return _func->IsExported;
+    }) | std::ranges::to<std::set<sPtr<ast::FunctionDeclaration> > >();
+
+
+    return {typeTable, funcTable};
 }
 
 std::vector<std::filesystem::path> astClass::getImportPaths(
