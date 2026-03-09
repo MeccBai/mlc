@@ -25,28 +25,7 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
         currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
         currentType = components[i + 1]->GetType();
     }
-#if 0
-    if (auto *array = std::get_if<type::ArrayType>(&*components[0]->GetType()); operators.size() == 1 && array) {
-        const auto op = operators[0];
-        const auto &nextComp = components[1];
-        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op,_isWrite);
-        currentType = array->BaseType;
-    }
 
-    if (auto * pointer = std::get_if<type::PointerType>(&*components[0]->GetType()); operators.size() == 1 && pointer) {
-        const auto op = operators[0];
-        const auto &nextComp = components[1];
-        currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
-        currentType = pointer->BaseType;
-    }
-
-    if (auto *structDef = std::get_if<type::StructDefinition>(&*components[0]->GetType()); operators.size() == 1 && structDef) {
-        const auto op = operators[0];
-        const auto &nextComp = components[1];
-        currentResult = MemberAccessExpression(components[1], _isWrite);
-        currentType = nextComp->GetType();
-    }
-#endif
     if (!_isWrite) {
         if (std::get_if<type::BaseType>(&*currentType)) {
             auto reg = std::format("ma{}", exprCnt++);

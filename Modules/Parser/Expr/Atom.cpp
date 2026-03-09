@@ -8,7 +8,7 @@ import :Decl;
 
 // ========== parseAtom 辅助函数 ==========
 std::vector<sPtr<ast::Expression> > parseCallArgs(
-    astClass &self,
+    const exprParser &_parse,
     astClass::ContextTable<ast::VariableStatement> &_context,
     const std::string_view _argsStr) {
     std::vector<sPtr<ast::Expression> > args;
@@ -20,27 +20,29 @@ std::vector<sPtr<ast::Expression> > parseCallArgs(
         if (_argsStr[i] == '(' || _argsStr[i] == '[' || _argsStr[i] == '{') bracketLevel++;
         else if (_argsStr[i] == ')' || _argsStr[i] == ']' || _argsStr[i] == '}') bracketLevel--;
         else if (_argsStr[i] == ',' && bracketLevel == 0) {
-            args.emplace_back(self.expressionParser(_context, _argsStr.substr(start, i - start)));
+            args.emplace_back(_parse(_context, _argsStr.substr(start, i - start)));
             start = i + 1;
         }
     }
     if (start < _argsStr.length()) {
-        args.emplace_back(self.expressionParser(_context, _argsStr.substr(start)));
+        args.emplace_back(_parse(_context, _argsStr.substr(start)));
     }
     return args;
 }
 
 // 解析函数调用表达式
-sPtr<ast::Expression> parseFunctionCallExpr(
-    astClass &self,
-    astClass::ContextTable<ast::VariableStatement> &_context,
+sPtr<ast::Expression> astClass::parseFunctionCallExpr(
+    ContextTable<ast::VariableStatement> &_context,
     std::string_view str) {
     const auto pos = str.find('(');
     auto funcName = str.substr(0, pos);
     const auto argsStr = str.substr(pos + 1, str.length() - pos - 2);
-    auto args = parseCallArgs(self, _context, argsStr);
+    const auto _parse = [this](ContextTable<ast::VariableStatement> &ctx, const std::string_view content) {
+        return this->expressionParser(ctx, content);
+    };
+    auto args = parseCallArgs(_parse, _context, argsStr);
 
-    auto functionPtr = self.FindFunction(funcName);
+    auto functionPtr = FindFunction(funcName);
     if (!functionPtr) {
         // 尝试指针类型转换函数
         if (funcName.ends_with('p')) {
@@ -48,14 +50,14 @@ sPtr<ast::Expression> parseFunctionCallExpr(
             while (funcName.length() > level && funcName[funcName.length() - 1 - level] == 'p') {
                 level++;
             }
-            if (const auto optType = self.findType(funcName.substr(0, funcName.length() - level))) {
+            if (const auto optType = FindType(funcName.substr(0, funcName.length() - level))) {
                 auto typePtr = optType.value();
                 const auto pType = std::make_shared<type::PointerType>(level);
                 pType->Finalize(typePtr);
                 typePtr = std::make_shared<type::CompileType>(*pType);
                 const auto funcDecl = std::make_shared<ast::FunctionDeclaration>(
                     ast::FunctionDeclaration(std::string(funcName), typePtr, {}, true));
-                self.functionSymbolTable.insert(funcDecl);
+                functionSymbolTable.insert(funcDecl);
                 auto *const isTypeConvert = const_cast<bool *>(&funcDecl->IsTypeConvert);
                 *isTypeConvert = true;
                 if (args.size() > 1) {
@@ -115,7 +117,7 @@ sPtr<ast::Expression> astClass::parseAtom(ContextTable<ast::VariableStatement> &
 
     // 函数调用
     if (str.back() == ')' && str.find('(') != std::string_view::npos) {
-        return parseFunctionCallExpr(*this, _context, str);
+        return parseFunctionCallExpr(_context, str);
     }
 
     // 常量 (数字/字符串/字符)
@@ -167,7 +169,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 
         // 3. 如果是 ->，解开一层指针 (迭代解引用)
         if (op == ast::BaseOperator::Arrow) {
-            if (const auto ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
+            if (auto *const ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
                 currentType = ptr->GetBaseType().lock();
             } else {
                 ErrorPrintln("'->' must be used with a pointer type.");
@@ -177,7 +179,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 
         // 4. 结构体成员查找与类型更新
         bool found = false;
-        if (const auto structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
+        if (auto *const structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
             for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
                 if (structDef->Members[idx].Name == memberName) {
                     // 更新 currentExpr 为新的 MemberAccess 节点

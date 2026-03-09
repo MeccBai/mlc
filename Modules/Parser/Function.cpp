@@ -92,10 +92,10 @@ sPtr<ast::VariableStatement> astClass::functionArgParser(const std::string_view 
         std::exit(-1);
     }
     if (_argContent.find(' ') != std::string_view::npos) {
-        return normalArgParser(_argContent, [this](auto & arg){return findType(arg);});
+        return normalArgParser(_argContent, [this](auto & arg){return FindType(arg);});
     }
     if (_argContent.find('$') != std::string_view::npos) {
-        return pointerArgParser(_argContent, [this](auto & arg){return findType(arg);});
+        return pointerArgParser(_argContent, [this](auto & arg){return FindType(arg);});
     }
     ErrorPrintln("Error: Invalid argument declaration '{}'\n", _argContent);
     std::exit(-1);
@@ -131,7 +131,7 @@ ast::FunctionDeclaration astClass::functionDeclParser(
         returnType = baseType;
         pointerLevel = level;
     }
-    auto returnTypePtr = findType(returnType);
+    auto returnTypePtr = FindType(returnType);
     if (!returnTypePtr) {
         ErrorPrintln("Error: Unknown return type '{}'\n", returnType);
         std::exit(-1);

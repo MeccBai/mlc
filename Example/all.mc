@@ -1,5 +1,5 @@
 
-
+import std.io;
 enum Season {
     Spr,Sum,Aut,Win
 };
@@ -39,7 +39,8 @@ i32 main() {
     else {
         return max(1,10);
     }
-
+    i8 hello[20] = "Hello, World!";
+    printf(hello);
     return 0;
 }
 

@@ -1,5 +1,5 @@
 
-i32 printf(...);
+import std.io;
 
 struct b {
     i32 x;

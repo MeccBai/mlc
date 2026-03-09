@@ -28,8 +28,8 @@ ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent)
 }
 
 
-astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
-    std::vector<std::string_view> groups[7];
+astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens,const std::filesystem::path& _currentPath) {
+    std::vector<std::string> groups[7];
 
     std::ranges::for_each(tokens, [&](const auto &t) {
         groups[static_cast<size_t>(t.type)].emplace_back(t.content);
@@ -42,7 +42,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     auto &funcDecls = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDeclaration)];
     auto &imports = groups[static_cast<size_t>(ast::GlobalStateType::ImportFile)];
 
-    auto paths = getImportPaths(imports);
+    auto paths = getImportPaths(imports,_currentPath);
 
     for (auto type: ast::Type::BaseTypes) {
         auto typePtr = ast::Make<ast::Type::CompileType>(type);
@@ -58,7 +58,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
     }
 
     std::ranges::for_each(paths, [&](const std::filesystem::path &path) {
-        extractExportSymbols(path);
+        //extractExportSymbols(path);
     });
 
     for (auto &enumDef: enums) {
@@ -66,6 +66,8 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
         auto enumPtr = ast::Make<ast::Type::CompileType>(enumParsed);
         typeSymbolTable.insert(enumPtr);
     }
+
+
     for (auto structDefs = structDefParser(structs); auto &structDef: structDefs) {
         auto structPtr = ast::Make<ast::Type::CompileType>(structDef);
         typeSymbolTable.insert(structPtr);
@@ -97,7 +99,7 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens) {
 }
 
 
-auto astClass::findType(const std::string_view _typeName) const -> sOptional<ast::Type::CompileType> {
+auto astClass::FindType(const std::string_view _typeName) const -> sOptional<ast::Type::CompileType> {
     for (const auto &typePtr: typeSymbolTable) {
         if (std::visit([](auto &&arg) -> std::string_view {
             return arg.Name;

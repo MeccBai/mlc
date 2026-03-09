@@ -1,5 +1,6 @@
 
 
+import std.io;
 
 i32 main() {
     i32 a[10];

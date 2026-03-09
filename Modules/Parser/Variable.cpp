@@ -147,7 +147,7 @@ sPtr<ast::Expression> astClass::initExprParser(std::string_view _initExpr,
                 return expressionParser(_context, expr);
             };
             finalInitExpr = parseInitList(parseInitList, _initExpr);
-            finalInitExpr = ast::MakeExpression(fillDefaultValue(_currentType, finalInitExpr));
+            finalInitExpr = ast::MakeExpression(FillDefaultValue(_currentType, finalInitExpr));
         } else if (_initExpr.starts_with('"') and _initExpr.ends_with('"')) {
             std::vector<sPtr<ast::Expression>> strElements;
             const auto rawContent = _initExpr.substr(1, _initExpr.size() - 2);
@@ -164,13 +164,13 @@ sPtr<ast::Expression> astClass::initExprParser(std::string_view _initExpr,
                 ));
             }
             finalInitExpr = ast::MakeExpression(ast::MakeInitializerList(strElements));
-            finalInitExpr = ast::MakeExpression(fillDefaultValue(_currentType, finalInitExpr));
+            finalInitExpr = ast::MakeExpression(FillDefaultValue(_currentType, finalInitExpr));
         }else {
             finalInitExpr = expressionParser(_context, _initExpr);
             type::ValidateType(_currentType, finalInitExpr->GetType(), _realName);
         }
     } else {
-        finalInitExpr = ast::MakeExpression(fillDefaultValue(_currentType, nullptr));
+        finalInitExpr = ast::MakeExpression(FillDefaultValue(_currentType, nullptr));
     }
     return finalInitExpr;
 }
@@ -206,7 +206,7 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
     auto packs = variablePacked(_variableContent);
     StatementTable<ast::Statement> result;
     for (const auto &[type, name, initExpression]: packs) {
-        auto typePtr = findType(type);
+        auto typePtr = FindType(type);
         if (typePtr == std::nullopt) {
             ErrorPrintln("Error: Unknown type '{}'\n", type);
             std::exit(-1);

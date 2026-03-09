@@ -9,7 +9,7 @@ import keyword;
 import Parser;
 import aux;
 
-std::string constConditionExpand(const std::string_view _true,const std::string_view _false,ast::ConstValue * _constVal) {
+std::string constConditionExpand(const std::string_view _true,const std::string_view _false, const ast::ConstValue * _constVal) {
     const auto type = _constVal->Type;
     const auto llvmType = GenClass::TypeToLLVM(type);
     const auto value = _constVal->Value;
@@ -31,11 +31,11 @@ std::string constConditionExpand(const std::string_view _true,const std::string_
     return std::format("br label %{}\n", target);
 }
 
-std::string varConditionExpand(const std::string_view _true,const std::string_view _false,ast::Variable * _var) {
+std::string varConditionExpand(const std::string_view _true,const std::string_view _false, const ast::Variable * _var) {
     auto llvmType = GenClass::TypeToLLVM(_var->VarType);
     std::string code;
     std::string valReg = std::format("%{}", GenClass::exprCnt++);
-    code += std::format("{} = load {}, ptr %{}\n", valReg, llvmType, _var->Name);
+    //code += std::format("{} = load {}, ptr %{}\n", valReg, llvmType, _var->Name);
     std::string boolReg = std::format("%{}", GenClass::exprCnt++); // 💡 必须是新的寄存器
     if (llvmType.starts_with('i') || llvmType.starts_with('u')) {
         code += std::format("{} = icmp ne {} {}, 0\n", boolReg, llvmType, valReg);
@@ -72,7 +72,7 @@ std::string funcConditionExpand(const std::string_view _true,const std::string_v
     return code;
 }
 
-std::string compositeConditionExpand(const std::string_view _true, const std::string_view _false, const sPtr<ast::Expression> _condition) {
+std::string compositeConditionExpand(const std::string_view _true, const std::string_view _false, const sPtr<ast::Expression> &_condition) {
     auto [llvmType, resultVar, code, isCopyResult] = GenClass::ExpressionExpand(_condition);
     std::string boolReg = std::format("%{}", GenClass::exprCnt++);
     if (isCopyResult) {
@@ -94,7 +94,7 @@ std::string compositeConditionExpand(const std::string_view _true, const std::st
 
 std::string GenClass::ConditionExpression(const expr &_condition, const std::string_view _true,
                                           const std::string_view _false) {
-    if (auto *const constVal = _condition->GetConstValue()) {
+    if (const auto *const constVal = _condition->GetConstValue()) {
         return constConditionExpand(_true, _false, constVal);
     }
     if (const auto *const varExprPtr = _condition->GetVariable()) {

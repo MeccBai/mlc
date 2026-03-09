@@ -48,7 +48,7 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
     return ast::Expression(ast::ConstValue("0"));
 }
 
-ast::Expression astClass::fillDefaultValue(const sPtr<type::CompileType> &_type,
+ast::Expression astClass::FillDefaultValue(const sPtr<type::CompileType> &_type,
                                            const sPtr<ast::Expression> &_initExpr) {
     if (_initExpr == nullptr) {
         if (const auto arrayPtr = type::GetType<type::ArrayType>(_type)) {

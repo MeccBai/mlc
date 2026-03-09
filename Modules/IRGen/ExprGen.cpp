@@ -11,6 +11,9 @@ import aux;
 
 size_t GenClass::exprCnt = 1;
 
+using astClass = mlc::parser::AbstractSyntaxTree;
+
+
 GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,
                                                 const sPtr<type::CompileType> &_type) {
     // 1. 获取表达式的 LLVM 类型 (调用你之前写的 TypeToLLVM)
@@ -113,7 +116,7 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
 }
 
 std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &_type,
-                                            const sPtr<ast::Expression> &_expression,bool _isCondition) {
+                                            const sPtr<ast::Expression> &_expression, bool _isCondition) {
     if (!_expression || !_expression->Storage) return "";
     if (const auto *constVal = _expression->GetConstValue()) {
         std::string typeStr = GetTypeName(*_expression->GetType());
@@ -282,8 +285,6 @@ GenClass::exprResult GenClass::GradientExpression(const std::vector<exprResult> 
 }
 
 GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
-    static int tempCnt = 0;
-    std::println("Left Expression Expand: {}", tempCnt++);
     if (const auto *const vPtr = _expr->GetVariable(); vPtr != nullptr) {
         const auto type = TypeToLLVM((*vPtr)->VarType);
         const auto name = std::format("%{}", (*vPtr)->Name);

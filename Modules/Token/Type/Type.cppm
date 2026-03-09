@@ -1,206 +1,213 @@
-    //
-    // Created by Administrator on 2026/2/27.
-    //
+//
+// Created by Administrator on 2026/2/27.
+//
 
-    export module Token:Type;
+export module Token:Type;
 
 
-    import std;
-    import aux;
-    using size_t = std::size_t;
-    export namespace mlc::ast::Type {
-        template <typename type>
-        using sPtr = std::shared_ptr<type>;
+import std;
+import aux;
+using size_t = std::size_t;
+export namespace mlc::ast::Type {
+    template<typename type>
+    using sPtr = std::shared_ptr<type>;
 
-        class BaseType;
-        class StructDefinition;
-        class EnumDefinition;
-        class PointerType;
-        class ArrayType;
+    class BaseType;
+    class StructDefinition;
+    class EnumDefinition;
+    class PointerType;
+    class ArrayType;
 
-        std::unordered_set<std::string_view> KeyWords = {
-            "struct", "enum", "void", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
-            "null","switch","case","default","break","continue","if","else","while","return"
-        };
+    std::unordered_set<std::string_view> KeyWords = {
+        "struct", "enum", "void", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
+        "null", "switch", "case", "default", "break", "continue", "if", "else", "while", "return"
+    };
 
-        void IsValidName(const std::string_view _name) {
-            bool result = true;
-            if (_name.empty()) result =  false;
-            if (KeyWords.contains(_name)) result = false;
-            if (!std::isalpha(_name[0]) && _name[0] != '_') result = false;
-            for (const char ch: _name) {
-                if (!std::isalnum(ch) && ch != '_') result = false;
-            }
-            if (!result) {
-                ErrorPrintln("Error: Invalid name '{}'\n", _name);
-                std::exit(-1);
-            }
+    void IsValidName(const std::string_view _name) {
+        bool result = true;
+        if (_name.empty()) result = false;
+        if (KeyWords.contains(_name)) result = false;
+        if (!std::isalpha(_name[0]) && _name[0] != '_') result = false;
+        for (const char ch: _name) {
+            if (!std::isalnum(ch) && ch != '_') result = false;
+        }
+        if (!result) {
+            ErrorPrintln("Error: Invalid name '{}'\n", _name);
+            std::exit(-1);
+        }
+    }
+
+    using CompileType = std::variant<BaseType, StructDefinition, EnumDefinition, PointerType, ArrayType>;
+
+    class BaseType {
+    public:
+        explicit BaseType(const std::string_view _name, const std::size_t _size) : Name(_name), size(_size) {
         }
 
-        using CompileType = std::variant<BaseType, StructDefinition, EnumDefinition, PointerType, ArrayType>;
+        const std::string Name;
+        [[nodiscard]] std::size_t Size() const { return size; }
 
-        class BaseType {
-        public:
-            explicit BaseType(const std::string_view _name, const std::size_t _size) : Name(_name), size(_size) {
-            }
+        bool operator ==(const BaseType &_other) const {
+            return _other.Name == Name;
+        }
 
-            const std::string Name;
-            [[nodiscard]] std::size_t Size() const { return size; }
+        bool operator >(const BaseType &_other) const {
+            return size > _other.Size();
+        }
 
-            bool operator ==(const BaseType &_other) const {
-                return _other.Name == Name;
-            }
+        bool operator <(const BaseType &_other) const {
+            return size < _other.Size();
+        }
 
-            bool operator >(const BaseType &_other) const {
-                return size > _other.Size();
-            }
+    private:
+        const std::size_t size;
+    };
 
-            bool operator <(const BaseType &_other) const {
-                return size < _other.Size();
-            }
+    class EnumDefinition {
+    public:
+        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
+            Values(std::move(_values)) {
+            IsValidName(Name);
+            std::ranges::for_each(Values, [](const std::string_view _name) { IsValidName(_name); });
+        }
 
-        private:
-            const std::size_t size;
-        };
+        const std::string Name;
+        const std::vector<std::string> Values;
 
-        class EnumDefinition {
-        public:
-            explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values) : Name(_name),
-                Values(std::move(_values)) {
-                IsValidName(Name);
-                std::ranges::for_each(Values,[](const std::string_view _name){IsValidName(_name);});
-            }
+        static std::size_t Size() {
+            return 4;
+        }
 
-            const std::string Name;
-            const std::vector<std::string> Values;
-
-            static std::size_t Size() {
-                return 4;
-            }
-
-            [[nodiscard]] std::optional<size_t> GetValueIndex(const std::string_view _value) const {
-                for (size_t i = 0; i < Values.size(); ++i) {
-                    if (Values[i] == _value) {
-                        return i;
-                    }
+        [[nodiscard]] std::optional<size_t> GetValueIndex(const std::string_view _value) const {
+            for (size_t i = 0; i < Values.size(); ++i) {
+                if (Values[i] == _value) {
+                    return i;
                 }
-                return std::nullopt;
             }
+            return std::nullopt;
+        }
+    };
 
-        };
+    struct StructMember {
+        std::string Name;
+        std::shared_ptr<CompileType> Type;
+    };
 
-        struct StructMember {
-            std::string Name;
-            std::shared_ptr<CompileType> Type;
-        };
-
-        class StructDefinition {
-        public:
-            explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
-                : Name(_name), Members(std::move(_members)) {
-                IsValidName(Name);
-                std::ranges::for_each(Members, [](const StructMember &member) {
-                    IsValidName(member.Name);
-                });
-            }
-
-            const std::string Name;
-            const std::vector<StructMember> Members; // type and name
-
-            [[nodiscard]] size_t Size() const;
-        };
-
-        class ArrayType {
-        public:
-            [[nodiscard]] std::string GetTypeName() const;
-
-            explicit ArrayType(std::shared_ptr<CompileType> _baseType,
-                               std::size_t _length) : BaseType(std::move(_baseType)),
-                                                      Length(_length), Name(this->GetTypeName()) {
-
-            }
-
-            [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
-                return BaseType;
-            }
-
-            const std::shared_ptr<CompileType> BaseType;
-            const std::size_t Length;
-            const std::string Name;
-
-            [[nodiscard]] size_t Size() const;
-        };
-
-        class PointerType {
-        public:
-            explicit PointerType(std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
-                : PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
-            }
-
-            explicit PointerType(const size_t _pointerLevel = 1) : PointerLevel(_pointerLevel) {
-            }
-
-            const std::string Name;
-
-            void Finalize(std::shared_ptr<CompileType> _baseType) {
-                BaseType = std::move(_baseType);
-                const std::string baseName = std::visit([](auto &&t) -> std::string {
-                    return std::string(t.Name);
-                }, *BaseType);
-                const std::string suffix(PointerLevel, '$');
-                const_cast<std::string &>(Name) = baseName + suffix;
-            }
-
-            [[nodiscard]] std::string GetTypeName() const {
-                return Name;
-            }
-
-            [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
-                return BaseType;
-            }
-
-            const size_t PointerLevel;
-
-            std::shared_ptr<CompileType> BaseType;
-
-            static std::size_t Size() {
-                return 8;
-            }
-        };
-
-        template<typename _type>
-        concept IsCompileType =requires
-        {
-            requires (
-              std::is_same_v<std::remove_cvref_t<_type>, BaseType> ||
-              std::is_same_v<std::remove_cvref_t<_type>, StructDefinition> ||
-              std::is_same_v<std::remove_cvref_t<_type>, EnumDefinition> ||
-              std::is_same_v<std::remove_cvref_t<_type>, PointerType> ||
-                std::is_same_v<std::remove_cvref_t<_type>, ArrayType>
-            );
-        };
-
-        template<IsCompileType _type>
-        bool IsType(const sPtr<CompileType>& _compileType) {
-            return std::holds_alternative<_type>(*_compileType);
+    class StructDefinition {
+    public:
+        explicit StructDefinition(const std::string_view _name, std::vector<StructMember> &_members)
+            : Name(_name), Members(std::move(_members)) {
+            IsValidName(Name);
+            std::ranges::for_each(Members, [](const StructMember &member) {
+                IsValidName(member.Name);
+            });
         }
 
-        template<IsCompileType T>
-        T* GetType(const std::shared_ptr<CompileType> &_type) {
-            return _type ? std::get_if<T>(&*_type) : nullptr;
+        const std::string Name;
+        const std::vector<StructMember> Members; // type and name
+
+        [[nodiscard]] size_t Size() const;
+    };
+
+    class ArrayType {
+    public:
+        [[nodiscard]] std::string GetTypeName() const;
+
+        explicit ArrayType(std::shared_ptr<CompileType> _baseType,
+                           std::size_t _length) : BaseType(std::move(_baseType)),
+                                                  Length(_length), Name(this->GetTypeName()) {
         }
 
-        void ValidateType(const std::shared_ptr<CompileType> &_targetType,
-                          const std::shared_ptr<CompileType> &_actualType,
-                          std::string_view _contextInfo,bool  _tolerance = false);
+        [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
+            return BaseType;
+        }
 
-        bool IsArrayOrPointer (const sPtr<CompileType>& _type );
+        const std::shared_ptr<CompileType> BaseType;
+        const std::size_t Length;
+        const std::string Name;
 
-        size_t GetSize (const sPtr<CompileType>& _type );
+        [[nodiscard]] size_t Size() const;
+    };
 
-        size_t GetSize(const CompileType* _type);
+    class PointerType {
+    public:
+        explicit PointerType(std::shared_ptr<CompileType> _baseType, const size_t _pointerLevel = 1)
+            : PointerLevel(_pointerLevel), BaseType(std::move(_baseType)) {
+        }
 
+        explicit PointerType(const size_t _pointerLevel = 1) : PointerLevel(_pointerLevel) {
+        }
 
-    } // namespace mlc::ast::Type
+        const std::string Name;
 
+        void Finalize(std::shared_ptr<CompileType> _baseType) {
+            BaseType = std::move(_baseType);
+            const std::string baseName = std::visit([](auto &&t) -> std::string {
+                return std::string(t.Name);
+            }, *BaseType);
+            const std::string suffix(PointerLevel, '$');
+            const_cast<std::string &>(Name) = baseName + suffix;
+        }
 
+        [[nodiscard]] std::string GetTypeName() const {
+            return Name;
+        }
+
+        [[nodiscard]] std::weak_ptr<CompileType> GetBaseType() const {
+            return BaseType;
+        }
+
+        const size_t PointerLevel;
+
+        std::shared_ptr<CompileType> BaseType;
+
+        static std::size_t Size() {
+            return 8;
+        }
+    };
+
+    template<typename _type>
+    concept IsCompileType = requires
+    {
+        requires (
+            std::is_same_v<std::remove_cvref_t<_type>, BaseType> ||
+            std::is_same_v<std::remove_cvref_t<_type>, StructDefinition> ||
+            std::is_same_v<std::remove_cvref_t<_type>, EnumDefinition> ||
+            std::is_same_v<std::remove_cvref_t<_type>, PointerType> ||
+            std::is_same_v<std::remove_cvref_t<_type>, ArrayType>
+        );
+    };
+
+    bool operator > (const CompileType &_lhs, const CompileType &_rhs) {
+        return std::visit([]<typename T0, typename T1>
+            (T0 &&lhs, T1 &&rhs) -> bool {
+            using LhsType = std::decay_t<T0>;
+            using RhsType = std::decay_t<T1>;
+            if constexpr (std::is_same_v<LhsType, RhsType>) {
+                return lhs > rhs;
+            } else {
+                return lhs.Size() > rhs.Size();
+            }
+        }, _lhs, _rhs);
+    }
+
+    template<IsCompileType _type>
+    bool IsType(const sPtr<CompileType> &_compileType) {
+        return std::holds_alternative<_type>(*_compileType);
+    }
+
+    template<IsCompileType T>
+    T *GetType(const std::shared_ptr<CompileType> &_type) {
+        return _type ? std::get_if<T>(&*_type) : nullptr;
+    }
+
+    void ValidateType(const std::shared_ptr<CompileType> &_targetType,
+                      const std::shared_ptr<CompileType> &_actualType,
+                      std::string_view _contextInfo, bool _tolerance = false);
+
+    bool IsArrayOrPointer(const sPtr<CompileType> &_type);
+
+    size_t GetSize(const sPtr<CompileType> &_type);
+
+    size_t GetSize(const CompileType *_type);
+} // namespace mlc::ast::Type

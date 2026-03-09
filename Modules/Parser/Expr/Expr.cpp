@@ -70,7 +70,7 @@ sPtr<ast::Expression> astClass::expressionParser(ContextTable<ast::VariableState
 
     const auto expressionTree = ast::deepSplit(_expressionContent);
 
-    ast::dumpFragments(expressionTree);
+    //ast::dumpFragments(expressionTree);
 
     auto result = expressionTreeParser(_contextTable, expressionTree);
 

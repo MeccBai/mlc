@@ -48,14 +48,15 @@ int main(int argc, char* argv[]) {
 
     auto sourceCode = mlc::prepare::Prepare(code);
     const auto result = mlc::seg::TopTokenize(sourceCode);
-    mlc::parser::AbstractSyntaxTree ast(result);
+
+    mlc::parser::AbstractSyntaxTree ast(result,inputPath.parent_path());
     auto ir = mlc::ir::gen::IRGenerator::GenerateIR(ast);
 
     std::ofstream out(llPath);
     out << ir;
     out.close();
 
-    std::println("{}",ir);
+    //std::println("{}",ir);
 
     const auto compileCmd = std::format(R"(clang "{}" -o "{}" -Wno-override-module -mconsole)",
                                          llPath.string(), exePath.string());

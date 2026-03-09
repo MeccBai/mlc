@@ -21,7 +21,7 @@ std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> 
             } else if constexpr (std::is_same_v<T, ast::Type::StructDefinition>) {
                 body += std::format("%struct.{},", arg.Name);
             } else if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
-                body += std::format("[{} x {}],", arg.Size(),type::GetTypeName(*(arg.BaseType.get())));
+                body += std::format("[{} x {}],", arg.Size(), type::GetTypeName(*(arg.BaseType.get())));
             } else if constexpr (std::is_same_v<T, ast::Type::PointerType>) {
                 body += "ptr,";
             }
@@ -66,7 +66,7 @@ std::string gen::determineCastOperator(const type::BaseType *_sourceType, const 
 }
 
 
-void fixLLVMTypes(std::string& ir) {
+void fixLLVMTypes(std::string &ir) {
     size_t pos = 0;
     while ((pos = ir.find(" f64 ", pos)) != std::string::npos) {
         ir.replace(pos, 5, " double "); // " f64 " 是 5 位，" double " 是 8 位
@@ -107,12 +107,13 @@ void fixLLVMTypes(std::string& ir) {
         ir.replace(pos, 4, "float]");
         pos += 6;
     }
-
 }
 
 std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
     std::string code;
-    auto structCode = _ast.typeSymbolTable
+    const auto &[types, variables, decls,funcs] = _ast.ExportAST();
+
+    auto structCode = types
                       | std::views::filter([](const auto &type) {
                           return std::holds_alternative<ast::Type::StructDefinition>(*type);
                       })
@@ -120,18 +121,18 @@ std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
                           auto structDef = std::get<ast::Type::StructDefinition>(*type);
                           return Struct(std::make_shared<ast::Type::StructDefinition>(structDef));
                       });
-    auto globalVarCode = _ast.variableSymbolTable
+    auto globalVarCode = variables
                          | std::views::transform([](const auto &var) {
                              return GlobalVariable(var);
                          });
-    auto funcDecl = _ast.functionSymbolTable
+    auto funcDecl = decls
                     | std::views::filter([&](const auto &func) {
                         // 1. 物理隔离：剔除基本类型占位符 (i32, f32, etc.)
                         if (ast::Type::BaseTypeMap.contains(func->Name)) {
                             return false;
                         }
                         const bool hasDefinition = std::ranges::any_of(
-                            _ast.functionScopeTable,
+                            funcs,
                             [&](const auto &funcScope) {
                                 return funcScope->Name == func->Name;
                             });
@@ -142,7 +143,7 @@ std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
                     });
 
 
-    auto funcCode = _ast.functionScopeTable
+    auto funcCode = funcs
                     | std::views::transform([](const auto &func) {
                         return FunctionGenerate(func);
                     });

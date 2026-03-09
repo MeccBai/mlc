@@ -15,4 +15,8 @@ target_link_libraries(mlc PRIVATE mlc_m)
 
 include(Test/test.cmake)
 
+include(Public/public.cmake)
+
+target_link_libraries(mlc_m PUBLIC public)
+
 

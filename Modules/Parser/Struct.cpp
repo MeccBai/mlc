@@ -61,7 +61,7 @@ structMemberPack parseStructMember(const std::string_view _memberDef) {
 
 
 std::vector<type::StructDefinition> astClass::structDefParser(
-    const std::vector<std::string_view> &_structContents) const {
+    const std::vector<std::string> &_structContents) const {
     std::vector<type::StructDefinition> structs;
     std::vector<std::vector<std::pair<sPtr<type::CompileType>,std::string>>> lazyPointerTypes(_structContents.size());
 
@@ -96,7 +96,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
             if (isPointer) {
                 auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(1));
                 lazyPtrs.emplace_back(ptr, typeName);
-                std::println("{}",typeName);
+                //std::println("{}",typeName);
                 members.emplace_back(std::string(name), ptr);
             }
             else {

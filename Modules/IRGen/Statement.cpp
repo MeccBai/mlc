@@ -91,10 +91,10 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
         }
         return code;
     }
-    if (auto *const ret = std::get_if<ast::ReturnStatement>(&*_stmt)) {
+    if (std::get_if<ast::ReturnStatement>(&*_stmt)) {
         return ReturnStatementGenerate(_stmt, FunctionUnit(_decl));
     }
-    if (auto *subScope = std::get_if<ast::SubScope>(&*_stmt)) {
+    if (std::get_if<ast::SubScope>(&*_stmt)) {
         return SubScopeGenerate(_stmt, _decl);
     }
     if (auto *funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {

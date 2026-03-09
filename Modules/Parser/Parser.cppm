@@ -21,7 +21,7 @@ export namespace mlc::parser {
         using SymbolTable = std::set<std::shared_ptr<_type> >;
 
         template<typename _type>
-        using ContextTable = std::map<std::string,std::shared_ptr<_type> >;
+        using ContextTable = std::map<std::string, std::shared_ptr<_type> >;
 
         template<typename _type>
         using StatementTable = std::vector<std::shared_ptr<_type> >;
@@ -37,6 +37,10 @@ export namespace mlc::parser {
             std::string_view body;
         };
 
+        using ExportTable = std::pair<SymbolTable<type::CompileType>, SymbolTable<ast::FunctionDeclaration> >;
+
+    private:
+
         ast::FunctionScope functionDefParser(std::string_view _functionContent);
 
         [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent,
@@ -44,16 +48,18 @@ export namespace mlc::parser {
 
         [[nodiscard]] sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
 
-        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader,bool _isExported = false) const;
+        [[nodiscard]] functionWarper functionDeclSpliter(std::string_view _functionHeader,
+                                                         bool _isExported = false) const;
 
 
         StatementTable<ast::Statement> statementParser(std::string_view statementContent) {
             ContextTable<ast::VariableStatement> dummyContext;
-            return statementParser(dummyContext, statementContent,nullptr);
+            return statementParser(dummyContext, statementContent, nullptr);
         }
 
         StatementTable<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
-                                                       std::string_view statementContent,sPtr<ast::FunctionDeclaration> _currentFunc);
+                                                       std::string_view statementContent,
+                                                       sPtr<ast::FunctionDeclaration> _currentFunc);
 
         struct caseBlock {
             sPtr<ast::Expression> condition; // case 条件表达式
@@ -61,14 +67,16 @@ export namespace mlc::parser {
         };
 
         sPtr<caseBlock> caseBlockParser(ContextTable<ast::VariableStatement> &_context,
-                                        std::string_view statementContent, const sPtr<ast::FunctionDeclaration> &_currentFunc);
+                                        std::string_view statementContent,
+                                        const sPtr<ast::FunctionDeclaration> &_currentFunc);
 
         sPtr<ast::Statement> handleSwitchBlock(std::string_view _subScopeContent,
-                                               const ContextTable<ast::VariableStatement> &_context,const sPtr<ast::FunctionDeclaration>& _currentFunc);
+                                               const ContextTable<ast::VariableStatement> &_context,
+                                               const sPtr<ast::FunctionDeclaration> &_currentFunc);
 
         sPtr<ast::Statement> handleDoWhileBlock(std::string_view _subScopeContent,
                                                 const ContextTable<ast::VariableStatement> &_context,
-                                                auto &_bodyToStatements,sPtr<ast::FunctionDeclaration> _currentFunc);
+                                                auto &_bodyToStatements, sPtr<ast::FunctionDeclaration> _currentFunc);
 
         sPtr<ast::Expression> expressionParser(ContextTable<ast::VariableStatement> &_context,
                                                std::string_view _expressionContent);
@@ -84,15 +92,17 @@ export namespace mlc::parser {
                                                       std::string_view _variableContent);
 
         sPtr<ast::Statement> subScopeParser(const ContextTable<ast::VariableStatement> &_context,
-                                            std::string_view _subScopeContent,const sPtr<ast::FunctionDeclaration>& _currentFunc);
+                                            std::string_view _subScopeContent,
+                                            const sPtr<ast::FunctionDeclaration> &_currentFunc);
 
         sPtr<ast::Expression> handleSubscriptAccess(ContextTable<ast::VariableStatement> &_context,
                                                     const std::vector<ast::exprTree> &fragments,
                                                     int splitIndex);
 
-        sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent,sPtr<ast::FunctionDeclaration> _currentFunc) {
+        sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent,
+                                            sPtr<ast::FunctionDeclaration> _currentFunc) {
             const ContextTable<ast::VariableStatement> dummyContext{};
-            return subScopeParser(dummyContext, _subScopeContent,_currentFunc);
+            return subScopeParser(dummyContext, _subScopeContent, _currentFunc);
         }
 
         sPtr<ast::Expression> expressionTreeParser(ContextTable<ast::VariableStatement> &_context,
@@ -100,6 +110,14 @@ export namespace mlc::parser {
 
         // Helper methods for expression parsing
         sPtr<ast::Expression> parseAtom(ContextTable<ast::VariableStatement> &_context, std::string_view str);
+
+        sPtr<ast::Expression> parseFunctionCallExpr(
+            ContextTable<ast::VariableStatement> &_context,
+            std::string_view str);
+
+        StatementTable<ast::Statement> parseFunctionCallStatement(
+            ContextTable<ast::VariableStatement> &_context,
+            std::string_view _content);
 
         sPtr<ast::Expression> handleMemberAccess(ContextTable<ast::VariableStatement> &_context,
                                                  const std::vector<ast::exprTree> &fragments,
@@ -113,7 +131,7 @@ export namespace mlc::parser {
         }
 
         [[nodiscard]] std::vector<ast::Type::StructDefinition> structDefParser(
-            const std::vector<std::string_view> &_structContents) const;
+            const std::vector<std::string> &_structContents) const;
 
         static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent);
 
@@ -122,6 +140,25 @@ export namespace mlc::parser {
         SymbolTable<ast::VariableStatement> variableSymbolTable;
         SymbolTable<ast::FunctionDeclaration> functionSymbolTable;
         SymbolTable<ast::FunctionScope> functionScopeTable;
+
+        [[nodiscard]] static std::vector<std::filesystem::path> getImportPaths(
+            const std::vector<std::string> &_tokens, const std::filesystem::path &_currentPath);
+
+        sPtr<ast::Expression> initExprParser(std::string_view _initExpr, const sPtr<type::CompileType> &_currentType,
+                                             ContextTable<ast::VariableStatement> &_context,
+                                             std::string_view _realName);
+
+    public:
+
+
+        [[nodiscard]] ast::Expression GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_type) const;
+
+        ast::Expression GetStructDefaultValue(const sPtr<type::StructDefinition> &_type);
+
+        ast::Expression GetDefaultValue(const sPtr<type::CompileType> &_type);
+
+        ast::Expression FillDefaultValue(const sPtr<type::CompileType> &_type,
+                                         const std::shared_ptr<ast::Expression> &_initExpr = nullptr);
 
         [[nodiscard]] sOptional<ast::FunctionDeclaration> FindFunction(const std::string_view name) const {
             for (const auto &func: functionSymbolTable) {
@@ -142,7 +179,8 @@ export namespace mlc::parser {
         }
 
         [[nodiscard]] sOptional<ast::VariableStatement> FindVariable(const std::string_view name) const {
-            if (const auto it = variableSymbolTable.find(std::make_shared<ast::VariableStatement>(name, nullptr, nullptr));
+            if (const auto it = variableSymbolTable.find(
+                    std::make_shared<ast::VariableStatement>(name, nullptr, nullptr));
                 it != variableSymbolTable.end()) {
                 return *it;
             }
@@ -170,26 +208,26 @@ export namespace mlc::parser {
         }
 
 
-        [[nodiscard]] ast::Expression GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_type) const;
+        [[nodiscard]] sOptional<type::CompileType> FindType(std::string_view _typeName) const;
 
-        ast::Expression GetStructDefaultValue(const sPtr<type::StructDefinition> &_type);
+        explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens, const std::filesystem::path& _currentPath);
 
-        ast::Expression GetDefaultValue(const sPtr<type::CompileType> &_type);
+        ExportTable ExtractExportSymbols(const std::filesystem::path &_importPath);
 
-        ast::Expression fillDefaultValue(const sPtr<type::CompileType> &_type,
-                                         const std::shared_ptr<ast::Expression> &_initExpr = nullptr);
+        void ImportSymbols(const ExportTable& _exportTable);
 
-        [[nodiscard]] sOptional<type::CompileType> findType(std::string_view _typeName) const;
+        static std::vector<std::filesystem::path> GetImportPaths(const std::filesystem::path &_importPath);
 
-        explicit AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens);
 
-        void extractExportSymbols(const std::filesystem::path &_importPath);
+        using ASTExport = struct {
+            SymbolTable<ast::Type::CompileType> &typeSymbolTable;
+            SymbolTable<ast::VariableStatement> &variableSymbolTable;
+            SymbolTable<ast::FunctionDeclaration>& functionSymbolTable;
+            SymbolTable<ast::FunctionScope> &functionScopeTable;
+        };
 
-        [[nodiscard]] static std::vector<std::filesystem::path> getImportPaths(
-            const std::vector<std::string_view> &_tokens);
-
-        sPtr<ast::Expression> initExprParser(std::string_view _initExpr, const sPtr<type::CompileType> &_currentType,
-                                             ContextTable<ast::VariableStatement> &_context,
-                                             std::string_view _realName);
+        auto ExportAST() -> ASTExport {
+            return {typeSymbolTable, variableSymbolTable, functionSymbolTable, functionScopeTable};
+        }
     };
 } // namespace mlc::parser

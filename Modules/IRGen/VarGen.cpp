@@ -34,26 +34,26 @@ std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variabl
     auto align = GetAlignment(_variable->VarType);
     std::string code = std::format("%{} = alloca {}, align {}\n", regName, llvmType, align);
     if (_variable->Initializer) {
-        auto initRes = ExpressionExpand(_variable->Initializer, _variable->VarType);
-        if (initRes.llvmType == "list") {
+        auto [exprType, resultVar, code, isCopyResult] = ExpressionExpand(_variable->Initializer, _variable->VarType);
+        if (exprType == "list") {
             auto argTemp = "%" + regName;
-            code += std::vformat(initRes.resultVar, std::make_format_args(argTemp));
-            code += initRes.code;
+            code += std::vformat(resultVar, std::make_format_args(argTemp));
+            code += code;
         }
-        else if (initRes.isCopyResult) {
+        else if (isCopyResult) {
             // 场景 B: 结构体/大对象拷贝 (memcpy)
-            code += initRes.code;
+            code += code;
             code += std::format(
                 "call void @{}(ptr %{}, ptr {}, i64 {}, i1 false)\n",llvmCopy,
-                regName, initRes.resultVar, type::GetSize(_variable->VarType)
+                regName, resultVar, type::GetSize(_variable->VarType)
             );
         }
         else {
             // 场景 C: 普通标量赋值 (i32 a = 1 + 2)
-            code += initRes.code;
+            code += code;
             code += std::format(
                 "store {} {}, ptr %{}, align {}\n",
-                initRes.llvmType, initRes.resultVar, regName, align
+                exprType, resultVar, regName, align
             );
         }
     }

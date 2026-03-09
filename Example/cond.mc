@@ -1,5 +1,5 @@
 
-i32 printf(...);
+import std.io;
 
 i32 fab(i32 i) {
     if (i == 1 || i == 2) {

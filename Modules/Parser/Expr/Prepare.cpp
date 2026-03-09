@@ -132,7 +132,7 @@ void ast::dumpFragments(const exprTree &fragment, const int indent) {
             std::print("[");
             for (size_t i = 0; i < arg.size(); ++i) {
                 // 递归处理子片段
-                dumpFragments(arg[i], indent + 1);
+                //dumpFragments(arg[i], indent + 1);
 
                 // 只有在元素之间加空格
                 if (i < arg.size() - 1) {
