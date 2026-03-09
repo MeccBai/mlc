@@ -45,6 +45,16 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens,cons
     auto &varDecls = groups[static_cast<size_t>(ast::GlobalStateType::VariableDeclaration)];
     auto &funcDecls = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDeclaration)];
     auto &imports = groups[static_cast<size_t>(ast::GlobalStateType::ImportFile)];
+
+    const bool hasExportImport = std::ranges::all_of(imports, [](const seg::TokenStatement &t) {
+        return t.exported;
+    });
+
+    if (hasExportImport) {
+        ErrorPrintln("Error: Exported imports are not allowed.");
+        std::exit(-1);
+    }
+
     auto paths = getImportPaths(toContents(imports),_currentDirPath);
 
     for (auto type: ast::Type::BaseTypes) {

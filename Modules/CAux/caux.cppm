@@ -14,6 +14,10 @@ void ErrorPrintln(std::format_string<Args...> fmt, Args&&... args) {
     std::println(stderr, fmt, std::forward<Args>(args)...);
 }
 
+export void ErrorPrintln(const std::string& msg) {
+    std::fprintf(stderr,"%s\n", msg.c_str());
+}
+
 export void DisableOutputBuffering() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::setvbuf(stderr, nullptr, _IONBF, 0);

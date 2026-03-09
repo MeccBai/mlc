@@ -106,7 +106,7 @@ sComType parseEnumType(astClass &_ast, const json &_json) {
         options.push_back(option.get<std::string>());
     }
     const auto name = _json[afmt::Name].get<std::string>();
-    return ast::Make<type::CompileType>(type::EnumDefinition(name, options,false));
+    return ast::Make<type::CompileType>(type::EnumDefinition(name, options));
 }
 
 std::set<sComType> parseStructTypes(astClass &_ast, const std::vector<json> &_jArray, std::set<sComType> &_types) {

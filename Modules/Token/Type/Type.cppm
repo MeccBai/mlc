@@ -65,7 +65,7 @@ export namespace mlc::ast::Type {
 
     class EnumDefinition {
     public:
-        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values,bool _isExported) : Name(_name),
+        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values,bool _isExported = false) : Name(_name),
             Values(std::move(_values)),isExported(_isExported) {
             IsValidName(Name);
             std::ranges::for_each(Values, [](const std::string_view _name) { IsValidName(_name); });
