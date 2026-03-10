@@ -120,7 +120,7 @@ std::string GenClass::OperatorToIR(const std::string_view _llvmType, const ast::
 }
 
 std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
-    if (const auto *const baseType = std::get_if<type::BaseType>(&*_type)) {
+    if (const auto *const baseType = type::GetType<type::BaseType>(_type)) {
         if (baseType->Name.starts_with('i')) {
             return std::format("i{}", baseType->Size() * 8);
         }
@@ -134,16 +134,16 @@ std::string GenClass::TypeToLLVM(const sPtr<type::CompileType> &_type) {
             return "void";
         }
     }
-    if (const auto *const structDef = std::get_if<type::StructDefinition>(&*_type)) {
+    if (const auto *const structDef = type::GetType<type::StructDefinition>(_type)) {
         return std::format("%struct.{}", structDef->Name);
     }
-    if (const auto *const arrayType = std::get_if<type::ArrayType>(&*_type)) {
+    if (const auto *const arrayType = type::GetType<type::ArrayType>(_type)) {
         return std::format("[{} x {}]", arrayType->Length, TypeToLLVM(arrayType->BaseType));
     }
-    if (std::get_if<type::PointerType>(&*_type)) {
+    if (type::GetType<type::PointerType>(_type)) {
         return "ptr";
     }
-    if (std::get_if<type::EnumDefinition>(&*_type)) {
+    if (type::GetType<type::EnumDefinition>(_type)) {
         return "i32";
     }
     return "";

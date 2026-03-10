@@ -48,8 +48,8 @@ ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
 
 bool toleranceCheck(const std::shared_ptr<type::CompileType> &targetType,
                              const std::shared_ptr<type::CompileType> &actualType) {
-    const auto actualBase = std::get_if<type::BaseType>(&*actualType);
-    if (const auto targetBase = std::get_if<type::BaseType>(&*targetType); actualBase && targetBase) {
+    const auto *const actualBase = std::get_if<type::BaseType>(&*actualType);
+    if (const auto *const targetBase = std::get_if<type::BaseType>(&*targetType); actualBase && targetBase) {
         auto isInteger = [](const std::string &typeName) {
             return typeName.starts_with('i') || typeName.starts_with('u');
         };
@@ -72,8 +72,8 @@ void ast::Type::ValidateType(const sPtr<CompileType> &_targetType,
     }
     std::string expectedName = GetTypeName(*_targetType);
     std::string actualName = GetTypeName(*_actualType);
-    const auto targetPtr = GetType<PointerType>(_targetType);
-    if (const auto actualPtr = GetType<BaseType>(_actualType);
+    const auto *const targetPtr = GetType<PointerType>(_targetType);
+    if (const auto *const actualPtr = GetType<BaseType>(_actualType);
         targetPtr && actualPtr && actualPtr->Name == "null") {
         return;
     }
@@ -91,12 +91,12 @@ void ast::VariableStatement::InitListValidCheck() const {
     if (!Initializer) {
         return;
     }
-    if (const auto listPtr = Initializer->GetInitializerList(); !listPtr) {
+    if (const auto *const listPtr = Initializer->GetInitializerList(); !listPtr) {
         return;
     }
     const auto type = this->VarType;
-    const auto structType = GetType<Type::StructDefinition>(type);
-    const auto arrayType = GetType<Type::ArrayType>(type);
+    const auto *const  structType = GetType<Type::StructDefinition>(type);
+    const auto *const  arrayType = GetType<Type::ArrayType>(type);
     if (!structType && !arrayType) {
         ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
         std::exit(-1);
@@ -106,11 +106,11 @@ void ast::VariableStatement::InitListValidCheck() const {
         auto recursiveCheck = [&](auto &self,
                                   const std::shared_ptr<Type::CompileType> &target,
                                   const std::shared_ptr<Expression> &init) -> void {
-            if (const auto listPtrTemp = std::get_if<std::shared_ptr<InitializerList> >(&*(init->Storage))) {
+            if (const auto *const  listPtrTemp = std::get_if<std::shared_ptr<InitializerList> >(&*(init->Storage))) {
                 const auto &list = *listPtrTemp;
 
                 // 情况 A: 目标是数组
-                if (const auto arr = std::get_if<Type::ArrayType>(&(*target))) {
+                if (const auto *const  arr = type::GetType<Type::ArrayType>(target)) {
                     if (list->Values.size() > arr->Length) {
                         ErrorPrintln("Error: Too many initializers (expected {}, got {}).\n", arr->Length,
                                      list->Values.size());
@@ -121,7 +121,7 @@ void ast::VariableStatement::InitListValidCheck() const {
                     }
                 }
                 // 情况 B: 目标是结构体
-                else if (const auto str = std::get_if<Type::StructDefinition>(&(*target))) {
+                else if (const auto *const str =type::GetType<Type::StructDefinition>(target)) {
                     if (list->Values.size() > str->Members.size()) {
                         ErrorPrintln("Error: Struct '{}' has only {} members.\n", str->Name, str->Members.size());
                         std::exit(-1);

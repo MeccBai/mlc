@@ -111,7 +111,7 @@ export namespace mlc::parser {
                                                     int splitIndex);
 
         sPtr<ast::Statement> subScopeParser(const std::string_view _subScopeContent,
-                                            sPtr<ast::FunctionDeclaration> _currentFunc) {
+                                            const sPtr<ast::FunctionDeclaration>& _currentFunc) {
             const ContextTable<ast::VariableStatement> dummyContext{};
             return subScopeParser(dummyContext, _subScopeContent, _currentFunc);
         }
@@ -200,7 +200,7 @@ export namespace mlc::parser {
 
         [[nodiscard]] sOptional<type::EnumDefinition> FindEnum(const std::string_view _name) const {
             for (const auto &type: typeSymbolTable) {
-                if (auto *const enumDefPtr = std::get_if<ast::Type::EnumDefinition>(&*type)) {
+                if (auto *const enumDefPtr = type::GetType<ast::Type::EnumDefinition>(type)) {
                     if (enumDefPtr->Name == _name) {
                         return std::make_shared<type::EnumDefinition>(*enumDefPtr);
                     }

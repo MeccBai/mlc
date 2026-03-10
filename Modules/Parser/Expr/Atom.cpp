@@ -169,7 +169,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 
         // 3. 如果是 ->，解开一层指针 (迭代解引用)
         if (op == ast::BaseOperator::Arrow) {
-            if (auto *const ptr = std::get_if<ast::Type::PointerType>(currentType.get())) {
+            if (auto *const ptr = type::GetType<ast::Type::PointerType>(currentType)) {
                 currentType = ptr->GetBaseType().lock();
             } else {
                 ErrorPrintln("'->' must be used with a pointer type.");
@@ -179,7 +179,7 @@ sPtr<ast::Expression> astClass::handleMemberAccess(ContextTable<ast::VariableSta
 
         // 4. 结构体成员查找与类型更新
         bool found = false;
-        if (auto *const structDef = std::get_if<ast::Type::StructDefinition>(currentType.get())) {
+        if (auto *const structDef = type::GetType<ast::Type::StructDefinition>(currentType)) {
             for (size_t idx = 0; idx < structDef->Members.size(); ++idx) {
                 if (structDef->Members[idx].Name == memberName) {
                     // 更新 currentExpr 为新的 MemberAccess 节点

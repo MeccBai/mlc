@@ -52,5 +52,5 @@ export namespace mlc::builder {
 
     void Build(const buildPlanType &_buildPlan);
 
-    void BuildFile(const std::string &_filePath);
+    fs::path BuildFile(const std::string &_filePath,const fs::path & _output);
 }

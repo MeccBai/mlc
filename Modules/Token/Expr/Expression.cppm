@@ -98,7 +98,7 @@ export namespace mlc::ast {
 
     class ConstValue {
     public:
-        explicit ConstValue(const std::string_view _value, const bool _isChar = false);
+        explicit ConstValue(std::string_view _value, bool _isChar = false);
         const std::string Value;
         const bool IsChar;
         Type::sPtr<Type::CompileType> Type;
@@ -113,10 +113,10 @@ export namespace mlc::ast {
                     case 'r': return "13";   // 回车
                     case '\\': return "92";  // 反斜杠
                     case '0': return "0";    // 空字符
-                    default: return std::format("{}", (int)raw[1]);
+                    default: return std::format("{}", static_cast<int>(raw[1]));
                 }
             }
-            return std::format("{}", (int)raw[0]);
+            return std::format("{}", static_cast<int>(raw[0]));
         }
     };
 
@@ -233,7 +233,7 @@ export namespace mlc::ast {
                                                                             isOperatorFirst(_isOperatorFirst) {
 
             if (Components.size() == 1&& Operators[0] == BaseOperator::AddressOf || Operators[0] == BaseOperator::Dereference) {
-                auto bool * isOpFirst = const_cast<bool*>(&isOperatorFirst);
+                auto * isOpFirst = const_cast<bool*>(&isOperatorFirst);
                 *isOpFirst = true;
             }
         }

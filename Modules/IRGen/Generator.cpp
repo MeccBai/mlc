@@ -110,7 +110,7 @@ void fixLLVMTypes(std::string &ir) {
 }
 
 std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
-    std::string code;
+    std::string code = "target triple = \"x86_64-w64-windows-gnu\"\n";
     const auto &[types, variables, decls,funcs] = _ast.ExportAST();
 
     auto structCode = types

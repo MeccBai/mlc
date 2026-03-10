@@ -74,7 +74,7 @@ std::string GenClass::ConstInitializerListExpression(
     if (std::get_if<type::StructDefinition>(&*_type)) {
         return std::format("{{ {} }}", joinedElements);
     }
-    if (const auto *arrayType = std::get_if<type::ArrayType>(&*_type)) {
+    if (const auto *arrayType = type::GetType<type::ArrayType>(_type)) {
         return std::format("[{} x {}] {{ {} }}", arrayType->Length, GetTypeName(*arrayType->BaseType),
                            joinedElements);
     }

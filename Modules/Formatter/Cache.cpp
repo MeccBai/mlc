@@ -26,7 +26,7 @@ using size_t = std::size_t;
 //types:[{kind:struct/enum/pointer,name:string, ...}, ...]
 //functions:[{name:string, returnType:..., parameters:[{name:string, type:
 
-constexpr std::uint64_t fnv1aHash(const std::string_view str) {
+constexpr std::uint64_t MHash(const std::string_view str) {
     std::uint64_t hash = 0xcbf29ce484222325ULL;
     for (const char c: str) {
         hash ^= static_cast<std::uint64_t>(c);
@@ -35,30 +35,34 @@ constexpr std::uint64_t fnv1aHash(const std::string_view str) {
     return hash;
 }
 
-bool CheckCache(const std::filesystem::path& _sourcePath) {
-    auto jsonCachePath = std::filesystem::path(_sourcePath).replace_extension(".json");
+bool checkCache(const std::filesystem::path& _sourcePath) {
+    auto parentPath = _sourcePath.parent_path() / ".cache";
+    auto jsonCachePath = parentPath /_sourcePath.filename().replace_extension(".json");
     if (!std::filesystem::exists(jsonCachePath)) return false;
     std::ifstream sourceFile(_sourcePath);
     std::string sourceContent((std::istreambuf_iterator(sourceFile)), std::istreambuf_iterator<char>());
-    auto currentHash = fnv1aHash(sourceContent);
+    auto currentHash = MHash(sourceContent);
     std::ifstream cacheFile(jsonCachePath);
     if (const auto cacheJson = json::parse(cacheFile); !cacheJson.contains("hash") || cacheJson["hash"].get<std::uint64_t>() != currentHash) {
         return false;
     }
     auto imports = astClass::GetImportPaths(_sourcePath);
     auto result = std::ranges::all_of(imports, [](const auto& path) {
-        return CheckCache(path);
+        return checkCache(path);
     });
     return result;
 }
 
 astClass::ExportTable afmt::GenerateCache(const std::filesystem::path &_sourcePath) {
-    auto path = _sourcePath;
-    auto jsonCachePath = path.replace_extension(".json");
-
+    const auto& path = _sourcePath;
+    auto parentPath = path.parent_path() / ".cache";
+    if (!std::filesystem::exists(parentPath)) {
+        std::filesystem::create_directory(parentPath);
+    }
+    auto jsonCachePath = parentPath / path.filename().replace_extension(".json");
     std::ifstream sourceFile(_sourcePath);
     std::string sourceContent((std::istreambuf_iterator(sourceFile)), std::istreambuf_iterator<char>());
-    auto hash = fnv1aHash(sourceContent);
+    auto hash = MHash(sourceContent);
 
     std::ifstream cacheFile(jsonCachePath);
     std::string cacheContent((std::istreambuf_iterator(cacheFile)), std::istreambuf_iterator<char>());
@@ -66,11 +70,11 @@ astClass::ExportTable afmt::GenerateCache(const std::filesystem::path &_sourcePa
     auto imports = astClass::GetImportPaths(_sourcePath);
 
     const bool cacheResult = std::ranges::all_of(imports, [](const auto &path) {
-        return CheckCache(path);
+        return checkCache(path);
     });
 
-    if (!cacheResult) {
-        ErrorPrintln("Error: Cache is invalid due to changes in imported files.{}",0);
+    if (!cacheResult && !imports.empty()) {
+        ErrorPrintln("Error: Cache is invalid due to changes in imported files. {}",_sourcePath.string());
         std::exit(-1);
     }
 
@@ -87,6 +91,5 @@ astClass::ExportTable afmt::GenerateCache(const std::filesystem::path &_sourcePa
     std::ofstream out(jsonCachePath);
     out << j.dump(4);
     out.close();
-
     return cache.ExtractExportSymbols();
 }

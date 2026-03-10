@@ -23,12 +23,11 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     if (arg->Operators[0] == ast::BaseOperator::Subscript) {
         const auto currentTypeVariant = arg->Components[0]->GetType();
         if (!currentTypeVariant) return nullptr;
-        auto *storagePtr = &*currentTypeVariant;
-        if (const auto *arrayType = std::get_if<ast::Type::ArrayType>(storagePtr)) {
+        if (const auto *arrayType = type::GetType<ast::Type::ArrayType>(currentTypeVariant)) {
             // 确保返回的是 shared_ptr 的拷贝
             return arrayType->BaseType;
         }
-        if (auto *pointerType = std::get_if<ast::Type::PointerType>(storagePtr)) {
+        if (auto *pointerType = type::GetType<ast::Type::PointerType>(currentTypeVariant)) {
             // 确保返回的是 shared_ptr 的拷贝
             if (pointerType->PointerLevel == 1) {
                 return pointerType->BaseType;

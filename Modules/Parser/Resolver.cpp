@@ -39,7 +39,7 @@ astClass::ExportTable astClass::ExtractExportSymbols() {
     auto tokenToContent = [](const tokenResult &t) { return t.first; };
     auto tokenToExported = [](const tokenResult &t) { return t.second; };
 
-    for (const auto& importFile : imports) {
+    for (const auto &importFile: imports) {
         auto result = tokenToContent(importFile);
     }
 
@@ -82,18 +82,16 @@ astClass::ExportTable astClass::ExtractExportSymbols() {
     return {typeSymbolTable, functionSymbolTable};
 #endif
 
-
-
-    auto typeTable = typeSymbolTable | std::views::filter([](const sPtr<type::CompileType>& _type) {
-        if (auto *const type = std::get_if<type::StructDefinition >(&*_type)) {
+    auto typeTable = typeSymbolTable | std::views::filter([](const sPtr<type::CompileType> &_type) {
+        if (const auto *const type = std::get_if<type::StructDefinition>(&*_type)) {
             return type->isExported;
         }
-        if (auto *const type = std::get_if<type::EnumDefinition >(&*_type)) {
+        if (const auto *const type = std::get_if<type::EnumDefinition>(&*_type)) {
             return type->isExported;
         }
         return false;
     }) | std::ranges::to<std::set<sPtr<type::CompileType> > >();
-    auto funcTable = functionSymbolTable | std::views::filter([](const sPtr<ast::FunctionDeclaration>& _func) {
+    auto funcTable = functionSymbolTable | std::views::filter([](const sPtr<ast::FunctionDeclaration> &_func) {
         return _func->IsExported && !_func->IsTypeConvert;
     }) | std::ranges::to<std::set<sPtr<ast::FunctionDeclaration> > >();
 
@@ -110,11 +108,16 @@ std::vector<std::filesystem::path> astClass::getImportPaths(
                std::ranges::replace(pathStr, '.', '\\');
                pathStr += ".mc";
                const auto filePath = std::filesystem::path(pathStr);
-               if (auto path1 = sysLibPath / filePath; std::filesystem::exists(path1)) return path1;
-               if (auto path2 = _currentPath / filePath; std::filesystem::exists(path2))
+               auto path1 = sysLibPath / filePath;
+               if (std::filesystem::exists(path1)) return path1;
+               auto path2 = _currentPath / filePath;
+               if (std::filesystem::exists(path2))
                    return
                            path2;
-               ErrorPrintln("Error:failed to find '{}'\n", filePath.generic_string());
+               ErrorPrintln("Error:failed to find '{}'\n", pathStr);
+
+               std::println("search in {} and {}", path1.string(), path2.string());
+
                std::exit(-1);
            })
            | std::ranges::to<std::vector<std::filesystem::path> >();
@@ -127,7 +130,7 @@ std::vector<std::filesystem::path> astClass::GetImportPaths(const std::filesyste
         ErrorPrintln("Error: failed to read '{}'\n", _importPath.string());
         std::exit(-1);
     }
-    auto content = mlc::prepare::Prepare(source);
+    auto content = prepare::Prepare(source);
     auto tokens = seg::TopTokenize(content);
     auto imports = tokens | std::views::filter([](const auto &t) {
         return t.type == ast::GlobalStateType::ImportFile;

@@ -24,12 +24,12 @@ using size_t = std::size_t;
 
 json formatStruct(const sComType &_type) {
     json j;
-    const auto *const structType = std::get_if<type::StructDefinition>(&*_type);
+    const auto *const structType = type::GetType<type::StructDefinition>(_type);
     j[afmt::Kind] = afmt::Struct;
     j[afmt::Name] = structType->Name;
     j[afmt::Members] = json::array();
 
-    auto formatMember = [](const sComType & _member) {
+    auto formatMember = [](const sComType &_member) {
         if (type::GetType<type::StructDefinition>(_member)) {
             json j;
             j[afmt::Kind] = afmt::Struct;
@@ -50,7 +50,7 @@ json formatStruct(const sComType &_type) {
 
 json formatPointer(const sComType &_type) {
     json j;
-    const auto *const pointerType = std::get_if<type::PointerType>(&*_type);
+    const auto *const pointerType = type::GetType<type::PointerType>(_type);
     j[afmt::Kind] = afmt::Pointer;
     j[afmt::BaseType] = type::GetTypeName(*pointerType->BaseType);
     j[afmt::Level] = pointerType->PointerLevel;
@@ -61,7 +61,7 @@ json formatPointer(const sComType &_type) {
 
 json formatEnum(const sComType &_type) {
     json j;
-    const auto *const enumType = std::get_if<type::EnumDefinition>(&*_type);
+    const auto *const enumType = type::GetType<type::EnumDefinition>(_type);
     j[afmt::Kind] = afmt::Enum;
     j[afmt::Name] = enumType->Name;
     j[afmt::Options] = json::array();
@@ -81,7 +81,7 @@ json afmt::formatType(const sComType &_type) {
     if (std::holds_alternative<type::EnumDefinition>(*_type)) {
         return formatEnum(_type);
     }
-    if (const auto baseType = type::GetType<type::BaseType>(_type); baseType) {
+    if (auto *const baseType = type::GetType<type::BaseType>(_type); baseType) {
         json j;
         j[Kind] = BaseType;
         j[Name] = type::GetTypeName(*_type);
@@ -124,7 +124,7 @@ sComType parseEnumType(astClass &_ast, const json &_json) {
         options.push_back(option.get<std::string>());
     }
     const auto name = _json[afmt::Name].get<std::string>();
-    return ast::Make<type::CompileType>(type::EnumDefinition(name, options));
+    return ast::Make<type::CompileType>(type::EnumDefinition(name, options, false));
 }
 
 std::set<sComType> parseStructTypes(astClass &_ast, const std::vector<json> &_jArray, std::set<sComType> &_types) {
@@ -196,7 +196,7 @@ std::set<sComType> parseStructTypes(astClass &_ast, const std::vector<json> &_jA
                 std::exit(-1);
             }
         }
-        auto *specificPtr = std::get_if<ast::Type::PointerType>(ptrType.get());
+        auto *specificPtr = type::GetType<ast::Type::PointerType>(ptrType);
         specificPtr->Finalize(baseType.value());
     }
 
@@ -251,7 +251,7 @@ sComType afmt::parseCompileType(astClass &_ast, const json &_json, std::set<sCom
     std::exit(-1);
 }
 
-sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType> &_types) {
+sFunc parseFunction(const astClass &_ast, const json &_func, std::set<sComType> &_types) {
     if (!_func.contains(afmt::Name) || !_func[afmt::Name].is_string()) {
         ErrorPrintln("Invalid function: missing or invalid 'name' field.");
         std::exit(-1);
@@ -278,7 +278,7 @@ sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType>
     };
     const auto funcName = _func[afmt::Name].get<std::string>();
     auto returnType = localFind(_func[afmt::ReturnType][afmt::Name].get<std::string>());
-    bool isVarList = _func[afmt::IsVarList].get<bool>();
+    const bool isVarList = _func[afmt::IsVarList].get<bool>();
     if (_func[afmt::ReturnType][afmt::Kind] == afmt::Pointer) {
         auto baseType = _func[afmt::ReturnType][afmt::BaseType].get<std::string>();
         auto baseTypePtr = localFind(baseType);
@@ -332,16 +332,14 @@ sFunc parserFunction(const astClass &_ast, const json &_func, std::set<sComType>
         parameters.push_back(ast::Make<ast::Variable>(ast::Variable(paramName, paramTypePtr.value(), nullptr)));
     }
     return std::make_shared<ast::FunctionDeclaration>(
-        ast::FunctionDeclaration(funcName, returnType.value(), parameters,isVarList));
+        ast::FunctionDeclaration(funcName, returnType.value(), parameters, isVarList, false));
 }
 
 afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::filesystem::path &_importPath) {
     std::ifstream file(_importPath);
-
-
-    auto jsonPath = std::filesystem::path(_importPath).replace_extension(".json");
-
-    if (std::filesystem::exists(jsonPath) && CheckCache(_importPath)) {
+    const auto &jsonCachePath = _importPath;
+    if (auto jsonPath = jsonCachePath.parent_path() / ".cache" / jsonCachePath.filename().replace_extension(".json");
+        std::filesystem::exists(jsonPath) && checkCache(_importPath)) {
         auto jsonFile = std::ifstream(jsonPath);
         if (!jsonFile.is_open()) {
             ErrorPrintln("Error: failed to open '{}'", jsonPath.string());
@@ -389,7 +387,7 @@ afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::fi
 
         auto funcTable = std::set<sFunc>();
         for (const auto &func: functions) {
-            funcTable.insert(parserFunction(_ast, func, typeTable));
+            funcTable.insert(parseFunction(_ast, func, typeTable));
         }
 
         auto result = afmt::astClass::ExportTable(typeTable, funcTable);

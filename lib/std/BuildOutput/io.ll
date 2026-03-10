@@ -1,0 +1,12 @@
+target triple = "x86_64-w64-windows-gnu"
+declare i32 @putchar(i32 %0)
+declare i32 @getchar()
+declare i32 @puts(i64 %0)
+declare i32 @fflush(i64 %0)
+declare void @perror(i64 %0)
+declare i32 @printf(...)
+declare i32 @scanf(...)
+declare i64 @fopen(i64 %0,i64 %1)
+declare i32 @fclose(i64 %0)
+declare i32 @fprintf(...)
+declare i32 @fscanf(...)

@@ -27,7 +27,7 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
     }
 
     if (!_isWrite) {
-        if (std::get_if<type::BaseType>(&*currentType)) {
+        if (type::GetType<type::BaseType>(currentType)) {
             auto reg = std::format("ma{}", exprCnt++);
             currentResult.code += std::format(
                 "%{} = load {}, ptr {}, align {}\n",
@@ -62,13 +62,13 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type
         };
     }
 
-    if (const auto structDef = std::get_if<type::StructDefinition>(_type)) {
-        const auto memberPtr = std::get_if<sPtr<ast::MemberAccess> >(&*_child->Storage);
+    if (std::get_if<type::StructDefinition>(_type)) {
+        auto *const memberPtr = std::get_if<sPtr<ast::MemberAccess> >(&*_child->Storage);
         if (!memberPtr) {
             ErrorPrintln("Error: Invalid member access node.\n");
             std::exit(-1);
         }
-        auto memberAccess = memberPtr->get();
+        auto *memberAccess = memberPtr->get();
         auto gepInstr = std::format(
             "{} = getelementptr {}, ptr {}, i32 0, i32 {}\n",
             gepReg,
@@ -83,7 +83,7 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type
         };
     }
 
-    if (const auto pointerType = std::get_if<type::PointerType>(_type)) {
+    if (const auto *const pointerType = std::get_if<type::PointerType>(_type)) {
         if (_op == ast::BaseOperator::Arrow) {
             auto loadReg = std::format("%ma{}", exprCnt++);
             auto loadInstr = std::format(

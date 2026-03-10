@@ -31,11 +31,11 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
 
         // 💡 物理分流：判断是否为“复合类型”（数组、指针、结构体等）
         auto isComplex = [](const sPtr<type::CompileType> &cType) {
-            const auto isArray = std::get_if<type::ArrayType>(&*cType) != nullptr;
-            const auto isStruct = std::get_if<type::StructDefinition>(&*cType) != nullptr;
-            if (const auto *const ptr = std::get_if<type::PointerType>(&*cType)) {
+            const auto isArray = type::GetType<type::ArrayType>(cType) != nullptr;
+            const auto isStruct = type::GetType<type::StructDefinition>(cType) != nullptr;
+            if (const auto *const ptr = type::GetType<type::PointerType>(cType)) {
                 const auto baseType = ptr->BaseType;
-                return std::get_if<type::ArrayType>(&*baseType) || std::get_if<type::StructDefinition>(&*baseType);
+                return type::GetType<type::ArrayType>(baseType) || type::GetType<type::StructDefinition>(baseType);
             }
             return isArray || isStruct;
         };
@@ -142,7 +142,7 @@ std::string GenClass::ConstExpressionExpand(const sPtr<ast::Type::CompileType> &
                     std::string left = workingExpr[i];
                     std::string right = workingExpr[i + 1];
                     auto compileType = compExpr->Components[i]->GetType();
-                    auto *type = std::get_if<type::BaseType>(&*compileType);
+                    auto *type = type::GetType<type::BaseType>(compileType);
                     std::string opSymbol = OperatorToIR(type, workingOps[i]);
                     std::string combined = std::format("{} ({}, {})", opSymbol, left, right);
                     workingExpr[i] = combined;

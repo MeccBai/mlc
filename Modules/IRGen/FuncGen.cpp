@@ -142,16 +142,16 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
     }
     for (auto i = 0ul; i< _func->Statements.size();i+=1) {
         const auto &stmt = _func->Statements[i];
-        if (auto currentSub = std::get_if<ast::SubScope>(&*stmt); currentSub && currentSub->ScopeType == ast::SubScopeType::IfBlock) {
+        if (auto *currentSub = std::get_if<ast::SubScope>(&*stmt); currentSub && currentSub->ScopeType == ast::SubScopeType::IfBlock) {
             sPtr<ast::SubScope> nextElse = nullptr;
             if (i + 1 < _func->Statements.size()) {
-                if (auto nextSub = std::get_if<ast::SubScope>(&*_func->Statements[i + 1]);
+                if (auto *nextSub = std::get_if<ast::SubScope>(&*_func->Statements[i + 1]);
                     nextSub && nextSub->ScopeType == ast::SubScopeType::ElseBlock) {
                     nextElse = std::make_shared<ast::SubScope>(*nextSub);
                     i+=1;
                 }
             }
-            auto ifBlock = std::get_if<ast::SubScope>(&*stmt);
+            auto *ifBlock = std::get_if<ast::SubScope>(&*stmt);
             code += ifBlockGenerate(decl, ast::Make(*ifBlock), nextElse);
             continue;
         }
@@ -167,7 +167,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
 GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {
     const auto paramType = _param.VarType;
     auto llvmType = TypeToLLVM(paramType);
-    if (std::get_if<type::ArrayType>(&*paramType)) {
+    if (type::GetType<type::ArrayType>(paramType)) {
         llvmType = "ptr";
     }
     const auto originalType = llvmType;
