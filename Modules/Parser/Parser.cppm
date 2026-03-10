@@ -225,7 +225,9 @@ export namespace mlc::parser {
 
         ExportTable ExtractExportSymbols();
 
-        void ImportSymbols(const ExportTable& _exportTable);
+        static void SetSysLibPath(const std::filesystem::path& _path) {
+            sysLibPath = _path;
+        }
 
         static std::vector<std::filesystem::path> GetImportPaths(const std::filesystem::path &_importPath);
 
@@ -239,5 +241,7 @@ export namespace mlc::parser {
         auto ExportAST() -> ASTExport {
             return {typeSymbolTable, variableSymbolTable, functionSymbolTable, functionScopeTable};
         }
+
+        static std::filesystem::path sysLibPath;
     };
 } // namespace mlc::parser

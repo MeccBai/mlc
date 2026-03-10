@@ -14,7 +14,7 @@ export namespace mlc::builder {
         std::vector<importNode *> imports{};
     };
 
-    using buildPlanType = std::vector<std::vector<std::string> >;
+    using buildPlanType = std::vector<std::unordered_set<std::string>>;
 
     class RequireScaner {
         struct buildNode {
@@ -50,7 +50,7 @@ export namespace mlc::builder {
     };
 
 
-    void Build(const buildPlanType &_buildPlan);
+    void Build(const buildPlanType &_buildPlan,const fs::path& _currentPath);
 
     fs::path BuildFile(const std::string &_filePath,const fs::path & _output);
 }

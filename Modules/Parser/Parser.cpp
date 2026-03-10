@@ -9,7 +9,7 @@ import :Decl;
 import Formatter;
 //[if(p==0){a.x=10;}else{a.y=10;}]
 
-
+std::filesystem::path astClass::sysLibPath = R"()";
 
 ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent,const bool _isExported) {
     const auto pos = _enumContent.find(' ');

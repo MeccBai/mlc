@@ -101,7 +101,6 @@ astClass::ExportTable astClass::ExtractExportSymbols() {
 
 std::vector<std::filesystem::path> astClass::getImportPaths(
     const std::vector<std::string> &_tokens, const std::filesystem::path &_currentPath) {
-    const std::filesystem::path sysLibPath = "F:\\Develop\\A.Projects\\C++\\mlc\\lib\\";
 
     return _tokens | std::views::transform([&](const std::string &t) -> std::filesystem::path {
                auto pathStr = std::string(t.substr(7, t.size() - 8));
@@ -112,10 +111,8 @@ std::vector<std::filesystem::path> astClass::getImportPaths(
                if (std::filesystem::exists(path1)) return path1;
                auto path2 = _currentPath / filePath;
                if (std::filesystem::exists(path2))
-                   return
-                           path2;
+                   return  path2;
                ErrorPrintln("Error:failed to find '{}'\n", pathStr);
-
                std::println("search in {} and {}", path1.string(), path2.string());
 
                std::exit(-1);

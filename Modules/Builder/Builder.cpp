@@ -24,6 +24,7 @@ namespace build = mlc::builder;
 using astClass = mlc::parser::AbstractSyntaxTree;
 using GenClass = mlc::ir::gen::IRGenerator;
 
+
 void build::RequireScaner::scan(const fs::path &_entryPath, const std::size_t _currentLevel,
                                 std::shared_ptr<buildNode> &_node) {
     const auto pathStr = _entryPath.string();
@@ -94,7 +95,7 @@ void build::RequireScaner::mergeBuildPlan(const std::shared_ptr<buildNode> &_nod
     if (buildPlan.size() <= currentLevel) {
         buildPlan.resize(currentLevel + 1);
     }
-    buildPlan[currentLevel].emplace_back(_node->self);
+    buildPlan[currentLevel].insert(_node->self);
     requireMap[_node->self].first = currentLevel;
 }
 
@@ -157,13 +158,12 @@ build::RequireScaner::RequireScaner(const std::filesystem::path &_entryPath) {
 }
 
 
-void build::Build(const buildPlanType &_buildPlan) {
+void build::Build(const buildPlanType &_buildPlan,const fs::path& _currentPath) {
     tf::Executor executor(8);
     tf::Taskflow taskflow;
 
     std::vector<std::vector<fs::path> > paths;
     const fs::path outputDir = "BuildOutput";
-
     paths.reserve(_buildPlan.size());
     paths.resize(_buildPlan.size());
     for (const auto &[outPaths,level]: std::views::zip(paths, _buildPlan)) {
@@ -171,24 +171,29 @@ void build::Build(const buildPlanType &_buildPlan) {
         outPaths.resize(level.size());
         taskflow.transform(level.begin(), level.end(), outPaths.begin(),
                            [outputDir](const std::string &filePath) {
-                               const auto buildOutput = fs::path(filePath).parent_path() / outputDir ;
-                               return BuildFile(filePath,  buildOutput);
+                               const auto buildOutput = fs::path(filePath).parent_path() / outputDir;
+                               return BuildFile(filePath, buildOutput);
                            });
         executor.run(taskflow).wait();
         taskflow.clear();
     }
 
-    auto linkCommand = std::string("clang ");
-    linkCommand.reserve(_buildPlan.size() * 10);
-
-    for (const auto &levelPaths: paths) {
-        for (const auto &path: levelPaths) {
-            linkCommand += "\"" + path.string() + "\" ";
-        }
+    auto pathStrings = paths
+                       | std::views::join
+                       | std::views::transform([](const fs::path &p) {
+                           return "\"" + p.string() + "\"";
+                       });
+    std::string linkCommand = "clang " +
+                              (pathStrings | std::views::join_with(' ')
+                               | std::ranges::to<std::string>()) +
+                              " -o " + (_currentPath / outputDir / "output.exe").string();
+    std::println("Linking...");
+    auto result = std::system(linkCommand.c_str());
+    if (result != 0) {
+        ErrorPrintln("🚨 Linking failed with command: {}", linkCommand);
+        std::exit(-1);
     }
-    linkCommand += "-o " + (outputDir / "output.exe").string();
-    std::println("Linking with command: {}", linkCommand);
-    std::system(linkCommand.c_str());
+     std::println("Build succeeded! Output executable: {}", (_currentPath / outputDir / "output.exe").string());
 }
 
 build::fs::path build::BuildFile(const std::string &_filePath, const fs::path &_output) {
@@ -196,10 +201,10 @@ build::fs::path build::BuildFile(const std::string &_filePath, const fs::path &_
     std::ifstream ifs(_filePath);
     auto outputName = _output / fs::path(_filePath).stem();
     const auto outputLLPath = outputName.replace_extension(".ll");
-    const auto hashPath =  outputName.replace_extension(".hash");
+    const auto hashPath = outputName.replace_extension(".hash");
     const auto content = std::string(std::istreambuf_iterator(ifs), std::istreambuf_iterator<char>());
     if (fs::exists(_output) && !fs::is_directory(_output)) {
-        ErrorPrintln("🚨 Output path {} exists and is not a directory!", _output.string());
+        ErrorPrintln("Output path {} exists and is not a directory!", _output.string());
         std::exit(-1);
     }
     if (!fs::exists(_output)) {
@@ -208,12 +213,12 @@ build::fs::path build::BuildFile(const std::string &_filePath, const fs::path &_
     auto hash = MHash(content);
     if (fs::exists(hashPath)) {
         std::ifstream hashFile(hashPath);
-        if (std::string hashContent((std::istreambuf_iterator(hashFile)), std::istreambuf_iterator<char>()); hashContent == std::to_string(hash) && fs::exists(outputLLPath)) {
-            std::println("✅ Cache hit for '{}', skipping build.", _filePath);
+        if (std::string hashContent((std::istreambuf_iterator(hashFile)), std::istreambuf_iterator<char>());
+            hashContent == std::to_string(hash) && fs::exists(outputLLPath)) {
+            std::println("Cache hit for '{}', skipping build.", _filePath);
             return outputLLPath;
         }
-    }
-    else {
+    } else {
         std::ofstream hashFile(hashPath);
         hashFile << hash;
         hashFile.close();
@@ -221,7 +226,6 @@ build::fs::path build::BuildFile(const std::string &_filePath, const fs::path &_
     const auto source = seg::TopTokenize(prepare::Prepare(content));
     astClass ast(source, filePath.parent_path());
     auto ir = GenClass::GenerateIR(ast);
-
 
     std::ofstream ofs(outputLLPath);
     ofs << ir;

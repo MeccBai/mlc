@@ -2,7 +2,7 @@
 
 import std.io;
 
-i32 main() {
+i32 mainer() {
     i32 a[10];
 
     i32 ax[10][20];
