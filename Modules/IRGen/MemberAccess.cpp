@@ -97,12 +97,13 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type
                 loadReg,
                 _parent.resultVar
             );
+            auto dereferenceType = pointerType->Dereference();
             auto derefResult = exprResult{
-                TypeToLLVM(pointerType->BaseType),
+                TypeToLLVM(dereferenceType),
                 loadReg,
                 _parent.code + loadInstr
             };
-            return MemberAccessBinary(&*pointerType->BaseType, derefResult, _child, ast::BaseOperator::Dot);
+            return MemberAccessBinary(&*dereferenceType, derefResult, _child, ast::BaseOperator::Dot);
         }
     }
 

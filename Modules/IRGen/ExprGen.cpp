@@ -28,20 +28,19 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
         const auto varPtr = *varPtrT;
         std::string varAddr = std::format("%{}", varPtr->Name);
         std::string llvmType = TypeToLLVM(varPtr->VarType);
-
-        // 💡 物理分流：判断是否为“复合类型”（数组、指针、结构体等）
         auto isComplex = [](const sPtr<type::CompileType> &cType) {
             const auto isArray = type::GetType<type::ArrayType>(cType) != nullptr;
-            const auto isStruct = type::GetType<type::StructDefinition>(cType) != nullptr;
+            const auto isStruct = type::GetType<type::StructDefinition>(cType) != nullptr && type::GetSize(cType) > 8;
             if (const auto *const ptr = type::GetType<type::PointerType>(cType)) {
-                const auto baseType = ptr->BaseType;
-                return type::GetType<type::ArrayType>(baseType) || type::GetType<type::StructDefinition>(baseType);
+                const auto baseType = ptr->Dereference();
+                return type::GetType<type::ArrayType>(baseType) ||
+                    type::GetType<type::StructDefinition>(baseType);
             }
             return isArray || isStruct;
         };
         if (isComplex(varPtr->VarType)) {
             return exprResult{
-                TypeToLLVM(varPtr->VarType),
+                "ptr",
                 varAddr,
                 "",
                 true
@@ -80,10 +79,20 @@ GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_ex
                         std::format("%{}", var->Name), ""
                     };
                 }
-                return exprResult{
-                    TypeToLLVM(components[0]->GetType()),
-                    std::format("%{}", var->Name), ""
-                };
+                auto regName = std::format("%dr{}", exprCnt);
+                auto returnType = components[0]->GetType();
+                if (auto *ptrType = type::GetType<type::PointerType>(returnType)) {
+                    returnType = ptrType->Dereference();
+                    if (type::IsType<type::StructDefinition>(returnType)) {
+                        ErrorPrintln("Error: use -> to access struct\n");
+                        std::exit(-1);
+                    }
+                }
+                auto llvmType = TypeToLLVM(returnType);
+                auto instruction = std::format("%{} = load ptr, ptr %{}, align 8\n", exprCnt, var->Name);
+                instruction += std::format("{} = load {}, ptr %{}, align 4\n", regName, llvmType, exprCnt++);
+
+                return exprResult{llvmType, regName, instruction};
             }
         }
         auto workingExpr = components | std::views::transform([](const sPtr<ast::Expression> &expr) {
@@ -296,6 +305,39 @@ GenClass::exprResult GenClass::LeftExpressionExpand(const expr &_expr) {
         };
     }
     if (const auto *const compPtr = _expr->GetCompositeExpression(); compPtr != nullptr) {
+        auto &[operators,components,opFirst] = **compPtr;
+        if (components.empty()) {
+            ErrorPrintln("Error: Composite expression has no components.\n");
+            std::exit(-1);
+        }
+        if (components.size() >= 2 && (components[1]->GetMemberAccess() || operators[0] ==
+                                       ast::BaseOperator::Subscript)) {
+            return MemberAccessExpression(_expr, true);
+        }
+        if (opFirst) {
+            if (const auto var = *(components[0]->GetVariable())) {
+                if (operators[0] == ast::BaseOperator::AddressOf) {
+                    return exprResult{
+                        "ptr",
+                        std::format("%{}", var->Name), ""
+                    };
+                }
+                auto regName = std::format("%{}", exprCnt);
+                auto returnType = components[0]->GetType();
+                if (auto *ptrType = type::GetType<type::PointerType>(returnType)) {
+                    returnType = ptrType->Dereference();
+                    if (type::IsType<type::StructDefinition>(returnType)) {
+                        ErrorPrintln("Error: use -> to access struct\n");
+                        std::exit(-1);
+                    }
+                }
+                auto llvmType = TypeToLLVM(returnType);
+                auto instruction = std::format("%{} = load ptr,ptr %{}, align 8\n", exprCnt++, var->Name);
+                return exprResult{llvmType, regName, instruction};
+            }
+        }
+
+
         return MemberAccessExpression(_expr, true);
     }
     ErrorPrintln("Error: Expression is not a valid left-hand side expression.\n");

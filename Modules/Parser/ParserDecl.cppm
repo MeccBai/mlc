@@ -69,16 +69,19 @@ bool isLeftExpression(const std::shared_ptr<ast::Expression> &_expression) {
     }
     if (const auto *const compPtr = _expression->GetCompositeExpression();
         compPtr != nullptr) {
-        if (const auto &operators = (*compPtr)->Operators; !operators.empty() && !(*compPtr)->isOperatorFirst) {
+        if (const auto &operators = (*compPtr)->Operators; !operators.empty()) {
             // 只有当第一个操作符是访问类操作符（. 或 ->）时，才可能是左值
+            if ((*compPtr)->OperatorFirst) {
+                if (operators[0] == ast::BaseOperator::Dereference) return true;
+            }
             if (operators[0] == ast::BaseOperator::Dot) return true;
             if (operators[0] == ast::BaseOperator::Arrow) return true;
-            if (operators[0] == ast::BaseOperator::Dereference) return true;
             if (operators[0] == ast::BaseOperator::Subscript) {
-                auto resultType = _expression->GetType();
-                return !std::holds_alternative<ast::Type::ArrayType>(*resultType);
+                return type::IsType<type::ArrayType>((*compPtr)->Components[0]->GetType());
             }
         }
+
+
     }
     return false;
 }

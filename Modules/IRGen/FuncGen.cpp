@@ -28,7 +28,7 @@ GenClass::funcResult GenClass::FunctionUnit(const sPtr<ast::FunctionDeclaration>
     std::vector<std::string> llvmParamTypes(_funcDecl->Parameters.size());
     for (const auto &[type,param]: std::views::zip(llvmParamTypes, _funcDecl->Parameters)) {
         auto paramType = param->VarType;
-        if (const auto paramSize = type::GetSize(paramType); paramSize > 16) {
+        if (const auto paramSize = type::GetSize(paramType); paramSize > 8) {
             type = "ptr noundef";
         } else if (paramSize == 8) {
             type = "i64";
@@ -65,7 +65,7 @@ GenClass::funcCall GenClass::FunctionCall(
         return ExpressionExpand(arg);
     }) | std::ranges::to<std::vector>();
     const auto retType = _funcCall->FunctionDecl->ReturnType;
-    const bool isCopyResult = type::GetSize(retType) > 16;
+    const bool isCopyResult = type::GetSize(retType) > 8;
     const std::string llvmRetType = isCopyResult ? "void" : TypeToLLVM(retType);
     std::string preCode;
     for (const auto &arg: args) preCode += arg.code;
@@ -99,16 +99,16 @@ GenClass::exprResult GenClass::FunctionArg(funcArg &_funcArg, size_t _index) {
     std::string code;
     const auto resultVar = _funcArg.resultVar;
     std::string resultType = "ptr"; // 最终结果通常是栈上的指针
-    if (_funcArg.isCasting) {
-        code += std::format("%{} = alloca {}, align 8\n", resultVar, _funcArg.llvmType);
-        code += std::format("store i64 {}, ptr %{}, align 8\n", argName, resultVar);
-        resultType = "ptr";
-    } else if (_funcArg.isMemoryArg) {
+    if (_funcArg.isMemoryArg) {
         auto localStackVar = std::string(resultVar);
         code += std::format("%{} = alloca {}, align {}\n", localStackVar, originalType, _funcArg.size);
         size_t typeSize = _funcArg.size;
-        code += std::format("call void @{}(ptr align 8 %{}, ptr align 8 {}, i64 {}, i1 false)\n",llvmCopy,
+        code += std::format("call void {}(ptr align 8 %{}, ptr align 8 {}, i64 {}, i1 false)\n",llvmCopy,
                             localStackVar, argName, typeSize);
+        resultType = "ptr";
+    } else if (_funcArg.isCasting) {
+        code += std::format("%{} = alloca {}, align 8\n", resultVar, _funcArg.llvmType);
+        code += std::format("store i64 {}, ptr %{}, align 8\n", argName, resultVar);
         resultType = "ptr";
     } else {
         auto stackVar = std::string(resultVar);
@@ -174,7 +174,7 @@ GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_pa
     bool isCasting = false;
     bool isMemoryArg = false;
     const size_t size = type::GetSize(paramType);
-    if (size > 16) {
+    if (size > 8) {
         isMemoryArg = true;
         llvmType = "ptr";
     } else if (size == 8) {

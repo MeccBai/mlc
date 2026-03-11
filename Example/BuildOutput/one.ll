@@ -1,16 +1,16 @@
 target triple = "x86_64-w64-windows-gnu"
 %struct.p = type {i32,i32}
-declare i32 @fscanf(...)
-declare i32 @fclose(i64 %0)
-declare i32 @puts(i64 %0)
+declare i32 @putchar(i32 %0)
 declare i32 @getchar()
 declare i32 @printf(...)
 declare i32 @scanf(...)
-declare i32 @putchar(i32 %0)
+declare i32 @puts(i64 %0)
+declare i32 @fscanf(...)
 declare i32 @fflush(i64 %0)
-declare void @perror(i64 %0)
 declare i64 @fopen(i64 %0,i64 %1)
 declare i32 @fprintf(...)
+declare void @perror(i64 %0)
+declare i32 @fclose(i64 %0)
 define i32 @hello() { 
 %str = alloca [16 x i8], align 16
 %il2 = getelementptr [16 x i8], ptr %str, i32 0

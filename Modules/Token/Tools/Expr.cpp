@@ -27,13 +27,8 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
             // 确保返回的是 shared_ptr 的拷贝
             return arrayType->BaseType;
         }
-        if (auto *pointerType = type::GetType<ast::Type::PointerType>(currentTypeVariant)) {
-            // 确保返回的是 shared_ptr 的拷贝
-            if (pointerType->PointerLevel == 1) {
-                return pointerType->BaseType;
-            }
-            return std::make_shared<ast::Type::CompileType>(
-                ast::Type::PointerType(pointerType->BaseType, pointerType->PointerLevel - 1));
+        if (const auto *pointerType = type::GetType<ast::Type::PointerType>(currentTypeVariant)) {
+            return pointerType->Dereference();
         }
         return nullptr;
     }
@@ -59,7 +54,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
         }
         if (op == ast::BaseOperator::Dereference) {
             if (const auto *ptrData = std::get_if<ast::Type::PointerType>(&(*subType))) {
-                return ptrData->BaseType;
+                return ptrData->Dereference();
             }
             ErrorPrintln("Error: Cannot dereference a non-pointer type.\n");
             std::exit(-1);
@@ -135,8 +130,8 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
             if (op == ast::BaseOperator::Dereference) {
                 const auto argSubType = arg->Components[0]->GetType();
                 if (!argSubType) return nullptr;
-                if (auto *ptrData = std::get_if<ast::Type::PointerType>(&(*argSubType))) {
-                    return ptrData->BaseType;
+                if (const auto *ptrData = std::get_if<ast::Type::PointerType>(&(*argSubType))) {
+                    return ptrData->Dereference();
                 } else {
                     ErrorPrintln("Error: Cannot dereference a non-pointer type.\n");
                     std::exit(-1);

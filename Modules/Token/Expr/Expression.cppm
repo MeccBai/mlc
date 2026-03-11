@@ -230,17 +230,17 @@ export namespace mlc::ast {
                                      std::vector<BaseOperator> _operators,
                                      const bool _isOperatorFirst = false) : Operators(std::move(_operators)),
                                                                             Components(std::move(_components)),
-                                                                            isOperatorFirst(_isOperatorFirst) {
+                                                                            OperatorFirst(_isOperatorFirst) {
 
             if (Components.size() == 1&& Operators[0] == BaseOperator::AddressOf || Operators[0] == BaseOperator::Dereference) {
-                auto * isOpFirst = const_cast<bool*>(&isOperatorFirst);
+                auto * isOpFirst = const_cast<bool*>(&OperatorFirst);
                 *isOpFirst = true;
             }
         }
 
         const std::vector<BaseOperator> Operators;
         const std::vector<std::shared_ptr<Expression> > Components;
-        const bool isOperatorFirst;
+        const bool OperatorFirst;
 
         [[nodiscard]] std::shared_ptr<Type::CompileType> GetResultType() const {
             if (Components.empty()) {

@@ -1,13 +1,22 @@
 import std.io;
 import one;
 
+struct o {
+    i32 a; i32 b;
+};
 
+struct oo {
+    o o1;
+    o o2;
+};
+
+void printOO(oo ax) {
+    ax.o1.a = 10;
+    ax.o1.b = 20;
+    i32 x = ax.o1.a + ax.o1.b;
+    return;
+}
 
 i32 main() {
-    p p1;
-    i8 str[20] = "p.x:%d\np.y:%d";
-    str[0] = str[0] + i8(1);
-    printf(str,p1.x,p1.y);
-    return 0;
     return 0;
 }

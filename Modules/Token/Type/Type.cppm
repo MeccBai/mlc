@@ -142,6 +142,13 @@ export namespace mlc::ast::Type {
 
         const std::string Name;
 
+        [[nodiscard]] std::shared_ptr<CompileType> Dereference() const {
+            if (PointerLevel == 1) {
+                return BaseType;
+            }
+            return std::make_shared<CompileType>(PointerType(BaseType,PointerLevel-1));
+        }
+
         void Finalize(std::shared_ptr<CompileType> _baseType) {
             BaseType = std::move(_baseType);
             const std::string baseName = std::visit([](auto &&t) -> std::string {
