@@ -1,7 +1,6 @@
 
-import std.io;
 
-i32 fab(i32 i) {
+export i32 fab(i32 i) {
     if (i == 1 || i == 2) {
         return 1;
     }
@@ -11,9 +10,3 @@ i32 fab(i32 i) {
     return 0;
 }
 
-i32 mainx() {
-    i32 result = fab(10);
-    i8 str[20] = "The result is: %d";
-    printf(str, result);
-    return 0;
-}

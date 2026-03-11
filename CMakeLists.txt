@@ -20,3 +20,6 @@ include(Public/public.cmake)
 target_link_libraries(mlc_m PUBLIC public)
 
 
+add_compile_options(-Wshadow)
+
+

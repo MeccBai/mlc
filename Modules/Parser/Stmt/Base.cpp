@@ -68,6 +68,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
                                                 std::string_view content) {
                 return this->expressionParser(_context, content);
             });
+
         return parseFunctionCallStatement(_context, _statementContent);
     }
 
