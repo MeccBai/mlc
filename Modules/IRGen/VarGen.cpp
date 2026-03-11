@@ -29,34 +29,31 @@ size_t gen::GetAlignment(const sPtr<type::CompileType>& t) {
 }
 std::string GenClass::LocalVariable(const sPtr<ast::VariableStatement>& _variable) {
     auto llvmType = TypeToLLVM(_variable->VarType);
-    auto regName = _variable->Name; // 变量名
+    auto regName = _variable->Name;
     exprCnt++;
     auto align = GetAlignment(_variable->VarType);
-    std::string code = std::format("%{} = alloca {}, align {}\n", regName, llvmType, align);
+    std::string returnCode = std::format("%{} = alloca {}, align {}\n", regName, llvmType, align);
     if (_variable->Initializer) {
         auto [exprType, resultVar, code, isCopyResult] = ExpressionExpand(_variable->Initializer, _variable->VarType);
         if (exprType == "list") {
             auto argTemp = "%" + regName;
-            code += std::vformat(resultVar, std::make_format_args(argTemp));
-            code += code;
+            returnCode += std::vformat(resultVar, std::make_format_args(argTemp));
+            returnCode += code;
         }
         else if (isCopyResult) {
-            // 场景 B: 结构体/大对象拷贝 (memcpy)
-            code += code;
-            code += std::format(
+            returnCode += code;
+            returnCode += std::format(
                 "call void @{}(ptr %{}, ptr {}, i64 {}, i1 false)\n",llvmCopy,
                 regName, resultVar, type::GetSize(_variable->VarType)
             );
         }
         else {
-            // 场景 C: 普通标量赋值 (i32 a = 1 + 2)
-            code += code;
-            code += std::format(
+            returnCode += code;
+            returnCode += std::format(
                 "store {} {}, ptr %{}, align {}\n",
                 exprType, resultVar, regName, align
             );
         }
     }
-
-    return code;
+    return returnCode;
 }

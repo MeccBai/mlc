@@ -148,63 +148,53 @@ auto seg::TokenizeFunctionBody(const std::string_view _source) -> std::vector<st
             cursor++;
     };
 
-    // 1. 跳过函数头（假设已经处理过，或者 _source 就是主体）
-    // ... 原有逻辑 ...
+    auto matchWord = [&](std::string_view word) {
+        if (cursor + word.length() <= length && _source.substr(cursor, word.length()) == word) {
+            size_t next = cursor + word.length();
+            if (next == length || !std::isalnum(static_cast<unsigned char>(_source[next]))) return true;
+        }
+        return false;
+    };
 
     while (cursor < length) {
         skipSpace();
         if (cursor >= length || _source[cursor] == '}') break;
 
         const size_t start = cursor;
-        int brace_depth = 0;
-        int paren_depth = 0;
 
-        // 识别当前片段是不是控制流（加上 else）
-        auto checkAt = [&](size_t pos, std::string_view word) {
-            if (pos + word.length() <= length && _source.substr(pos, word.length()) == word) {
-                size_t next = pos + word.length();
-                return (next == length || !std::isalnum(static_cast<unsigned char>(_source[next])));
-            }
-            return false;
-        };
+        // 1. 处理带括号和块的控制流: if, while, for, switch
+        if (matchWord("if") || matchWord("while") || matchWord("for") || matchWord("switch") || matchWord("else")) {
+            // 扫描到块结束
+            int brace_depth = 0;
+            bool found_first_brace = false;
 
-        const bool isControl = checkAt(cursor, "if") || checkAt(cursor, "for") ||
-                               checkAt(cursor, "while") || checkAt(cursor, "switch") ||
-                               checkAt(cursor, "else");
-
-        while (cursor < length) {
-            const char c = _source[cursor];
-
-            // 字符串处理（略，保持你原来的）
-            if (c == '"') { /* ... skip ... */ }
-
-            if (c == '(') paren_depth++;
-            else if (c == ')') paren_depth--;
-            else if (c == '{') brace_depth++;
-            else if (c == '}') {
-                brace_depth--;
-                if (brace_depth == 0 && paren_depth == 0) {
-                    cursor++; // 吞掉 '}'
-                    // 💥 关键：如果是 if/else 等控制流，吞完 '}' 必须立刻收刀！
-                    if (isControl) break;
-                    // 只有在非控制流的大括号块里，才继续往后看（比如匿名块后的其他内容）
-                    continue;
+            while (cursor < length) {
+                char c = _source[cursor++];
+                if (c == '{') {
+                    brace_depth++;
+                    found_first_brace = true;
+                } else if (c == '}') {
+                    brace_depth--;
+                    if (found_first_brace && brace_depth == 0) break; // 核心：捕获匹配的闭括号
                 }
             }
-            else if (c == ';' && brace_depth == 0 && paren_depth == 0) {
-                cursor++; // 吞掉 ';'
-                break; // 普通语句结束
-            }
+        }
+        // 2. 特殊处理 do { ... } while (...);
+        else if (matchWord("do")) {
+            while (cursor < length && _source[cursor++] != ';'); // 直接扫到末尾分号
+        }
+        // 3. 普通语句: int a = 1; 或 函数调用;
+        else {
+            int brace_depth = 0;
+            while (cursor < length) {
+                char c = _source[cursor++];
+                if (c == '{') brace_depth++;
+                else if (c == '}') brace_depth--;
 
-            cursor++;
-
-            // 💡 针对 if(1) int a; 这种没有大括号的特殊情况
-            if (isControl && brace_depth == 0 && paren_depth == 0 && c != ')') {
-                // 如果在控制流里，且已经处理完了第一个语句（遇到了分号）
-                // 此时 cursor 已经在上面被自增过了，这里直接 break
-                if (_source[cursor-1] == ';') break;
+                if (c == ';' && brace_depth == 0) break; // 语句结束
             }
         }
+
         fragments.emplace_back(_source.substr(start, cursor - start));
     }
     return fragments;
