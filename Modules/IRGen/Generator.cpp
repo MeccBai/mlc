@@ -152,6 +152,7 @@ std::string GenClass::GenerateIR(parser::AbstractSyntaxTree &_ast) {
         for (const auto &s: view) res += s;
         return res;
     };
+
     code += join_to_string(structCode);
     code += join_to_string(globalVarCode);
     code += join_to_string(funcDecl);

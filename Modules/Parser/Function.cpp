@@ -32,6 +32,10 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
 
+    if (statementsParsed.empty()) {
+        ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
+        std::exit(-1);
+    }
     if (auto *returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
         ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
         std::exit(-1);

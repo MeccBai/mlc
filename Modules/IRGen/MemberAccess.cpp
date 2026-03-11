@@ -23,7 +23,13 @@ GenClass::exprResult GenClass::MemberAccessExpression(const expr &_base, bool _i
         const auto op = operators[i];
         const auto &nextComp = components[i + 1];
         currentResult = MemberAccessBinary(&*currentType, currentResult, nextComp, op);
-        currentType = components[i + 1]->GetType();
+
+        if (type::IsType<type::ArrayType>(currentType)) {
+            currentType = type::GetType<type::ArrayType>(currentType)->BaseType;
+        }
+        else {
+            currentType = components[i + 1]->GetType();
+        }
     }
 
     if (!_isWrite) {

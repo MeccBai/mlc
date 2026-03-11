@@ -3,17 +3,17 @@ target triple = "x86_64-w64-windows-gnu"
 %struct.a = type {%struct.b,i64}
 %struct.d = type {ptr,i32}
 %struct.c = type {%struct.a,ptr}
-declare i64 @fopen(i64 %0,i64 %1)
-declare i32 @printf(...)
-declare i32 @getchar()
-declare void @perror(i64 %0)
-declare i32 @fclose(i64 %0)
 declare i32 @scanf(...)
-declare i32 @puts(i64 %0)
-declare i32 @putchar(i32 %0)
-declare i32 @fflush(i64 %0)
-declare i32 @fscanf(...)
+declare i32 @fclose(i64 %0)
+declare i64 @fopen(i64 %0,i64 %1)
+declare i32 @getchar()
 declare i32 @fprintf(...)
+declare i32 @fscanf(...)
+declare i32 @putchar(i32 %0)
+declare i32 @printf(...)
+declare i32 @puts(i64 %0)
+declare i32 @fflush(i64 %0)
+declare void @perror(i64 %0)
 define i32 @main() { 
 %b1 = alloca %struct.b, align 8
 %il2 = getelementptr %struct.b, ptr %b1, i32 0, i32 0

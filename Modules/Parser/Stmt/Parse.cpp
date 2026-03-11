@@ -51,13 +51,17 @@ astClass::StatementTable<ast::Statement> astClass::parseFunctionCallStatement(
     std::string_view _content) {
     const auto functionName = _content.substr(0, _content.find('('));
     const auto argsStr = _content.substr(_content.find('(') + 1,
-                                         _content.length() - functionName.length() - 2);
+                                         _content.length() - functionName.length() - 3);
 
-    std::vector<sPtr<ast::Expression> > args = argSplit(argsStr)
-                                               | std::views::transform([&_context, this](const std::string_view arg) {
-                                                   return expressionParser(_context, arg);
-                                               })
-                                               | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
+    std::vector<sPtr<ast::Expression> > args;
+    if (!argsStr.empty()) {
+        args = argSplit(argsStr)
+        | std::views::transform([&_context, this](const std::string_view arg) {
+            return expressionParser(_context, arg);
+        })
+        | std::ranges::to<std::vector<sPtr<ast::Expression> > >();
+    }
+
 
     sPtr<ast::FunctionDeclaration> decl = nullptr;
 
