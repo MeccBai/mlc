@@ -57,31 +57,27 @@ sPtr<ast::Expression> parseEnumExpr(const exprParser &_parse, std::string_view s
 
 
 bool isLeftExpression(const std::shared_ptr<ast::Expression> &_expression) {
-    if (const auto *const vPtr = _expression->GetVariable(); vPtr != nullptr) {
+    return std::visit(overloaded{
+    [&](const type::sPtr<ast::Variable>&) {
         return true;
-    }
-    if (const auto *const fPtr = _expression->GetFunctionCall();
-        fPtr != nullptr) {
-        return false;
-    }
-    if (const auto *const cPtr = _expression->GetConstValue(); cPtr != nullptr) {
-        return false;
-    }
-    if (const auto *const compPtr = _expression->GetCompositeExpression();
-        compPtr != nullptr) {
-        if (const auto &operators = (*compPtr)->Operators; !operators.empty()) {
-            // 只有当第一个操作符是访问类操作符（. 或 ->）时，才可能是左值
-            if ((*compPtr)->OperatorFirst) {
-                if (operators[0] == ast::BaseOperator::Dereference) return true;
-            }
-            if (operators[0] == ast::BaseOperator::Dot) return true;
-            if (operators[0] == ast::BaseOperator::Arrow) return true;
-            if (operators[0] == ast::BaseOperator::Subscript) {
-                return type::IsType<type::ArrayType>((*compPtr)->Components[0]->GetType());
-            }
+    },
+    [&](const type::sPtr<ast::CompositeExpression>& comp) {
+        if (comp->Operators.empty()) return false;
+
+        const auto firstOp = comp->Operators[0];
+        if (comp->OperatorFirst && firstOp == ast::BaseOperator::Dereference) {
+            return true;
         }
-
-
+        if (firstOp == ast::BaseOperator::Dot || firstOp == ast::BaseOperator::Arrow) {
+            return true;
+        }
+        if (firstOp == ast::BaseOperator::Subscript) {
+            return type::IsArrayOrPointer(comp->Components[0]->GetType());
+        }
+        return false;
+    },
+    [&](const auto&) {
+        return false;
     }
-    return false;
+}, *_expression->Storage);
 }

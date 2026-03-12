@@ -1,4 +1,5 @@
 import std.io;
+import std.lib;
 
 i8 str[10] = "%d";
 
@@ -14,9 +15,8 @@ i32 main() {
     i8 str[10] = "%d";
     i32 a = 0;
     i32 b = 7;
-    swap(@a,@b);
-
-
-    printf(str,a);
+    i32$ax=i32p(malloc(4));
+    $ax = 10;
+    printf(str,$ax);
     return 0;
 }

@@ -14,7 +14,8 @@ auto jumpTo = [](const std::string_view _label) {
 };
 
 
-std::string constConditionExpand(const std::string_view _true,const std::string_view _false, const ast::ConstValue * _constVal) {
+std::string constConditionExpand(const std::string_view _true, const std::string_view _false,
+                                 const ast::ConstValue *_constVal) {
     const auto type = _constVal->Type;
     const auto llvmType = GenClass::TypeToLLVM(type);
     const auto value = _constVal->Value;
@@ -36,12 +37,12 @@ std::string constConditionExpand(const std::string_view _true,const std::string_
     return std::format("{}\n", jumpTo(target));
 }
 
-std::string varConditionExpand(const std::string_view _true,const std::string_view _false, const ast::Variable * _var) {
-    auto llvmType = GenClass::TypeToLLVM(_var->VarType);
+std::string varConditionExpand(const std::string_view _true, const std::string_view _false, const ast::Variable *_var) {
+    const auto llvmType = GenClass::TypeToLLVM(_var->VarType);
     std::string code;
-    auto valReg = std::format("%{}", GenClass::exprCnt++);
+    const auto valReg = std::format("%{}", GenClass::exprCnt++);
     //code += std::format("{} = load {}, ptr %{}\n", valReg, llvmType, _var->Name);
-    auto boolReg = std::format("%{}", GenClass::exprCnt++); // 💡 必须是新的寄存器
+    const auto boolReg = std::format("%{}", GenClass::exprCnt++); // 💡 必须是新的寄存器
     if (llvmType.starts_with('i') || llvmType.starts_with('u')) {
         code += std::format("{} = icmp ne {} {}, 0\n", boolReg, llvmType, valReg);
     } else if (llvmType.starts_with('f')) {
@@ -53,9 +54,10 @@ std::string varConditionExpand(const std::string_view _true,const std::string_vi
     return code;
 }
 
-std::string funcConditionExpand(const std::string_view _true,const std::string_view _false,ast::FunctionCall * _funcCall) {
-    auto funcDecl = _funcCall->FunctionDecl;
-    auto [isCopyResult, llvmType, resultVar, callCode] = GenClass::FunctionCall(
+std::string funcConditionExpand(const std::string_view _true, const std::string_view _false,
+                                ast::FunctionCall *_funcCall) {
+    const auto funcDecl = _funcCall->FunctionDecl;
+    const auto [isCopyResult, llvmType, resultVar, callCode] = GenClass::FunctionCall(
         std::make_shared<ast::FunctionCall>(*_funcCall));
     auto code = callCode;
     if (isCopyResult) {
@@ -64,7 +66,7 @@ std::string funcConditionExpand(const std::string_view _true,const std::string_v
             "which is not supported in condition expressions.\n");
         std::exit(-1);
     }
-    auto boolReg = std::format("%{}", GenClass::exprCnt++);
+    const auto boolReg = std::format("%{}", GenClass::exprCnt++);
     if (llvmType.starts_with('i') || llvmType.starts_with('u')) {
         code += std::format("{} = icmp ne {} {}, 0\n", boolReg, llvmType, resultVar);
     }
@@ -77,9 +79,10 @@ std::string funcConditionExpand(const std::string_view _true,const std::string_v
     return code;
 }
 
-std::string compositeConditionExpand(const std::string_view _true, const std::string_view _false, const sPtr<ast::Expression> &_condition) {
+std::string compositeConditionExpand(const std::string_view _true, const std::string_view _false,
+                                     const sPtr<ast::Expression> &_condition) {
     auto [llvmType, resultVar, code, isCopyResult] = GenClass::ExpressionExpand(_condition);
-    auto boolReg = std::format("%{}", GenClass::exprCnt++);
+    const auto boolReg = std::format("%{}", GenClass::exprCnt++);
     if (isCopyResult) {
         ErrorPrintln("Condition cannot be a composite expression that results in a large struct (>=16 bytes) "
             "because it requires memcpy to retrieve the result, "
@@ -99,31 +102,40 @@ std::string compositeConditionExpand(const std::string_view _true, const std::st
 
 std::string GenClass::ConditionExpression(const expr &_condition, const std::string_view _true,
                                           const std::string_view _false) {
-    if (const auto *const constVal = _condition->GetConstValue()) {
-        return constConditionExpand(_true, _false, constVal);
+    if (!_condition || !_condition->Storage) {
+        ErrorPrintln("Error: Empty condition expression.\n");
+        std::exit(-1);
     }
-    if (const auto *const varExprPtr = _condition->GetVariable()) {
-        return varConditionExpand(_true, _false, varExprPtr->get());
-    }
-    if (const auto *const funcExprPtr = _condition->GetFunctionCall()) {
-        return funcConditionExpand(_true, _false, funcExprPtr->get());
-    }
-    if (_condition->GetCompositeExpression()) {
-        return compositeConditionExpand(_true, _false,  _condition);
-    }
-    ErrorPrintln("Error: Unsupported expression type in condition.\n");
-    std::exit(-1);
+    return std::visit(
+        overloaded{
+            [&](const ast::ConstValue &constVal) {
+                return constConditionExpand(_true, _false, &constVal);
+            },
+            [&](const type::sPtr<ast::Variable> &var) {
+                return varConditionExpand(_true, _false, var.get());
+            },
+            [&](const type::sPtr<ast::FunctionCall> &func) {
+                return funcConditionExpand(_true, _false, func.get());
+            },
+            [&](const type::sPtr<ast::CompositeExpression> &) {
+                return compositeConditionExpand(_true, _false, _condition);
+            },
+            [&](const auto &) -> std::string {
+                ErrorPrintln("Error: Unsupported expression type in condition.\n");
+                std::exit(-1);
+            }
+        }, *_condition->Storage);
 }
 
 std::string handleWhileBlock(auto &getLabel, ast::SubScope *_subScope, const sPtr<ast::FunctionDeclaration> &_decl,
                              const sPtr<ast::Statement> &_stmt) {
     std::string code;
-    std::string condLabel = getLabel(); // 条件判定块
-    std::string bodyLabel = getLabel(); // 循环体块
-    std::string endLabel = getLabel(); // 循环退出块
+    const auto condLabel = getLabel(); // 条件判定块
+    const auto bodyLabel = getLabel(); // 循环体块
+    const auto endLabel = getLabel(); // 循环退出块
     code += jumpTo(condLabel);
     code += std::format("{}:\n", condLabel);
-    auto condRes = GenClass::ExpressionExpand(_subScope->Condition);
+    const auto condRes = GenClass::ExpressionExpand(_subScope->Condition);
     code += condRes.code;
     code += GenClass::ConditionExpression(_subScope->Condition, bodyLabel, endLabel);
     code += std::format("{}:\n", bodyLabel);
@@ -148,11 +160,12 @@ std::string handleWhileBlock(auto &getLabel, ast::SubScope *_subScope, const sPt
     return code;
 }
 
-std::string handleDoWhileBlock(auto & getLabel,ast::SubScope * _subScope,const sPtr<ast::FunctionDeclaration> &_decl,const sPtr<ast::Statement> &_stmt) {
+std::string handleDoWhileBlock(auto &getLabel, ast::SubScope *_subScope, const sPtr<ast::FunctionDeclaration> &_decl,
+                               const sPtr<ast::Statement> &_stmt) {
     std::string code;
-    std::string bodyLabel = getLabel();
-    std::string condLabel = getLabel();
-    std::string endLabel = getLabel();
+    const auto bodyLabel = getLabel();
+    const auto condLabel = getLabel();
+    const auto endLabel = getLabel();
     code += std::format("br label %{}\n", bodyLabel);
     code += std::format("{}:\n", bodyLabel);
     bool bodyTerminated = false;
@@ -191,23 +204,23 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
         break;
         case ast::SubScopeType::SwitchBlock: {
             auto caseCode = std::string();
-            auto endLabel = getLabel();
+            const auto endLabel = getLabel();
             auto labels = std::vector<std::string>();
-            auto condRes = ExpressionExpand(subScope->Condition);
-            std::string jumpCode = condRes.code;
+            const auto condRes = ExpressionExpand(subScope->Condition);
+            auto jumpCode = condRes.code;
             for (const auto &stmt: subScope->Statements) {
-                auto *sub = std::get_if<ast::SubScope>(&*stmt);
-                auto currentLabel = getLabel();
+                const auto *sub = std::get_if<ast::SubScope>(&*stmt);
+                const auto currentLabel = getLabel();
                 labels.push_back(currentLabel);
                 caseCode += std::format("{}:\n{}\n", currentLabel,
                                         caseBlockGenerate(_stmt, sub, endLabel, _decl));
             }
             const size_t total = subScope->Statements.size();
             for (size_t i = 0; i < total - 1; ++i) {
-                auto *sub = std::get_if<ast::SubScope>(&*subScope->Statements[i]);
-                auto caseCondRes = ConstExpressionExpand(sub->Condition->GetType(), sub->Condition,true);
-                std::string cmpReg = std::format("%{}", exprCnt++);
-                std::string nextCheckLabel = getLabel();
+                const auto *sub = std::get_if<ast::SubScope>(&*subScope->Statements[i]);
+                const auto caseCondRes = ConstExpressionExpand(sub->Condition->GetType(), sub->Condition, true);
+                const auto cmpReg = std::format("%{}", exprCnt++);
+                const auto nextCheckLabel = getLabel();
                 jumpCode += std::format("{} = icmp eq {} {}, {}\n",
                                         cmpReg, condRes.llvmType, condRes.resultVar, caseCondRes);
                 jumpCode += std::format("br i1 {}, label %{}, label %{}\n",
@@ -239,13 +252,13 @@ std::string GenClass::ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_dec
                                       const sPtr<ast::SubScope> &_ifBlock,
                                       const sPtr<ast::SubScope> &_elseBlock) {
     std::string code;
-    auto thenLabel = getLabel();
-    auto elseLabel = getLabel();
-    auto mergeLabel = getLabel();
-    auto condRes = ExpressionExpand(_ifBlock->Condition);
+    const auto thenLabel = getLabel();
+    const auto elseLabel = getLabel();
+    const auto mergeLabel = getLabel();
+    const auto condRes = ExpressionExpand(_ifBlock->Condition);
     code += condRes.code;
-    auto i1Reg = std::format("%{}", exprCnt++);
-    std::string falseLabel = _elseBlock ? elseLabel : mergeLabel;
+    const auto i1Reg = std::format("%{}", exprCnt++);
+    const auto falseLabel = _elseBlock ? elseLabel : mergeLabel;
     code += ConditionExpression(_ifBlock->Condition, thenLabel, falseLabel);
     code += std::format("{}:\n", thenLabel);
     bool thenTerminated = false;
@@ -261,7 +274,7 @@ std::string GenClass::ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_dec
                     i++;
                 }
             }
-            auto *ifBlock = std::get_if<ast::SubScope>(&*stmt);
+            const auto *ifBlock = std::get_if<ast::SubScope>(&*stmt);
             code += ifBlockGenerate(_decl, ast::Make(*ifBlock), nextElse);
             continue;
         }

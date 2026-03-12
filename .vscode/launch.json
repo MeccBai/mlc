@@ -10,7 +10,7 @@
             "name": "Debug - Test",
             "program": "${workspaceFolder}/build/Debug/mlc.exe",
             "args": [
-                "struct.mc"
+                "HELLO.mc"
             ],
             "env" : {
                 "PATH" : "F:/Develop/C++/LLVM-MinGW/bin;${env:PATH}"

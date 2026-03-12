@@ -56,7 +56,7 @@ ast::Expression astClass::GetDefaultValue(const sPtr<type::CompileType> &_type) 
             [&](const type::PointerType &) {
                 return ast::Expression(ast::ConstValue("null"));
             },
-            [&](auto &) {
+            [&](const auto &) {
                 return ast::Expression(ast::ConstValue("0"));
             }
         }, *_type);

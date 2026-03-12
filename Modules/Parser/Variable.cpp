@@ -72,7 +72,7 @@ astClass::StatementTable<ast::Statement> astClass::globalVariableParser(
     auto globalContext = ContextTable<ast::VariableStatement>{};
     const auto result = variableParser(globalContext, _variableContent);
     for (const auto &var: result) {
-        auto *vptr = std::get_if<ast::VariableStatement>(var.get());
+        const auto *vptr = std::get_if<ast::VariableStatement>(var.get());
         if (vptr == nullptr) {
             ErrorPrintln("Error: Expected a variable statement in global variable parser\n");
             std::exit(-1);

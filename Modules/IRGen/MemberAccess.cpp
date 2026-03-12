@@ -106,7 +106,7 @@ GenClass::exprResult GenClass::MemberAccessBinary(const type::CompileType *_type
                     _parent.code + gepInstr
                 };
             },
-            [&](auto &) -> exprResult {
+            [&](const auto &) -> exprResult {
                 ErrorPrintln("Error: Invalid parent type for member access.\n");
                 std::exit(-1);
             }

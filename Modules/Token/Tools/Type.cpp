@@ -149,23 +149,23 @@ void ast::VariableStatement::InitListValidCheck() const {
 bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
     return std::visit(
         overloaded{
-            [&](ConstValue &) {
+            [&](const ConstValue &) {
                 return true;
             },
-            [&](EnumValue &) {
+            [&](const EnumValue &) {
                 return true;
             },
-            [&](std::shared_ptr<CompositeExpression> &_comp) {
+            [&](const std::shared_ptr<CompositeExpression> &_comp) {
                 return std::ranges::all_of(_comp->Components, ConstExpressionCheck);
             },
-            [&](type::sPtr<Variable> &_var) {
+            [&](const type::sPtr<Variable> &_var) {
                 return _var->Initializer != nullptr && ConstExpressionCheck(_var->Initializer);
             },
 
-            [&](std::shared_ptr<InitializerList> &_initList) {
+            [&](const std::shared_ptr<InitializerList> &_initList) {
                 return std::ranges::all_of(_initList->Values, ConstExpressionCheck);
             },
-            [](auto &) {
+            [](const auto &) {
                 return false;
             }
         }, *(_expr->Storage));

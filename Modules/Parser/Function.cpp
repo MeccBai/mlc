@@ -15,9 +15,9 @@ std::pair<std::string_view,std::string_view> getFunctionHeader(const std::string
 
 ast::FunctionScope astClass::functionDefParser(const std::string_view _functionContent,const bool _isExported) {
     ContextTable<ast::VariableStatement> context;
-    auto [header,body] = getFunctionHeader(_functionContent);
-    auto statements = seg::TokenizeFunctionBody(body);
-    auto functionDecl = ast::FunctionDeclaration(functionDeclParser(header,_isExported));
+    const auto [header,body] = getFunctionHeader(_functionContent);
+    const auto statements = seg::TokenizeFunctionBody(body);
+    const auto functionDecl = ast::FunctionDeclaration(functionDeclParser(header,_isExported));
     const auto functionDeclPtr = std::make_shared<ast::FunctionDeclaration>(functionDecl);
     for (const auto args = functionDecl.Parameters;
          const auto &arg: args) {
@@ -29,7 +29,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
                                     }) | std::ranges::to<std::vector<std::vector<std::shared_ptr<
                                     ast::Statement> > > >();
 
-    auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
+    const auto statementsParsed = statementsTemp | std::views::join | std::ranges::to<std::vector<std::shared_ptr<
                                 ast::Statement> > >();
 
     if (statementsParsed.empty()) {
@@ -74,8 +74,8 @@ sPtr<ast::Variable> normalArgParser(const std::string_view _argContent,auto find
 sPtr<ast::Variable> pointerArgParser(const std::string_view _argContent,auto findType) {
     const auto first = _argContent.find_first_of('$');
     const auto last = _argContent.find_last_of('$');
-    auto level = last - first + 1;
-    auto typeName = _argContent.substr(0, first);
+    const auto level = last - first + 1;
+    const auto typeName = _argContent.substr(0, first);
     const auto name = _argContent.substr(last + 1);
     if (const auto typePtr = findType(typeName); typePtr == std::nullopt) {
         ErrorPrintln("Error: Unknown type '{}'\n", typeName);
@@ -126,7 +126,9 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     bool isPointer = false;
     size_t pointerLevel = 0;
     auto returnPos = funcContent.find(' ');
-    if (returnPos == std::string_view::npos) {
+    const auto leftBracket = funcContent.find_first_of('(');
+    const auto rightBracket = funcContent.find_last_of(')');
+    if (returnPos == std::string_view::npos || leftBracket<returnPos && rightBracket>returnPos) {
         returnPos = funcContent.find('$');
         isPointer = true;
     }
@@ -150,8 +152,6 @@ ast::FunctionDeclaration astClass::functionDeclParser(
         returnTypePtr = std::make_shared<type::CompileType>(*returnTypePtr.value());
     }
 
-    const auto leftBracket = funcContent.find('(');
-    const auto rightBracket = funcContent.find(')');
     const auto argsList = funcContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
     const auto offset = returnType.length() + (isPointer ? pointerLevel : 1);
     const auto functionName = funcContent.substr(offset, leftBracket - offset);

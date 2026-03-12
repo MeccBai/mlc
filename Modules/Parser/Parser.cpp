@@ -16,7 +16,7 @@ ast::Type::EnumDefinition astClass::enumDefParser(std::string_view _enumContent,
     const auto enumName = _enumContent.substr(pos, _enumContent.find('{') - pos);
     const auto memberStr = _enumContent.substr(_enumContent.find('{') + 1,
                                                _enumContent.rfind('}') - _enumContent.find('{') - 1);
-    auto memberDefs = split(memberStr, ",");
+    const auto memberDefs = split(memberStr, ",");
 
     auto options = memberDefs | std::views::transform([](const std::string_view member) {
         return std::string(member);
@@ -41,12 +41,12 @@ astClass::AbstractSyntaxTree(const std::vector<seg::TokenStatement> &tokens,cons
                std::ranges::to<std::vector<std::string> >();
     };
 
-    auto &functions = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDefinition)];
-    auto &structs = groups[static_cast<size_t>(ast::GlobalStateType::StructDefinition)];
-    auto &enums = groups[static_cast<size_t>(ast::GlobalStateType::EnumDefinition)];
-    auto &varDecls = groups[static_cast<size_t>(ast::GlobalStateType::VariableDeclaration)];
-    auto &funcDecls = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDeclaration)];
-    auto &imports = groups[static_cast<size_t>(ast::GlobalStateType::ImportFile)];
+    const auto &functions = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDefinition)];
+    const auto &structs = groups[static_cast<size_t>(ast::GlobalStateType::StructDefinition)];
+    const auto &enums = groups[static_cast<size_t>(ast::GlobalStateType::EnumDefinition)];
+    const auto &varDecls = groups[static_cast<size_t>(ast::GlobalStateType::VariableDeclaration)];
+    const auto &funcDecls = groups[static_cast<size_t>(ast::GlobalStateType::FunctionDeclaration)];
+    const auto &imports = groups[static_cast<size_t>(ast::GlobalStateType::ImportFile)];
 
     const bool hasExportImport = std::ranges::all_of(imports, [](const seg::TokenStatement &t) {
         return t.exported;

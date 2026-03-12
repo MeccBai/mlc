@@ -280,7 +280,7 @@ sFunc parseFunction(const astClass &_ast, const json &_func, std::set<sComType> 
     auto returnType = localFind(_func[afmt::ReturnType][afmt::Name].get<std::string>());
     const bool isVarList = _func[afmt::IsVarList].get<bool>();
     if (_func[afmt::ReturnType][afmt::Kind] == afmt::Pointer) {
-        auto baseType = _func[afmt::ReturnType][afmt::BaseType].get<std::string>();
+        const auto baseType = _func[afmt::ReturnType][afmt::BaseType].get<std::string>();
         auto baseTypePtr = localFind(baseType);
         if (!baseTypePtr) {
             baseTypePtr = _ast.FindType(baseType);
@@ -345,10 +345,10 @@ afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::fi
             ErrorPrintln("Error: failed to open '{}'", jsonPath.string());
             std::exit(-1);
         }
-        auto jsonContent = std::string((std::istreambuf_iterator(jsonFile)), std::istreambuf_iterator<char>());
-        auto content = json::parse(jsonContent);
-        auto types = content[Types];
-        auto functions = content[Functions];
+        const auto jsonContent = std::string((std::istreambuf_iterator(jsonFile)), std::istreambuf_iterator<char>());
+        const auto content = json::parse(jsonContent);
+        const auto& types = content[Types];
+        const auto& functions = content[Functions];
         auto typeTable = std::set<sComType>();
         auto structs = std::vector<json>();
         auto enums = std::vector<json>();
@@ -390,7 +390,7 @@ afmt::astClass::ExportTable afmt::ParseExportTable(astClass &_ast, const std::fi
             funcTable.insert(parseFunction(_ast, func, typeTable));
         }
 
-        auto result = afmt::astClass::ExportTable(typeTable, funcTable);
+        auto result = astClass::ExportTable(typeTable, funcTable);
         return result;
     }
     return GenerateCache(_importPath);

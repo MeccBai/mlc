@@ -23,7 +23,7 @@ std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> 
                     body += std::format("%struct.{},", arg.Name);
                 },
                 [&](const ast::Type::ArrayType &arg) {
-                    body += std::format("[{} x {}],", arg.Size(), type::GetTypeName(*(arg.BaseType.get())));
+                    body += std::format("[{} x {}],", arg.Size(), type::GetTypeName(*(arg.BaseType)));
                 },
                 [&](const ast::Type::PointerType &) {
                     body += "ptr,";

@@ -42,7 +42,7 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
                 return ast::Make<ast::Type::CompileType>(
                     ast::Type::PointerType(subType, ptrData->PointerLevel + 1));
             }
-            auto returnPtr = ast::Make<ast::Type::CompileType>(
+            const auto returnPtr = ast::Make<ast::Type::CompileType>(
                 ast::Type::PointerType(subType, 1));
             auto &tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
             tempPointer.Finalize(subType);
@@ -60,13 +60,13 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
     // 单目运算逻辑
     if (arg->Operators.size() == 1 && arg->Components.size() == 2) {
         const auto op = arg->Operators[0];
-        auto subType = arg->Components[0]->GetType();
+        const auto subType = arg->Components[0]->GetType();
         if (!subType) return nullptr;
         if (op == ast::BaseOperator::Add || op == ast::BaseOperator::Sub ||
             op == ast::BaseOperator::Mul || op == ast::BaseOperator::Div) {
             // 2. 地毯式检查所有组件
             for (const auto &exp: arg->Components) {
-                auto type = exp->GetType();
+                const auto type = exp->GetType();
                 if (!type) continue;
                 // 3. 核心安检：只要任何一个组件是 PointerType，立刻“枪毙”
                 if (std::holds_alternative<ast::Type::PointerType>(*type)) {
@@ -170,7 +170,7 @@ type::sPtr<ast::Type::CompileType> ast::Expression::GetType() const {
                 ErrorPrintln("Error: Invalid member access.\n");
                 std::exit(-1);
             },
-            [&](const auto &)->Type::sPtr<Type::CompileType>  {
+            [](const auto &)->Type::sPtr<Type::CompileType>  {
                 ErrorPrintln(" Compile Internal Error.\n");
                 std::exit(-1);
             }

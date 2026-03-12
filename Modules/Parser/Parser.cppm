@@ -70,7 +70,7 @@ export namespace mlc::parser {
 
         StatementTable<ast::Statement> statementParser(ContextTable<ast::VariableStatement> &_context,
                                                        std::string_view statementContent,
-                                                       sPtr<ast::FunctionDeclaration> _currentFunc);
+                                                       const sPtr<ast::FunctionDeclaration>& _currentFunc);
 
         struct caseBlock {
             sPtr<ast::Expression> condition; // case 条件表达式

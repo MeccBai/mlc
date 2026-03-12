@@ -1,0 +1,1 @@
+export void$ malloc(u64 size);

@@ -67,11 +67,11 @@ sPtr<astClass::caseBlock> astClass::caseBlockParser(
                                 ast::Statement> > >();
     std::function<void(const std::shared_ptr<ast::Statement> &)> checkNoVarDef
             = [&](const std::shared_ptr<ast::Statement> &stmt) {
-        if (const auto varStmt = std::get_if<ast::VariableStatement>(stmt.operator->())) {
+        if (const auto *const varStmt = std::get_if<ast::VariableStatement>(stmt.operator->())) {
             ErrorPrintln("Define variable : {} in case/default block is not allowed", varStmt->Name);
             std::exit(-1);
         }
-        if (const auto subScope = std::get_if<ast::SubScope>(stmt.operator->())) {
+        if (const auto *const subScope = std::get_if<ast::SubScope>(stmt.operator->())) {
             for (const auto &s: subScope->Statements) {
                 checkNoVarDef(s);
             }
@@ -101,7 +101,7 @@ sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScop
     auto toBlock = [this, &newContext, _currentFunc](const std::string_view block) {
         return caseBlockParser(newContext, block,_currentFunc);
     };
-    auto toCaseBlock = [](const std::shared_ptr<caseBlock> &block) {
+    const auto toCaseBlock = [](const std::shared_ptr<caseBlock> &block) {
         auto &[caseCondition,statements] = block.operator*();
         if (!caseCondition) {
             return std::make_shared<ast::Statement>(
@@ -118,7 +118,7 @@ sPtr<ast::Statement> astClass::handleSwitchBlock(const std::string_view _subScop
         std::exit(-1);
     }
     const auto &endCaseBlock = caseBlockParsed.back();
-    if (const auto caseBlockPtr = std::get_if<ast::SubScope>(&*endCaseBlock)) {
+    if (const auto *const caseBlockPtr = std::get_if<ast::SubScope>(&*endCaseBlock)) {
         if (caseBlockPtr->ScopeType != ast::SubScopeType::DefaultBlock) {
             ErrorPrintln("Error: The last block in a switch statement must be a default block\n");
             std::exit(-1);
@@ -150,10 +150,10 @@ sPtr<ast::Statement> astClass::subScopeParser(const ContextTable<ast::VariableSt
     if (_subScopeContent.find("switch(") == 0) {
         return handleSwitchBlock(_subScopeContent, newContext, _currentFunc);
     }
-    const auto bodyToStatements = [this, &newContext](const std::string_view body,const sPtr<ast::FunctionDeclaration>& _currentFunc) {
+    const auto bodyToStatements = [this, &newContext](const std::string_view body,const sPtr<ast::FunctionDeclaration>& _func) {
         auto temp = seg::TokenizeFunctionBody(body) | std::views::transform(
-                        [&newContext, this, _currentFunc](const std::string_view statement) {
-                            return statementParser(newContext, statement, _currentFunc);
+                        [&newContext, this, _func](const std::string_view statement) {
+                            return statementParser(newContext, statement, _func);
                         }) | std::ranges::to<std::vector<std::vector<sPtr<ast::Statement> > > >();
         return temp | std::views::join | std::ranges::to<std::vector<sPtr<ast::Statement> > >();
     };

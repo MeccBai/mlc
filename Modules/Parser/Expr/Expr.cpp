@@ -100,7 +100,7 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
     if (fragments.size() == 1) return expressionTreeParser(_context, fragments[0]);
 
     // 查找当前层级结合力最弱的分割点
-    int splitIndex = findSplitOperator(fragments);
+    const auto splitIndex = findSplitOperator(fragments);
 
     // 如果没找到操作符，说明是某种未处理的语法错误
     if (splitIndex == -1) return expressionTreeParser(_context, fragments[0]);

@@ -63,39 +63,39 @@ GenClass::exprResult compositeExpand(const sPtr<ast::Expression> &_expression) {
 
 GenClass::exprResult GenClass::ExpressionExpand(const sPtr<ast::Expression> &_expression,
                                                 const sPtr<type::CompileType> &_type) {
-    if (const auto *const initListPtr = _expression->GetInitializerList()) {
-        return InitializerListExpression(*initListPtr, _type);
-    }
-    const auto type = TypeToLLVM(_expression->GetType());
-    if (const auto *const constPtr = _expression->GetConstValue()) {
-        return {type, constPtr->Value, ""};
-    }
-    if (const auto *const enumPtr = _expression->GetEnumValue()) {
-        return {type, std::to_string(enumPtr->Index), ""};
-    }
-    if (const auto *const varPtr = _expression->GetVariable()) {
-        return variableExpand(*varPtr);
-    }
-    if (_expression->GetCompositeExpression()) {
-        return compositeExpand(_expression);
-    }
-    if (const auto *const functionCallPtr = _expression->GetFunctionCall()) {
-        if (functionCallPtr->get()->FunctionDecl->IsTypeConvert) {
-            const auto func = *functionCallPtr;
-            return TypeConvert(func->Arguments[0], func->FunctionDecl->ReturnType);
+    if (!_expression || !_expression->Storage) return {"", "", ""};
+
+
+    return std::visit(overloaded{
+        [&](const type::sPtr<ast::InitializerList> &initList) {
+            return InitializerListExpression(initList, _type);
+        },
+        [&](const ast::ConstValue &constVal) -> exprResult {
+            const auto llvmTypeName = TypeToLLVM(_expression->GetType());
+            return {llvmTypeName, constVal.Value, ""};
+        },
+        [&](const ast::EnumValue &enumVal) -> exprResult {
+            const auto llvmTypeName = TypeToLLVM(_expression->GetType());
+            return {llvmTypeName, std::to_string(enumVal.Index), ""};
+        },
+        [&](const type::sPtr<ast::Variable> &var) {
+            return variableExpand(var);
+        },
+        [&](const type::sPtr<ast::CompositeExpression> &) {
+            return compositeExpand(_expression);
+        },
+        [&](const type::sPtr<ast::FunctionCall> &funcCall) -> exprResult {
+            if (funcCall->FunctionDecl->IsTypeConvert) {
+                return TypeConvert(funcCall->Arguments[0], funcCall->FunctionDecl->ReturnType);
+            }
+            const auto [isCopyResult, resType, resVar, code] = FunctionCall(funcCall);
+            return {resType, resVar, code, isCopyResult};
+        },
+        [&](const auto &) -> exprResult {
+            return {"", "", ""};
         }
-        const auto [isCopyResult, llvmType, resultVar, callCode] = FunctionCall(*functionCallPtr);
-        return exprResult{
-            llvmType,
-            resultVar,
-            callCode,
-            isCopyResult
-        };
-    }
-
-    return {"", "", ""};
+    }, *_expression->Storage);
 }
-
 
 GenClass::exprResult GenClass::TripleExpression(const expr &_left, const expr &_right, ast::BaseOperator _op) {
     const auto leftResult = ExpressionExpand(_left);

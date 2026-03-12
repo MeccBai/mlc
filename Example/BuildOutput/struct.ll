@@ -1,19 +1,19 @@
 target triple = "x86_64-w64-windows-gnu"
 %struct.b = type {i32,i32}
-%struct.a = type {%struct.b,i64}
 %struct.d = type {ptr,i32}
+%struct.a = type {%struct.b,i64}
 %struct.c = type {%struct.a,ptr}
+declare i64 @fopen(i64 %0,i64 %1)
 declare void @perror(i64 %0)
-declare i32 @printf(...)
 declare i32 @scanf(...)
 declare i32 @puts(i64 %0)
-declare i32 @putchar(i32 %0)
-declare i32 @getchar()
 declare i32 @fflush(i64 %0)
-declare i64 @fopen(i64 %0,i64 %1)
 declare i32 @fclose(i64 %0)
-declare i32 @fprintf(...)
+declare i32 @putchar(i32 %0)
 declare i32 @fscanf(...)
+declare i32 @fprintf(...)
+declare i32 @printf(...)
+declare i32 @getchar()
 define i32 @main() { 
 %b1 = alloca %struct.b, align 8
 %il2 = getelementptr %struct.b, ptr %b1, i32 0, i32 0
@@ -69,21 +69,21 @@ store i8 37, ptr %il41
 %il42 = getelementptr [10 x i8], ptr %il40, i32 0, i32 1
 store i8 100, ptr %il42
 %il43 = getelementptr [10 x i8], ptr %il40, i32 0, i32 2
-store i32 0, ptr %il43
+store i8 0, ptr %il43
 %il44 = getelementptr [10 x i8], ptr %il40, i32 0, i32 3
-store i32 0, ptr %il44
+store i8 0, ptr %il44
 %il45 = getelementptr [10 x i8], ptr %il40, i32 0, i32 4
-store i32 0, ptr %il45
+store i8 0, ptr %il45
 %il46 = getelementptr [10 x i8], ptr %il40, i32 0, i32 5
-store i32 0, ptr %il46
+store i8 0, ptr %il46
 %il47 = getelementptr [10 x i8], ptr %il40, i32 0, i32 6
-store i32 0, ptr %il47
+store i8 0, ptr %il47
 %il48 = getelementptr [10 x i8], ptr %il40, i32 0, i32 7
-store i32 0, ptr %il48
+store i8 0, ptr %il48
 %il49 = getelementptr [10 x i8], ptr %il40, i32 0, i32 8
-store i32 0, ptr %il49
+store i8 0, ptr %il49
 %il50 = getelementptr [10 x i8], ptr %il40, i32 0, i32 9
-store i32 0, ptr %il50
+store i8 0, ptr %il50
 %51 = load i32, ptr %x, align 4
 %52 = load i32, ptr %y, align 4
 %tr53 = add i32 %51, %52

@@ -8,7 +8,7 @@ import :Decl;
 
 astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<ast::VariableStatement> &_context,
                                                                    const std::string_view _statementContent,
-                                                                   sPtr<ast::FunctionDeclaration> _currentFunc) {
+                                                                   const sPtr<ast::FunctionDeclaration>& _currentFunc) {
     // 控制流语句
     if (_statementContent.starts_with("if(") ||
         _statementContent.starts_with("while(") ||
@@ -48,7 +48,7 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
     }
     if (const auto pos = _statementContent.find('$');
         pos != std::string_view::npos && !_statementContent.starts_with('$')) {
-        if (const auto pos2 = _statementContent.find('='); pos2 > pos) {
+        if (const auto pos2 = _statementContent.find('='); pos2 > pos && pos2 != std::string_view::npos) {
             return variableParser(_context, _statementContent);
         }
     }
@@ -64,9 +64,9 @@ astClass::StatementTable<ast::Statement> astClass::statementParser(ContextTable<
 
     // 函数调用语句
     if (_statementContent.find('(') != std::string_view::npos) {
-        auto parserFunc = exprParser([this](ContextTable<ast::VariableStatement> &_context,
-                                                std::string_view content) {
-                return this->expressionParser(_context, content);
+        auto parserFunc = exprParser([this](ContextTable<ast::VariableStatement> &_tempContext,
+                                                const std::string_view content) {
+                return this->expressionParser(_tempContext, content);
             });
 
         return parseFunctionCallStatement(_context, _statementContent);

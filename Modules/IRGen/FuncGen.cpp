@@ -93,9 +93,9 @@ GenClass::funcCall GenClass::FunctionCall(
 }
 
 GenClass::exprResult GenClass::FunctionArg(funcArg &_funcArg, size_t _index) {
-    auto argName = "%" + std::to_string(_index); // %0, %1...
-    auto currentType = _funcArg.llvmType;
-    auto originalType = _funcArg.originalType;
+    const auto argName = "%" + std::to_string(_index); // %0, %1...
+    const auto currentType = _funcArg.llvmType;
+    const auto originalType = _funcArg.originalType;
     std::string code;
     const auto resultVar = _funcArg.resultVar;
     std::string resultType = "ptr"; // 最终结果通常是栈上的指针
@@ -147,7 +147,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
             if (i + 1 < _func->Statements.size()) {
                 if (auto *nextSub = std::get_if<ast::SubScope>(&*_func->Statements[i + 1]);
                     nextSub && nextSub->ScopeType == ast::SubScopeType::ElseBlock) {
-                    nextElse = std::make_shared<ast::SubScope>(*nextSub);
+                    nextElse = ast::Make<ast::SubScope>(*nextSub);
                     i+=1;
                 }
             }
