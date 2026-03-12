@@ -148,9 +148,9 @@ export namespace mlc::ast {
         }
 
         FunctionScope(const FunctionDeclaration &_functionDeclaration,
-                      std::vector<std::shared_ptr<Statement> > _statements, const bool _isExported = false)
+                      std::vector<std::shared_ptr<Statement> > _statements)
             : IsVarList(_functionDeclaration.IsVarList),
-              IsExported(_isExported),
+              IsExported(_functionDeclaration.IsExported),
               Name(_functionDeclaration.Name),
               Statements(std::move(_statements)),
               Parameters(_functionDeclaration.Parameters), ReturnType(_functionDeclaration.ReturnType) {

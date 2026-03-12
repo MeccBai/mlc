@@ -70,15 +70,15 @@ std::string functionCallGenerate(ast::FunctionCall *_funcCall) {
 
 std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
-    if (auto *variable = std::get_if<ast::VariableStatement>(&*_stmt)) {
-        return LocalVariable(ast::Make<ast::Variable>(*variable));
-    }
-    if (auto *assign = std::get_if<ast::AssignStatement>(&*_stmt)) {
-        auto leftResult = LeftExpressionExpand(assign->BaseValue);
-        auto rightResult = ExpressionExpand(assign->Value);
+    auto variableStmt = [&](ast::VariableStatement &_variable) {
+        return LocalVariable(ast::Make<ast::Variable>(_variable));
+    };
+    auto assignStmt = [](ast::AssignStatement &_assign) {
+        auto leftResult = LeftExpressionExpand(_assign.BaseValue);
+        const auto rightResult = ExpressionExpand(_assign.Value);
         std::string code = leftResult.code + rightResult.code;
         if (rightResult.isCopyResult) {
-            auto size = type::GetSize(assign->Value->GetType());
+            auto size = type::GetSize(_assign.Value->GetType());
             code += std::format(
                 "call void @{}(ptr {}, ptr {}, i64 {}, i1 false)\n", llvmCopy,
                 leftResult.resultVar, rightResult.resultVar, size
@@ -90,28 +90,45 @@ std::string GenClass::StatementGenerate(const sPtr<ast::Statement> &_stmt,
             );
         }
         return code;
-    }
-    if (std::get_if<ast::ReturnStatement>(&*_stmt)) {
+    };
+
+    auto returnStmt = [&](ast::ReturnStatement &) {
         return ReturnStatementGenerate(_stmt, FunctionUnit(_decl));
-    }
-    if (std::get_if<ast::SubScope>(&*_stmt)) {
+    };
+
+    auto subScopeStmt = [&](ast::SubScope &) {
         return SubScopeGenerate(_stmt, _decl);
-    }
-    if (auto *funcCall = std::get_if<ast::FunctionCall>(&*_stmt)) {
-        return functionCallGenerate(funcCall);
-    }
-    if (std::holds_alternative<ast::ContinueStatement>(*_stmt) || std::holds_alternative<ast::BreakStatement>(*_stmt)) {
-        ErrorPrintln("Loop control statements (continue/break) are not supported in general scope\n");
+    };
+
+    auto functionCallStmt = [](ast::FunctionCall &_funcCall) {
+        return functionCallGenerate(&_funcCall);
+    };
+
+    auto continueStmt = [](ast::ContinueStatement &) -> std::string {
+        ErrorPrintln(
+            "Loop control statements (continue/break) are not supported in general scope\n");
         std::exit(-1);
-    }
-    return "\n";
+    };
+
+    auto breakStmt = [](ast::BreakStatement &)-> std::string {
+        ErrorPrintln(
+            "Loop control statements (continue/break) are not supported in general scope\n");
+        std::exit(-1);
+    };
+
+    return std::visit(
+        overloaded{
+            variableStmt, assignStmt, returnStmt, subScopeStmt,
+            breakStmt, continueStmt, functionCallStmt
+        },
+        *_stmt);
 }
 
 
 std::string GenClass::ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
                                               const funcResult &_func) {
     auto type = _func.llvmType;
-    auto retStmt = std::get_if<ast::ReturnStatement>(&*_stmt);
+    auto *retStmt = std::get_if<ast::ReturnStatement>(&*_stmt);
     auto expr = retStmt->ReturnValue;
     if (type == "void") {
         if (expr) {
@@ -135,15 +152,24 @@ std::string GenClass::ReturnStatementGenerate(const sPtr<ast::Statement> &_stmt,
 
 std::string GenClass::StreamControlGenerate(const sPtr<ast::Statement> &_parentScope, const sPtr<ast::Statement> &_self,
                                             const std::string_view _startLabel, const std::string_view _endLabel) {
-    if (const auto parent = std::get_if<ast::SubScope>(&*_parentScope)) {
+    if (const auto *const parent = std::get_if<ast::SubScope>(&*_parentScope)) {
         if (parent->ScopeType == ast::SubScopeType::WhileBlock || parent->ScopeType ==
             ast::SubScopeType::DoWhileBlock) {
-            if (std::get_if<ast::ContinueStatement>(&*_self)) {
-                return std::format("br label %{}\n", _startLabel);
-            }
-            if (std::get_if<ast::BreakStatement>(&*_self)) {
-                return std::format("br label %{}\n", _endLabel);
-            }
+            return std::visit(
+                overloaded{
+                    [&](ast::ContinueStatement &) {
+                        return std::format("br label %{}\n", _startLabel);
+                    },
+                    [&](ast::BreakStatement &) {
+                        return std::format("br label %{}\n", _endLabel);
+                    },
+                    [&](auto &) -> std::string {
+                        ErrorPrintln(
+                            "Loop control statements (continue/break) are not supported in non-loop scope\n");
+                        std::exit(-1);
+                    }
+                }, *_self
+            );
         }
     }
     ErrorPrintln("Loop control statements (continue/break) are not supported in general scope\n");
@@ -153,17 +179,25 @@ std::string GenClass::StreamControlGenerate(const sPtr<ast::Statement> &_parentS
 std::string GenClass::caseBlockGenerate(const sPtr<ast::Statement> &_parentScope,
                                         const ast::SubScope *_caseBlock, std::string_view _endLabel,
                                         const sPtr<ast::FunctionDeclaration> &_decl) {
-    auto code = std::string();
-    for (const auto &stmt: _caseBlock->Statements) {
-        if (std::get_if<ast::ContinueStatement>(&*stmt)) {
-            ErrorPrintln("Loop control statements (continue) are not supported in case/default block\n");
-            std::exit(-1);
-        }
-        if (std::get_if<ast::BreakStatement>(&*stmt)) {
-            code += std::format("br label %{}\n", _endLabel);
-            continue;
-        }
-        code += StatementGenerate(stmt, _decl);
-    }
+    auto stmtGenerate = [&](const sPtr<ast::Statement> &_stmt) {
+        return std::visit(
+            overloaded{
+                [&](ast::ContinueStatement &) -> std::string {
+                    ErrorPrintln(
+                        "Loop control statements (continue) are not supported in case/default block\n");
+                    std::exit(-1);
+                },
+                [&](ast::BreakStatement &) {
+                    return std::format("br label %{}\n", _endLabel);
+                },
+                [&](auto &) {
+                    return StatementGenerate(_stmt, _decl);
+                }
+            },
+            *_stmt);
+    };
+
+    auto code = _caseBlock->Statements | std::views::transform(stmtGenerate) | std::views::join | std::ranges::to<
+                    std::string>();
     return code;
 }

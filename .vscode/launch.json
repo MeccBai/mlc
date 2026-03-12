@@ -5,13 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "lldb-dap",
+            "type": "lldb",
             "request": "launch",
             "name": "Debug - Test",
-            "program": "${workspaceFolder}/build/Debug/test.exe",
-            "args": [],
-            "env": [],
-            "cwd": "${workspaceFolder}"
-        }
+            "program": "${workspaceFolder}/build/Debug/mlc.exe",
+            "args": [
+                "struct.mc"
+            ],
+            "env" : {
+                "PATH" : "F:/Develop/C++/LLVM-MinGW/bin;${env:PATH}"
+            },
+            "cwd": "${workspaceFolder}/Example"
+        },
     ]
 }

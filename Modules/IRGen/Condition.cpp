@@ -9,6 +9,11 @@ import keyword;
 import Parser;
 import aux;
 
+auto jumpTo = [](const std::string_view _label) {
+    return std::format("br label %{}\n", _label);
+};
+
+
 std::string constConditionExpand(const std::string_view _true,const std::string_view _false, const ast::ConstValue * _constVal) {
     const auto type = _constVal->Type;
     const auto llvmType = GenClass::TypeToLLVM(type);
@@ -27,16 +32,16 @@ std::string constConditionExpand(const std::string_view _true,const std::string_
             isTrue = false;
         }
     }
-    std::string target = isTrue ? std::string(_true) : std::string(_false);
-    return std::format("br label %{}\n", target);
+    const auto target = isTrue ? std::string(_true) : std::string(_false);
+    return std::format("{}\n", jumpTo(target));
 }
 
 std::string varConditionExpand(const std::string_view _true,const std::string_view _false, const ast::Variable * _var) {
     auto llvmType = GenClass::TypeToLLVM(_var->VarType);
     std::string code;
-    std::string valReg = std::format("%{}", GenClass::exprCnt++);
+    auto valReg = std::format("%{}", GenClass::exprCnt++);
     //code += std::format("{} = load {}, ptr %{}\n", valReg, llvmType, _var->Name);
-    std::string boolReg = std::format("%{}", GenClass::exprCnt++); // 💡 必须是新的寄存器
+    auto boolReg = std::format("%{}", GenClass::exprCnt++); // 💡 必须是新的寄存器
     if (llvmType.starts_with('i') || llvmType.starts_with('u')) {
         code += std::format("{} = icmp ne {} {}, 0\n", boolReg, llvmType, valReg);
     } else if (llvmType.starts_with('f')) {
@@ -52,14 +57,14 @@ std::string funcConditionExpand(const std::string_view _true,const std::string_v
     auto funcDecl = _funcCall->FunctionDecl;
     auto [isCopyResult, llvmType, resultVar, callCode] = GenClass::FunctionCall(
         std::make_shared<ast::FunctionCall>(*_funcCall));
-    std::string code = callCode;
+    auto code = callCode;
     if (isCopyResult) {
         ErrorPrintln("Condition cannot be a function call that returns a large struct (>=16 bytes) "
             "because it requires memcpy to retrieve the result, "
             "which is not supported in condition expressions.\n");
         std::exit(-1);
     }
-    std::string boolReg = std::format("%{}", GenClass::exprCnt++);
+    auto boolReg = std::format("%{}", GenClass::exprCnt++);
     if (llvmType.starts_with('i') || llvmType.starts_with('u')) {
         code += std::format("{} = icmp ne {} {}, 0\n", boolReg, llvmType, resultVar);
     }
@@ -74,7 +79,7 @@ std::string funcConditionExpand(const std::string_view _true,const std::string_v
 
 std::string compositeConditionExpand(const std::string_view _true, const std::string_view _false, const sPtr<ast::Expression> &_condition) {
     auto [llvmType, resultVar, code, isCopyResult] = GenClass::ExpressionExpand(_condition);
-    std::string boolReg = std::format("%{}", GenClass::exprCnt++);
+    auto boolReg = std::format("%{}", GenClass::exprCnt++);
     if (isCopyResult) {
         ErrorPrintln("Condition cannot be a composite expression that results in a large struct (>=16 bytes) "
             "because it requires memcpy to retrieve the result, "
@@ -116,13 +121,14 @@ std::string handleWhileBlock(auto &getLabel, ast::SubScope *_subScope, const sPt
     std::string condLabel = getLabel(); // 条件判定块
     std::string bodyLabel = getLabel(); // 循环体块
     std::string endLabel = getLabel(); // 循环退出块
-    code += std::format("br label %{}\n", condLabel);
+    code += jumpTo(condLabel);
     code += std::format("{}:\n", condLabel);
     auto condRes = GenClass::ExpressionExpand(_subScope->Condition);
     code += condRes.code;
     code += GenClass::ConditionExpression(_subScope->Condition, bodyLabel, endLabel);
     code += std::format("{}:\n", bodyLabel);
     bool bodyTerminated = false;
+
     for (const auto &stmt: _subScope->Statements) {
         if (std::get_if<ast::ReturnStatement>(&*stmt)) {
             code += GenClass::ReturnStatementGenerate(stmt, GenClass::FunctionUnit(_decl));
@@ -136,9 +142,9 @@ std::string handleWhileBlock(auto &getLabel, ast::SubScope *_subScope, const sPt
         code += GenClass::StatementGenerate(stmt, _decl);
     }
     if (!bodyTerminated) {
-        code += std::format("br label %{}\n", condLabel);
+        code += jumpTo(condLabel);
     }
-    code += std::format("{}:\n", endLabel);
+    code += jumpTo(endLabel);
     return code;
 }
 
@@ -174,7 +180,7 @@ std::string handleDoWhileBlock(auto & getLabel,ast::SubScope * _subScope,const s
 std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
                                        const sPtr<ast::FunctionDeclaration> &_decl) {
     std::string code;
-    switch (const auto subScope = std::get_if<ast::SubScope>(&*_stmt); subScope->ScopeType) {
+    switch (auto *const subScope = std::get_if<ast::SubScope>(&*_stmt); subScope->ScopeType) {
         case ast::SubScopeType::WhileBlock: {
             code += handleWhileBlock(getLabel, subScope, _decl, _stmt);
         }
@@ -190,7 +196,7 @@ std::string GenClass::SubScopeGenerate(const sPtr<ast::Statement> &_stmt,
             auto condRes = ExpressionExpand(subScope->Condition);
             std::string jumpCode = condRes.code;
             for (const auto &stmt: subScope->Statements) {
-                auto sub = std::get_if<ast::SubScope>(&*stmt);
+                auto *sub = std::get_if<ast::SubScope>(&*stmt);
                 auto currentLabel = getLabel();
                 labels.push_back(currentLabel);
                 caseCode += std::format("{}:\n{}\n", currentLabel,
@@ -245,17 +251,17 @@ std::string GenClass::ifBlockGenerate(const sPtr<ast::FunctionDeclaration> &_dec
     bool thenTerminated = false;
     for (size_t i = 0; i < _ifBlock->Statements.size(); ++i) {
         const auto &stmt = _ifBlock->Statements[i];
-        if (auto currentSub = std::get_if<ast::SubScope>(&*stmt);
+        if (auto *currentSub = std::get_if<ast::SubScope>(&*stmt);
             currentSub && currentSub->ScopeType == ast::SubScopeType::IfBlock) {
             sPtr<ast::SubScope> nextElse = nullptr;
             if (i + 1 < _ifBlock->Statements.size()) {
-                if (auto nextSub = std::get_if<ast::SubScope>(&*_ifBlock->Statements[i + 1]);
+                if (auto *nextSub = std::get_if<ast::SubScope>(&*_ifBlock->Statements[i + 1]);
                     nextSub && nextSub->ScopeType == ast::SubScopeType::ElseBlock) {
                     nextElse = std::make_shared<ast::SubScope>(*nextSub);
                     i++;
                 }
             }
-            auto ifBlock = std::get_if<ast::SubScope>(&*stmt);
+            auto *ifBlock = std::get_if<ast::SubScope>(&*stmt);
             code += ifBlockGenerate(_decl, ast::Make(*ifBlock), nextElse);
             continue;
         }

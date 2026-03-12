@@ -17,7 +17,7 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
     ContextTable<ast::VariableStatement> context;
     auto [header,body] = getFunctionHeader(_functionContent);
     auto statements = seg::TokenizeFunctionBody(body);
-    auto functionDecl = ast::FunctionDeclaration(functionDeclParser(header));
+    auto functionDecl = ast::FunctionDeclaration(functionDeclParser(header,_isExported));
     const auto functionDeclPtr = std::make_shared<ast::FunctionDeclaration>(functionDecl);
     for (const auto args = functionDecl.Parameters;
          const auto &arg: args) {
@@ -33,15 +33,17 @@ ast::FunctionScope astClass::functionDefParser(const std::string_view _functionC
                                 ast::Statement> > >();
 
     if (statementsParsed.empty()) {
-        ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
-        std::exit(-1);
+        if (type::GetTypeName(*functionDecl.ReturnType) != "void") {
+            ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
+            std::exit(-1);
+        }
     }
-    if (auto *returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
+    if (const auto *returnStatement = std::get_if<ast::ReturnStatement>(statementsParsed.back().get()); !returnStatement) {
         ErrorPrintln("Error: function '{}' must have a return statement.\n", functionDecl.Name);
         std::exit(-1);
     }
 
-    return {functionDecl, statementsParsed,_isExported};
+    return {functionDecl, statementsParsed};
 }
 
 sPtr<ast::Variable> normalArgParser(const std::string_view _argContent,auto findType) {
@@ -118,7 +120,8 @@ std::pair<std::string_view,size_t> getPointerLevel(const std::string_view _typeN
 ast::FunctionDeclaration astClass::functionDeclParser(
     const std::string_view _functionContent,const bool _isExported) const {
     //void func(int a,int b)
-    std::string_view funcContent = _functionContent;
+    const auto funcContent = _functionContent;
+    bool isExported = _isExported;
 
     bool isPointer = false;
     size_t pointerLevel = 0;
@@ -150,15 +153,17 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     const auto leftBracket = funcContent.find('(');
     const auto rightBracket = funcContent.find(')');
     const auto argsList = funcContent.substr(leftBracket + 1, rightBracket - leftBracket - 1);
-    const auto functionName = funcContent.substr(returnType.length() + 1, leftBracket - returnType.length() - 1);
+    const auto offset = returnType.length() + (isPointer ? pointerLevel : 1);
+    const auto functionName = funcContent.substr(offset, leftBracket - offset);
 
+    if (functionName == std::string_view("main",4)) isExported = true;
 
     if (argsList == std::string_view("...")) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true,_isExported);
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {}, true,isExported);
     }
 
     if (argsList.empty()) {
-        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {},false,_isExported);
+        return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), {},false,isExported);
     }
 
     auto toArg = [this](const std::string_view arg) {
@@ -168,7 +173,7 @@ ast::FunctionDeclaration astClass::functionDeclParser(
     const std::vector<sPtr<ast::VariableStatement> > args = argSplit(argsList)
     | std::views::transform(toArg) | std::ranges::to<std::vector>();
 
-    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args,false,_isExported);
+    return ast::FunctionDeclaration(std::string(functionName), returnTypePtr.value(), args,false,isExported);
 }
 
 astClass::functionWarper astClass::functionDeclSpliter(const std::string_view _functionHeader,const bool _isExported) const {

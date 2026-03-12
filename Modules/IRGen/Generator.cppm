@@ -160,6 +160,8 @@ namespace mlc::ir::gen {
 
     size_t GetAlignment(const ast::Type::sPtr<type::CompileType>& t);
 
+
+
 }
 
 namespace gen = mlc::ir::gen;
@@ -169,3 +171,8 @@ using size_t = std::size_t;
 template<typename type>
 using sPtr = std::shared_ptr<type>;
 namespace type = ast::Type;
+
+namespace mlc::ir::gen {
+    GenClass::exprResult variableExpand( const type::sPtr<ast::VariableStatement>& _var);
+
+}

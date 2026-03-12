@@ -11,6 +11,14 @@ import std;
 
 using size_t = std::size_t;
 
+export template<class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
+
+export template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
 export namespace mlc::ast {
     const std::unordered_map<BaseOperator, std::string> BaseIROperators = {
         {BaseOperator::Add, "add"}, {BaseOperator::Sub, "sub"}, {BaseOperator::Mul, "mul"},
@@ -47,13 +55,16 @@ export namespace mlc::ast::Type {
     }
 
     bool IsIntegerType(const CompileType &type) {
-        return std::visit([]<typename T0>(T0 &&t) -> bool {
-            using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, BaseType>) {
-                return t.Name.starts_with('i') || t.Name.starts_with('u');
-            }
-            return false;
-        }, type);
+        return std::visit(
+            overloaded{
+                [](const BaseType &t) -> bool {
+                    return t.Name.starts_with('i') || t.Name.starts_with('u');
+                },
+                [](const auto &) -> bool {
+                    return false;
+                }
+            }, type
+        );
     }
 }
 

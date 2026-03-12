@@ -55,7 +55,7 @@ export namespace mlc::parser {
         ast::FunctionScope functionDefParser(std::string_view _functionContent,bool _isExported);
 
         [[nodiscard]] ast::FunctionDeclaration functionDeclParser(std::string_view _functionContent,
-                                                                  bool _isExported = false) const;
+                                                                  bool isExported = false) const;
 
         [[nodiscard]] sPtr<ast::VariableStatement> functionArgParser(std::string_view _argContent) const;
 
@@ -144,7 +144,7 @@ export namespace mlc::parser {
         [[nodiscard]] std::vector<ast::Type::StructDefinition> structDefParser(
             const std::vector<seg::TokenStatement> &_structContents) const;
 
-        static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent,const bool _isExported);
+        static ast::Type::EnumDefinition enumDefParser(std::string_view _enumContent,bool _isExported);
 
         std::unordered_map<std::string, sPtr<ast::Type::CompileType> > typeMap;
         std::set<std::shared_ptr<ast::Type::CompileType>,TypeComp> typeSymbolTable;
@@ -163,8 +163,10 @@ export namespace mlc::parser {
 
 
         [[nodiscard]] ast::Expression GetBaseTypeDefaultValue(const sPtr<type::BaseType> &_type) const;
+        [[nodiscard]] ast::Expression GetBaseTypeDefaultValue(const type::BaseType &_type) const;
 
         ast::Expression GetStructDefaultValue(const sPtr<type::StructDefinition> &_type);
+        ast::Expression GetStructDefaultValue(const type::StructDefinition &_type);
 
         ast::Expression GetDefaultValue(const sPtr<type::CompileType> &_type);
 

@@ -63,12 +63,12 @@ export namespace mlc::ast::Type {
         const std::size_t size;
     };
 
-    class EnumDefinition {
+    class EnumDefinition: public std::enable_shared_from_this<EnumDefinition> {
     public:
-        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values,bool _isExported = false) : Name(_name),
+        explicit EnumDefinition(const std::string_view _name, std::vector<std::string> &_values,const bool _isExported = false) : Name(_name),
             Values(std::move(_values)),isExported(_isExported) {
             IsValidName(Name);
-            std::ranges::for_each(Values, [](const std::string_view _name) { IsValidName(_name); });
+            std::ranges::for_each(Values, [](const std::string_view name) { IsValidName(name); });
         }
 
         const std::string Name;
@@ -86,6 +86,10 @@ export namespace mlc::ast::Type {
                 }
             }
             return std::nullopt;
+        }
+
+        const CompileType* SelfType() {
+            return reinterpret_cast<CompileType*>(this);
         }
     };
 

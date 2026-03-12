@@ -121,20 +121,14 @@ void ast::dumpFragments(const exprTree &fragment, const int indent) {
         using Type = std::decay_t<T>;
 
         if constexpr (std::is_same_v<Type, std::string_view>) {
-            // 无论是 Op 还是 Atom，都得打印出来！
             if (fragment.isOperator) {
                 std::print("<{}>", arg);
             } else {
-                // 这里加个空格或者符号，确保它不和前后的内容粘在一起
                 std::print("{}", arg);
             }
         } else if constexpr (std::is_same_v<Type, std::vector<exprTree> >) {
             std::print("[");
             for (size_t i = 0; i < arg.size(); ++i) {
-                // 递归处理子片段
-                //dumpFragments(arg[i], indent + 1);
-
-                // 只有在元素之间加空格
                 if (i < arg.size() - 1) {
                     std::print(" ");
                 }
@@ -142,8 +136,6 @@ void ast::dumpFragments(const exprTree &fragment, const int indent) {
             std::print("]");
         }
     }, fragment.data);
-
-    // 只有顶层调用才负责换行
     if (indent == 0) {
         std::println("");
     }

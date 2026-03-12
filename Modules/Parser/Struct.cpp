@@ -72,15 +72,15 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 return ast::Make<type::CompileType>(structDef);
             }
         }
-        return sPtr<ast::Type::CompileType>(nullptr);
+        return sPtr<type::CompileType>(nullptr);
     };
 
     const auto findType = [this, findStruct](const std::string_view _typeName) {
         for (const auto &type: typeSymbolTable) {
-            if (auto *const basePtr = std::get_if<ast::Type::BaseType>(&*type)) {
+            if (auto *const basePtr = std::get_if<type::BaseType>(&*type)) {
                 const auto view = std::string_view(basePtr->Name);
                 if (const auto typeName = _typeName; view == typeName) {
-                    return std::make_shared<ast::Type::CompileType>(*basePtr);
+                    return std::make_shared<type::CompileType>(*basePtr);
                 }
             }
         }
@@ -95,7 +95,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
         for (auto membersViews = memberDefs | std::views::transform(parseStructMember);
             const auto&[name, typeName, isPointer]:membersViews) {
             if (isPointer) {
-                auto ptr = std::make_shared<ast::Type::CompileType>(ast::Type::PointerType(1));
+                auto ptr = std::make_shared<type::CompileType>(type::PointerType(1));
                 lazyPtrs.emplace_back(ptr, typeName);
                 //std::println("{}",typeName);
                 members.emplace_back(std::string(name), ptr);
@@ -122,7 +122,7 @@ std::vector<type::StructDefinition> astClass::structDefParser(
                 ErrorPrintln("Error: Unknown type '{}' for pointer member\n", name);
                 std::exit(-1);
             }
-            auto* specificPtr = std::get_if<ast::Type::PointerType>(ptr.get());
+            auto* specificPtr = type::GetType<type::PointerType>(ptr);
             specificPtr->Finalize(typePtr);
         }
     }

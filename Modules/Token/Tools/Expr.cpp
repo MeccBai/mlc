@@ -39,14 +39,10 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
         if (!subType) return nullptr;
         if (op == ast::BaseOperator::AddressOf) {
             if (const auto *ptrData = std::get_if<ast::Type::PointerType>(&(*subType))) {
-                const auto newLevel = ptrData->PointerLevel;
-                auto returnPtr = std::make_shared<ast::Type::CompileType>(
-                    ast::Type::PointerType(newLevel));
-                auto &tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
-                tempPointer.Finalize(subType);
-                return returnPtr;
+                return ast::Make<ast::Type::CompileType>(
+                    ast::Type::PointerType(subType, ptrData->PointerLevel + 1));
             }
-            auto returnPtr = std::make_shared<ast::Type::CompileType>(
+            auto returnPtr = ast::Make<ast::Type::CompileType>(
                 ast::Type::PointerType(subType, 1));
             auto &tempPointer = std::get<ast::Type::PointerType>(*returnPtr);
             tempPointer.Finalize(subType);
@@ -146,33 +142,40 @@ std::shared_ptr<ast::Type::CompileType> handleCompositeType(
 
 type::sPtr<ast::Type::CompileType> ast::Expression::GetType() const {
     if (!Storage) return nullptr;
-
-    const auto *storagePtr = &*Storage;
-    if (const auto *constVal = std::get_if<ConstValue>(storagePtr)) {
-        return constVal->GetType();
-    }
-    if (const auto *varPtr = std::get_if<std::shared_ptr<Variable> >(storagePtr)) {
-        return (*varPtr) ? (*varPtr)->VarType : nullptr;
-    }
-    if (const auto *funcCallPtr = std::get_if<std::shared_ptr<FunctionCall> >(storagePtr)) {
-        return (*funcCallPtr && (*funcCallPtr)->FunctionDecl) ? (*funcCallPtr)->FunctionDecl->ReturnType : nullptr;
-    }
-    if (const auto *compExprPtr = std::get_if<std::shared_ptr<CompositeExpression> >(storagePtr)) {
-        return handleCompositeType(*compExprPtr);
-    }
-    if (const auto *enumValPtr = std::get_if<EnumValue>(storagePtr)) {
-        return ast::Make<type::CompileType>(*(enumValPtr->EnumDef));
-    }
-    if (const auto *memberAccessPtr = std::get_if<std::shared_ptr<MemberAccess> >(storagePtr)) {
-        if (const auto &arg = *memberAccessPtr;
-            arg && arg->StructDef) {
-            if (const auto &members = arg->StructDef->Members;
-                arg->Index < members.size()) {
-                return members[arg->Index].Type;
+    return std::visit(
+        overloaded{
+            [&](const ConstValue &constVal) ->Type::sPtr<Type::CompileType> {
+                return constVal.GetType();
+            },
+            [&](const EnumValue &_enum) ->Type::sPtr<Type::CompileType> {
+                return _enum.GetType();
+            },
+            [&](const type::sPtr<Variable> &_var)->Type::sPtr<Type::CompileType> {
+                return _var->VarType;
+            },
+            [&](const type::sPtr<FunctionCall> &_funcCall) {
+                return _funcCall->FunctionDecl ? _funcCall->FunctionDecl->ReturnType : nullptr;
+            },
+            [&](const type::sPtr<CompositeExpression> &_comp) {
+                return handleCompositeType(_comp);
+            },
+            [&](const type::sPtr<MemberAccess> &_memberAccess) {
+                if (const auto &arg = _memberAccess;
+                    arg && arg->StructDef) {
+                    if (const auto &members = arg->StructDef->Members;
+                        arg->Index < members.size()) {
+                        return members[arg->Index].Type;
+                    }
+                }
+                ErrorPrintln("Error: Invalid member access.\n");
+                std::exit(-1);
+            },
+            [&](const auto &)->Type::sPtr<Type::CompileType>  {
+                ErrorPrintln(" Compile Internal Error.\n");
+                std::exit(-1);
             }
-        }
-    }
-    return nullptr;
+        }, *Storage
+    );
 }
 
 

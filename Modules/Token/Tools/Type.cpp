@@ -24,32 +24,33 @@ ast::Type::sPtr<ast::Type::CompileType> ast::ConstValue::GetType() const {
         return {};
     }
     if (IsChar) {
-        return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
+        return ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
     }
     if (Value == "null") {
-        return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("null"));
+        return ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("null"));
     }
     if (std::isdigit(Value[0]) || (Value[0] == '-' && Value.size() > 1)) {
         if (Value.find('.') != std::string::npos) {
-            return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("f64"));
+            return ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("f64"));
         }
-        return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i32"));
+        return ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i32"));
     }
     if (Value.front() == '"') {
-        const auto strType = std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
+        const auto strType = ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
         const auto trueType = std::make_shared<Type::PointerType>(strType, 1);
         return std::make_shared<Type::CompileType>(*trueType);
     }
     if (Value.front() == '\'') {
-        return std::make_shared<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
+        return ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
     }
     return {};
 }
 
 bool toleranceCheck(const std::shared_ptr<type::CompileType> &targetType,
-                             const std::shared_ptr<type::CompileType> &actualType) {
-    const auto *const actualBase = std::get_if<type::BaseType>(&*actualType);
-    if (const auto *const targetBase = std::get_if<type::BaseType>(&*targetType); actualBase && targetBase) {
+                    const std::shared_ptr<type::CompileType> &actualType) {
+    const auto *const actualBase = type::GetType<type::BaseType>(actualType);
+
+    if (const auto *const targetBase = type::GetType<type::BaseType>(targetType); actualBase && targetBase) {
         auto isInteger = [](const std::string &typeName) {
             return typeName.starts_with('i') || typeName.starts_with('u');
         };
@@ -95,8 +96,8 @@ void ast::VariableStatement::InitListValidCheck() const {
         return;
     }
     const auto type = this->VarType;
-    const auto *const  structType = GetType<Type::StructDefinition>(type);
-    const auto *const  arrayType = GetType<Type::ArrayType>(type);
+    const auto *const structType = GetType<Type::StructDefinition>(type);
+    const auto *const arrayType = GetType<Type::ArrayType>(type);
     if (!structType && !arrayType) {
         ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");
         std::exit(-1);
@@ -106,11 +107,11 @@ void ast::VariableStatement::InitListValidCheck() const {
         auto recursiveCheck = [&](auto &self,
                                   const std::shared_ptr<Type::CompileType> &target,
                                   const std::shared_ptr<Expression> &init) -> void {
-            if (const auto *const  listPtrTemp = std::get_if<std::shared_ptr<InitializerList> >(&*(init->Storage))) {
+            if (const auto *const listPtrTemp = std::get_if<std::shared_ptr<InitializerList> >(&*(init->Storage))) {
                 const auto &list = *listPtrTemp;
 
                 // 情况 A: 目标是数组
-                if (const auto *const  arr = type::GetType<Type::ArrayType>(target)) {
+                if (const auto *const arr = type::GetType<Type::ArrayType>(target)) {
                     if (list->Values.size() > arr->Length) {
                         ErrorPrintln("Error: Too many initializers (expected {}, got {}).\n", arr->Length,
                                      list->Values.size());
@@ -121,7 +122,7 @@ void ast::VariableStatement::InitListValidCheck() const {
                     }
                 }
                 // 情况 B: 目标是结构体
-                else if (const auto *const str =type::GetType<Type::StructDefinition>(target)) {
+                else if (const auto *const str = type::GetType<Type::StructDefinition>(target)) {
                     if (list->Values.size() > str->Members.size()) {
                         ErrorPrintln("Error: Struct '{}' has only {} members.\n", str->Name, str->Members.size());
                         std::exit(-1);
@@ -146,19 +147,28 @@ void ast::VariableStatement::InitListValidCheck() const {
 
 
 bool ast::ConstExpressionCheck(const std::shared_ptr<Expression> &_expr) {
-    if (_expr->GetConstValue() != nullptr) {
-        return true;
-    }
-    if (const auto *const compExpr = _expr->GetCompositeExpression(); compExpr != nullptr) {
-        return std::ranges::all_of((*compExpr)->Components, ConstExpressionCheck);
-    }
-    if (const auto *const varPtr = _expr->GetVariable(); varPtr != nullptr) {
-        return (*varPtr)->Initializer != nullptr && ConstExpressionCheck((*varPtr)->Initializer);
-    }
-    if (const auto *const enumPtr = _expr->GetEnumValue(); enumPtr != nullptr) {
-        return true;
-    }
-    return false;
+    return std::visit(
+        overloaded{
+            [&](ConstValue &) {
+                return true;
+            },
+            [&](EnumValue &) {
+                return true;
+            },
+            [&](std::shared_ptr<CompositeExpression> &_comp) {
+                return std::ranges::all_of(_comp->Components, ConstExpressionCheck);
+            },
+            [&](type::sPtr<Variable> &_var) {
+                return _var->Initializer != nullptr && ConstExpressionCheck(_var->Initializer);
+            },
+
+            [&](std::shared_ptr<InitializerList> &_initList) {
+                return std::ranges::all_of(_initList->Values, ConstExpressionCheck);
+            },
+            [](auto &) {
+                return false;
+            }
+        }, *(_expr->Storage));
 }
 
 
@@ -172,12 +182,11 @@ ast::Type::sPtr<ast::FunctionDeclaration> ast::FunctionScope::ToDeclaration() co
 }
 
 
-ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar):
-    Value(processLiteral(_value, _isChar)),IsChar(_isChar)  {
+ast::ConstValue::ConstValue(const std::string_view _value, const bool _isChar) : Value(processLiteral(_value, _isChar)),
+    IsChar(_isChar) {
     if (_isChar) {
         Type = ast::Make<Type::CompileType>(*Type::BaseTypeMap.at("i8"));
-    }
-    else {
+    } else {
         Type = GetType();
     }
 }

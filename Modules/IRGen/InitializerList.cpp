@@ -71,11 +71,11 @@ std::string GenClass::ConstInitializerListExpression(
     std::string joinedElements = elementStrings
                                  | std::views::join_with(std::string(", "))
                                  | std::ranges::to<std::string>();
-    if (std::get_if<type::StructDefinition>(&*_type)) {
+    if (type::IsType<type::StructDefinition>(_type)) {
         return std::format("{{ {} }}", joinedElements);
     }
     if (const auto *arrayType = type::GetType<type::ArrayType>(_type)) {
-        return std::format("[{} x {}] {{ {} }}", arrayType->Length, GetTypeName(*arrayType->BaseType),
+        return std::format("[{} x {}] [ {} ]", arrayType->Length, GetTypeName(*arrayType->BaseType),
                            joinedElements);
     }
     ErrorPrintln("Error: Initializer list can only be used for struct or array types.\n");

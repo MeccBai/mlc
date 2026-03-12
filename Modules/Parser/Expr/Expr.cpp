@@ -127,7 +127,29 @@ sPtr<ast::Expression> astClass::expressionTreeParser(ContextTable<ast::VariableS
         }
         return ast::MakeExpression(ast::MakeCompExpr(
             std::vector{expressionTreeParser(_context, fragments[1])},
-            std::vector{op}
+            std::vector{op},true
+        ));
+    }
+
+    if (op == ast::BaseOperator::Dereference) {
+        if (fragments.size() != 2) {
+            ErrorPrintln("Dereference operator '$' must be followed by exactly one operand.");
+            std::exit(-1);
+        }
+        return ast::MakeExpression(ast::MakeCompExpr(
+            std::vector{expressionTreeParser(_context, fragments[1])},
+            std::vector{op},true
+        ));
+    }
+
+    if (op == ast::BaseOperator::Not || op == ast::BaseOperator::BitNot) {
+        if (fragments.size() != 2) {
+            ErrorPrintln("Unary operator '{}' must be followed by exactly one operand.", operatorToString(op));
+            std::exit(-1);
+        }
+        return ast::MakeExpression(ast::MakeCompExpr(
+            std::vector{expressionTreeParser(_context, fragments[1])},
+            std::vector{op},true
         ));
     }
 

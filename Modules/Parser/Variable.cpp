@@ -206,6 +206,10 @@ astClass::StatementTable<ast::Statement> astClass::variableParser(ContextTable<a
     auto packs = variablePacked(_variableContent);
     StatementTable<ast::Statement> result;
     for (const auto &[type, name, initExpression]: packs) {
+        if (FindVariable(name, _context) || FindVariable(name)) {
+            ErrorPrintln("Error: Variable '{}' is already defined in the current scope\n", name);
+            std::exit(-1);
+        }
         auto typePtr = FindType(type);
         if (typePtr == std::nullopt) {
             ErrorPrintln("Error: Unknown type '{}'\n", type);

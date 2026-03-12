@@ -12,15 +12,11 @@ namespace type=ast::Type;
 
 
 size_t type::GetSize(const sPtr<CompileType> &_type) {
-    return std::visit([]<typename T0>(T0 &&arg) -> size_t {
-        using T = std::decay_t<T0>;
-        return arg.Size();
-    }, *_type);
+    return GetSize(&*_type);
 }
 
 size_t type::GetSize(const CompileType* _type) {
-    return std::visit([]<typename T0>(T0 &&arg) -> size_t {
-        using T = std::decay_t<T0>;
+    return std::visit([](auto &arg) -> size_t {
         return arg.Size();
     }, *_type);
 }

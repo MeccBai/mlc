@@ -129,7 +129,7 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
         args.emplace_back(funcArg{false, true, type::GetSize(decl->ReturnType), "ptr", "0"});
     }
     args.reserve(decl->Parameters.size());
-    for (auto &i: decl->Parameters) {
+    for (const auto &i: decl->Parameters) {
         args.emplace_back(FunctionArgAnalyze(*i));
     }
     std::string code;
@@ -161,7 +161,10 @@ std::string GenClass::FunctionGenerate(const sPtr<ast::FunctionScope> &_func) {
         }
         code += StatementGenerate(stmt, decl);
     }
-    return std::format("define {} {{ \n{}}}\n",funcResult.functionDecl,code);
+    if (_func->IsExported) {
+        return std::format("define {} {{ \n{}}}\n",funcResult.functionDecl,code);
+    }
+    return std::format("define internal {} {{ \n{}}}\n",funcResult.functionDecl,code);
 }
 
 GenClass::funcArg GenClass::FunctionArgAnalyze(const ast::VariableStatement &_param) {

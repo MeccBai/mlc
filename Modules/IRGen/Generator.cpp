@@ -14,18 +14,24 @@ std::string GenClass::Struct(const std::shared_ptr<ast::Type::StructDefinition> 
 
     std::string body;
     for (const auto &[Name, Type]: _structDef->Members) {
-        std::visit([&]<typename T0>(T0 &&arg) {
-            using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, ast::Type::BaseType>) {
-                body += std::format("{},", arg.Name);
-            } else if constexpr (std::is_same_v<T, ast::Type::StructDefinition>) {
-                body += std::format("%struct.{},", arg.Name);
-            } else if constexpr (std::is_same_v<T, ast::Type::ArrayType>) {
-                body += std::format("[{} x {}],", arg.Size(), type::GetTypeName(*(arg.BaseType.get())));
-            } else if constexpr (std::is_same_v<T, ast::Type::PointerType>) {
-                body += "ptr,";
-            }
-        }, *Type);
+        std::visit(
+            overloaded{
+                [&](const ast::Type::BaseType &arg) {
+                    body += std::format("{},", arg.Name);
+                },
+                [&](const ast::Type::StructDefinition &arg) {
+                    body += std::format("%struct.{},", arg.Name);
+                },
+                [&](const ast::Type::ArrayType &arg) {
+                    body += std::format("[{} x {}],", arg.Size(), type::GetTypeName(*(arg.BaseType.get())));
+                },
+                [&](const ast::Type::PointerType &) {
+                    body += "ptr,";
+                },
+                [&](const auto &) {
+                    ErrorPrintln("Warning: Unhandled type in struct member IR generation.\n");
+                }
+            }, *Type);
     }
     body.pop_back(); // 去掉最后一个逗号
     body += "}\n";
